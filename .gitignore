@@ -1,0 +1,22 @@
+# Ignore Unity generated folders
+ads_ai/[Ll]ibrary/
+ads_ai/[Tt]emp/
+ads_ai/[Oo]bj/
+ads_ai/[Bb]uild/
+ads_ai/[Bb]uilds/
+ads_ai/[Ll]ogs/
+ads_ai/[Uu]ser[Ss]ettings/
+
+# Ignore Unity caches
+ads_ai/[Aa]ssets/**/[Pp]lugin[Yy]ourProject/
+ads_ai/[Aa]ssets/StreamingAssets/aa.meta
+
+# Ignore IDE specific files (keep workspace settings if needed)
+ads_ai/.vs/
+
+# Project-specific directories to exclude from git
+rapor/
+3d_models/
+
+# Project README in workspace root (keep only remote one)
+README.md
