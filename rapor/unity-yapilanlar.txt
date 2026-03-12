@@ -1,0 +1,116 @@
+Harika bir noktadayız. Şu ana kadar projenin "fiziksel ve mantıksal mimarisini" kâğıt üzerinde ve Unity hiyerarşisinde neredeyse tamamladık. Kod yazmaya başlamadan önceki o kritik hazırlık evresini bitirdik.
+
+İşte bu ana kadarki Unity serüvenimizin özeti:
+
+1. Sahne Kurulumu ve Ölçeklendirme
+Zemin Yapısı: Ground (Plane), Range ve Border (Cylinder) objeleriyle dairesel bir operasyon alanı oluşturduk. Unity'nin Plane ölçekleme farkını (Scale 1 = 10 birim) hesaba katarak 200 birimlik bir ana zemin üzerinde anlaştık.
+
+Objeler: Sahnemize bir kamyonet (Ramp), bir füze (Rocket) ve bir düşman uçak (Target) ekledik.
+
+2. Hiyerarşi ve Referans Noktaları
+Bağımsız Hiyerarşi: Tüm ana objeleri (Ramp, Rocket, Target) hiyerarşide bağımsız (parent-child ilişkisi olmadan) bıraktık.
+
+Hassas Noktalar: * Roketin en ucuna NosePoint adında bir "burun" noktası atadık.
+
+Uçağın ağırlık merkezine TargetPoint adında bir hedef noktası yerleştirdik.
+
+Tüm mesafe ve açı hesaplarını bu iki nokta üzerinden yapmaya karar verdik.
+
+3. Görselleştirme (Debug) Araçları
+ForwardLine: Roketin tam olarak nereye baktığını gösteren, burnundan ileriye uzanan kırmızı bir lazer çizgisi (Line Renderer).
+
+DistanceLine: Roketin burnu ile hedefin merkezi arasındaki hayali "Görüş Hattını" (LOS) temsil eden sarı/mavi bir çizgi (Line Renderer).
+
+4. Çarpışma ve "Hurtbox" Mantığı
+HSS Standartları: Roketin uçağın metaline çarpmasını beklemek yerine, uçağı geniş bir Box Collider (Trigger) içine aldık.
+
+Yakınlık Tapası: Bu kutuyu uçağın modelinden biraz daha büyük tutarak, gerçek füzelerdeki "yakınlık tapası" (proximity fuse) etkisini simüle ettik. Roketin uçağın içinden sekmeden geçip "vurdu" bilgisini üretmesini sağladık.
+
+5. Hareket ve Fizik Mühendisliği
+Dikey Kalkış: Roketin -90 derecelik rotasyonla kamyonet dorsesinde dik durmasını sağladık.
+
+Roll Problemi: Roketin kendi ekseni etrafında dönmesinin (Roll) RL ajanı için yaratacağı karmaşayı teşhis ettik.
+
+Eksen Kilidi: Rigidbody'deki kısıtlamaların "Global/Dünya" eksenli olduğunu, bu yüzden gerçek bir Roll kilidi için LookRotation veya kod tabanlı bir stabilizasyon gerektiğini netleştirdik.
+
+6. Açısal Sapma ve RL Veri Seti (GNC)
+Lokalize Açı: Dünyayı unutup, hedefi roketin yerel uzayına (InverseTransformPoint) indirgemeye karar verdik.
+
+Pitch & Yaw: Hedefin roketin burnuna göre kaç derece yukarı/aşağı (Pitch) ve sağ/sol (Yaw) saptığını atan2 ile hesaplama mantığını kurduk.
+
+State Paketi: RL ajanı için 8 parametrelik (Mesafe, Açılar ve bunların deltaları) bir veri seti tasarımı yaptık.
+
+Neredeyiz?
+Şu an elimizde; neyi, nerede, nasıl ölçeceğini bilen ama henüz "konuşmayan" bir Unity sahnesi var.
+
+Şu ana kadar Unity sahnende kurduğumuz sistemi, bir mühendislik raporu titizliğinde ve projenin "Hava Savunma Sistemi (HSS)" ruhuna uygun şekilde özetledim. Bu rapor, projenin fiziksel, görsel ve mantıksal iskeletini (skeleton) temsil ediyor.
+
+---
+
+## 🛠️ Hava Savunma Sistemi Simülasyonu Geliştirme Raporu
+
+### 1. Fiziksel ve Hiyerarşik Yapı
+
+Sistemdeki tüm objeler, esneklik sağlamak adına **bağımsız (independent)** bir hiyerarşiyle kuruldu.
+
+* **Platformlar:** `Ground` (200 birimlik dairesel alan), `Ramp` (Kamyonet/Fırlatıcı) ve `Target` (Uçak) sahnede yerlerini aldı.
+* **Hassas Ölçüm Noktaları:** * **NosePoint:** Roketin en ucuna yerleştirilen "Arayıcı Başlık" referansı.
+* **TargetPoint:** Uçağın ağırlık merkezine (CG) yerleştirilen "Kilitlenme" referansı.
+
+
+* **Fizik Ayarları:** Roketin yüksek hızlarda hedefi ıskalamaması için `Rigidbody` bileşeninde **Continuous Dynamic** çarpışma algılama ve **Interpolate** ayarları aktif edildi.
+
+---
+
+### 2. Çarpışma ve "Hurtbox" Mimarisi
+
+Geleneksel, katı fiziksel çarpışmalar yerine modern simülasyon tekniği olan "Hurtbox" yapısı tercih edildi.
+
+* **Vuruş Alanı:** Uçağın gövdesini ve kanatlarını kapsayan tek parça bir **Box Collider** oluşturuldu.
+* **Trigger Sistemi:** Fiziksel bir sekme (rebound) olmaması için bu collider **Is Trigger** olarak işaretlendi.
+* **Yakınlık Tapası Etkisi:** Collider, uçağın görsel modelinden bir miktar daha büyük tutularak gerçek dünyadaki "proximity fuse" (yakınlık tapası) mantığı simüle edildi.
+
+---
+
+### 3. Görselleştirme ve İzleme Sistemleri (Debug Lines)
+
+Roketin neyi gördüğünü ve nereye yöneldiğini anlamak için iki temel hat oluşturuldu:
+
+* **ForwardLine (Kırmızı):** Roketin burnundan ileriye doğru uzanan "lazer" hattı. Roketin o anki yönelimini (heading) gösterir.
+* **DistanceLine (Sarı/Mavi):** `NosePoint` ile `TargetPoint` arasında gerilen hayali "Görüş Hattı" (Line of Sight - LOS).
+
+---
+
+### 4. Partikül Sistemleri (FX)
+
+Sistemin dinamizmini ve geri bildirim kalitesini artırmak için iki ana efekt eklendi:
+
+| Efekt Adı | Konum | Kritik Ayar | Fonksiyon |
+| --- | --- | --- | --- |
+| **Exhaust_FX** | Roket Arkası | **Simulation: World** | Roketin gidiş yönünün tersine duman ve alev izi bırakır. |
+| **Explosion_FX** | Sahne/Target | **Looping: Off** | Vuruş anında tek seferlik (burst) patlama ve parça dağılımı sağlar. |
+
+---
+
+### 5. Matematiksel ve Mantıksal Altyapı (GNC)
+
+Reinforcement Learning (RL) ajanının eğitilmesi için gerekli olan "Gözlem Verisi" (Observation Space) şu şekilde tasarlandı:
+
+* **Lokalizasyon:** Hedefin dünya koordinatları, roketin yerel uzayına (Local Space) indirgendi.
+* **Açısal Sapma (Pitch & Yaw):** Hedefin roket burnuna göre yukarı/aşağı ve sağ/sol sapmaları,  fonksiyonu kullanılarak radyan/derece cinsinden hesaplanabilir hale getirildi.
+* **Roll Kilidi:** Ajanın eksenleri karıştırmaması için roketin kendi etrafında dönmesi (Roll) engellenecek şekilde mantıksal bir kısıtlama planlandı.
+
+---
+
+### 6. CombatManager (Orkestra Şefi)
+
+Tüm bu bağımsız parçaları birbirine bağlayan merkezi bir **CombatManager** objesi oluşturuldu. Bu obje; mesafeyi ölçmekten, çizgileri güncellemekten ve vuruş anında patlamayı tetiklemekten sorumlu olan "beyin" rolünü üstlendi.
+
+---
+
+**Şu anki durum:** Sahne dekoru hazır, oyuncular yerinde, özel efektler ve ölçüm cihazları kuruldu.
+
+**Bundan sonraki adımda ne yapalım?**
+İstersen artık bu **CombatManager** içine, kurduğumuz tüm bu parçaları "canlandıracak" ve sahnede ilk hareketi başlatacak olan o temel mantık akışını ( logic flow) yerleştirelim mi?
+
+Örneğin; "Play" tuşuna bastığımızda roketin rampadan ayrılıp uçağa doğru ilk manevrasını yapmasını sağlayacak olan o **"Güdüm Mantığını"** konuşabiliriz. Ne dersin?

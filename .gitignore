@@ -15,8 +15,3 @@ ads_ai/[Aa]ssets/StreamingAssets/aa.meta
 ads_ai/.vs/
 
 # Project-specific directories to exclude from git
-rapor/
-3d_models/
-
-# Project README in workspace root (keep only remote one)
-README.md

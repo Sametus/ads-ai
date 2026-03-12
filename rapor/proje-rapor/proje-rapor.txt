@@ -1,0 +1,190 @@
+ADS-AI Hava Savunma Sistemi
+
+Genel Proje Amacı:
+	
+	Yapay zeka destekli roketin hava aracını vurması. Burada Roketin hedef takibi ve yönelimi Pekiştirmeli Öğrenme Algoritması ile gerçekleşecek. Hedef Unsur menzile girdiğinde otomatik ateşleme ile roket ateşlenecek ve adım adım RL algoritması ile hedef yaklaşımı planlanacak.
+
+İlk Hedeflenen Proje Unsurları:
+	Roket, Hava Unsurları (Dost veya Düşman). Dost - Düşman hava unsurları için doğru kilitlenme seçimi gerekiyor.
+	Tekli Ajan Trainingi (Tek roket ile öğrenme). İleride Multi-Agent (Birden çok roket çoklu öğrenme)
+
+1-1 resim
+
+	Ölçümler: Uzaklık hesabı: Öklid (LIDAR veya Raycast benzeri). GPS ile uzaklık ölçümü olmayacak.
+	Öğrenme Türü: Curriculum Learning: Müfredatlı-Aşamalı Öğrenme. CL durum uzayının alt parçalara bölünüp eğitimin parça parça yapılmasıdır.
+	Örnek: Targetın tüm durumlarını içeren durum uzayı S ve irtifa h olsun. {a,b,c € Z} ise S = {h, h+a, h+b,h+c , …} (Belirli Sayıda). CL de ise Tüm S durum uzayı alt kümlere bölünür. {S1, S2, … € S}. Trainin işlemi her Si ile yapılır ve bir sonraki Si+1'e geçilir. Model ilk h irtifasına kadar öğrenme yaptıktan sonra a kadar ekleme yapılır ve model h+a kadar irtifayı öğrenir. 3 Farklı yaklaşım var.  
+
+1-2 resim
+
+	(1) noolu durumda target h ile hmin arasında (hmin, h) rastgele başlatılır. success oranı arttığında 2. etaba geçilir. Yeni etapta targetin başlatılacağı aralık h+a ile hmin (hmin,h+a) arasında rastgele seçilir ve bu şekilde (hmin, hmax) olana kadar devam eder.
+	Avantaj:
+	* İlk başlarda daha güvenli öğrenme garanti eder. Yeni irtifalarda bile önceki trainingten öğrenilmiş bilgiler ile daha stabil ağırlık güncellemesi olur.
+	Dezavantaj. 
+	* Yavaş training ve yanlış planlanırsa unutma/dalgalanma problemi.
+	
+	(2) nolu durumda target h ile hmin arasında (hmin, h) rastgele başlatılır. success oranı arttığında 2.etaba geçili. Yeni etapta targetin başlatılacağı aralık h+a ile h arasında (h, h+a) rastgele seçilir ve bu durum (h+n, hmax) olana kadar devam eder.
+	Avantaj: İyi planlanırsa daha hızlı öğrenme.
+	Dezavantaj: Dalgalanma, patlayan gradyan ihtimali.
+	
+	(3) nolu durum ise (2) nolu durumun bir varyasyonudur. Bu durunmda target ilk h ile h min arasında (hmin ,h) arasınd rastgele başlatılır. success oranı arttığında yeni etap h ile h+a yerine  h-e ile h+a (h-e, h+a) arasında seçilir. Bu aralık tamamen yeni durumları getirmez. İlk etaptan e kadar aralık miktarınca eski durumları da gösterir.
+	Avantaj:
+	* Ağırlıklar daha stabil güncellenir. (Patlayan gradyan/dalgalanma sorununu çözebilir). (2) nolu duruma göre daha stabil.
+	* (1) nolu duruma göre ise daha hızlı trainin imkanı sağlar)
+	Dezavantaj: 
+	* İyi planlanmazsa patlayan gradyan problemi ortaya çıkabilir.
+
+NOT: Bu örnek sadece h (irtifa) için tasarlandı. amaç CL'nin mantığını öğrenmek. Diğer state (durumlar) için de benzer aşamalar uygulanabilir. 
+
+PLANLANAN PARAMETRELER
+
+States (S):
+
+1- Target Doğrusal Hız (V):
+
+	Vx, Vy, Vz (Tüm Rasyonel Sayılarda)
+
+2- Target - Roket Arası Mesafe (d):
+
+	dx, dy, dz (Tüm Rasyonel Sayılarda)
+	
+	delta-d (Mesafenin yönü)
+
+3- Target Açıları (q)
+	
+	qx, qy, qz, qw (Quarternion)
+
+	Not: pitch, yaw, roll -> qx, qy, qz, qw
+
+4- Target Türü (t)
+	
+	t:1 (Düşman)
+	t:0 (Dost)
+
+	Not: İptal edilebilir.
+
+Problemler ve Soru işaretleri: Target-Roket hiza-mesafe açısı. 
+
+resim 1-3
+
+Actions (A):
+
+1- Thrust (Dİkey İtki)
+2- Pitch, Roll, Yaw (Açısal-Tork İtki)
+
+NOT: Roll için kuvvet üretilmeyebilir.
+
+Rewards (R):
+
+1- Sınırları Aşma:
+	Negatif Ödül (Ceza)
+2- Target-Roket Mesafesi:
+	Yaklaştıkça Pozitif Ödül veya Uzaklaştıkça Negatif Ödül
+3- Yere Çarpma:
+	Negatif Ödül (Ceza)
+4- Target Vurma:
+	Pozitif Ödül (Success)
+5- Step Cezası: (Oyalanma Önleme)
+
+resim 1-4
+
+NOT: Hızlı ve stabil training için roket hızı sabit veya dar bir aralıkta tutulmalı. Amaç takip-yönelim öğrenme.
+
+Taslak Env Görünümü:
+
+resim 1-5
+
+
+Target Roket Ateşlenme (Rampa) Hizasından -/+ 60 derece açı aralığında (yatay) yöne sahip random başlatılacak.
+
+
+resim 1-6
+
+Random Initalizing (Rastgele Başlatma)
+
+1- h İrtifası: CL ile adım adım öğrenme uygulanacak.
+2- Yön (-/+ 60 Derece aralığında ve yatay)
+
+NOT: Yön ilk planlanan versiyonda yatay doğrultuda denenecek. Ve İlk training denemelerinde sabit tutulacak. Proje ilerleyişine göre targetin manevra kabiliyeti genişletilecek.
+
+YKİ - Rampa Özellikleri:
+Roketin ateşleneceği kamyonet-rampa. ASELSAN Gürz HSS benzeri tasarım. (Aselsan Gürz + Gemini Basitleştirilmiş Tasarım)
+
+resim 1-7
+
+Roket Özellikleri:
+*Uzunluk ve Ağırlık bilgileri net değil.
+ROKETSAN Atmaca füzesi benzeri. (ROKETSAN Atmaca + Gemini Basitleştirilmiş Tasarım)
+
+resim 1-8
+
+Target Özellikleri:
+*Uzunluk ve Ağırlık bilgileri net değil.
+F16 benzeri. (F16 + Gemini Basitleştirilmiş Tasarım)
+
+resim 1-9
+
+--------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+
+PROJE ENVIROMENT (ÇEVRE) VE KOD TASARIMI:
+
+1-) Temel Class/Modüller Scripts Dosyaları:
+	
+	train.py -> Main run ve Training: Training, Rollout Toplama, Loglama ve Model Yükleme/Kaydetme
+	agent.py -> PPO Algoritması: Model Oluşturma, PPO Algoritması
+	env.py -> Enviroment Özellikleri: Action, Step, Reward Hesaplama, Random Initalizing
+	connector.py -> TCP Socket: Python-C# Haberleşmesi
+	env.cs -> Unity Kontrol: Step, Action Uygulama, State Okuma.
+	connector.cs -> TCP Socket: Python-C# Haberleşmesi
+
+2- Unity Ögeleri:
+	Ground (Zemin): Ramp (Rampa), Range (Menzil) ve Border (Sınır) Bulunduğu Zemin.
+	Ramp (Rampa): Roketin Ateşleneceği YKİ/Rampa/Kamyonet.
+	Rocket (Roket): Target (Hedef-Düşman)'ı Vuracak Roket.
+	Target (Hedef-Düşman): Düşman Hava Unsuru.
+
+NOT: Parent-Child ilişkisinde örnek isimlendirme: TargetPoint.
+
+Mevcut Unity Hiyerarşisi:
+
+resim 2-1
+
+Ramp ve Rocket:
+
+resim 2-2
+
+Target:
+
+resim 2-3
+
+Tüm Sahne:
+
+resim 2-4
+
+Mesafe (d) Hesabı:
+
+	Rocket ile Target arasında çizilecek olan hayali çizginin boyu (x,y,z ekseni ayrıştırılmış) bize mesafeyi (d) verecek
+	
+	RocketPoint: Rocket burnundaki hayali nokta.
+resim 2-5
+	TargetPoint: Target ortasındaki (Ağırlık Merkezi) hayali nokta.
+resim 2-6
+	DistanceLine: TargetPoint ile RocketPoint arası mesafeyi verecek olan hayali çizgi.
+
+resim 2-7
+
+Yön-Sapma Hesabı:
+	Rocket gövde doğrultusu ile DistanceLine arasında kalan açı bize sapma miktarını verir. Rocket Targete doğru mu hareket ediyor sorusunun cevabı.
+	ForwardLine: Rocket gövdesi boyunca uzanan hayali çizgi. 
+	DeflectionAngle: ForwardLine ile DistanceLine arasında kalan açı. Sapma Açısı.
+
+resim 2-8
+
+Çarpışma Kontrolü:
+	
+	Trigget/Hurtbox Yöntemi: Sanal bir hacimsel alan ve RocketPoint etkileşimi ile çarpışma tespiti.
+
+
+
+
+

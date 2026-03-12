@@ -1,0 +1,250 @@
+Aşağıya, mevcut proje raporundan sonra yapılan teknik güncellemeleri ve tasarım değişikliklerini bir **ek ilerleme raporu / güncelleme raporu** formatında yazıyorum. Bunu düz metin olarak hazırladım; sen doğrudan Word’e taşıyıp başlıklandırabilirsin.
+
+Bu ek rapor, mevcut proje raporunda yer alan başlangıç yaklaşımının üzerine yapılan mimari netleştirmeleri, state-action tasarım güncellemelerini, Python–Unity haberleşme mimarisini ve özellikle güdüm-kontrol tarafında yaptığımız detaylı teknik tartışmaları içerir. Mevcut raporda başlangıçta RL ile hedef takibi, Curriculum Learning, temel sınıf yapısı, geometrik mesafe ölçümü, ForwardLine–DistanceLine sapması ve Trigger/Hurtbox çarpışma yaklaşımı tanımlanmıştı. Ayrıca başlangıç durum uzayında hedef doğrusal hızı, hedef-roket konum farkı, quaternion tabanlı yönelim ve hedef türü; aksiyon uzayında ise thrust ile pitch-roll-yaw momentleri planlanmıştı. Bu başlangıç çerçevesi raporda açıkça yer almaktadır.  Mevcut raporda aynı zamanda Ground, Ramp, Rocket ve Target bileşenlerinden oluşan Unity sahnesi, RocketPoint–TargetPoint üzerinden mesafe ölçümü, DistanceLine ve ForwardLine üzerinden sapma açısı hesabı ve Trigger/Hurtbox ile çarpışma doğrulaması tanımlanmıştır.  
+
+EK GELİŞMELER VE GÜNCEL TEKNİK RAPOR
+
+1. RAPOR SONRASI ANA YÖN DEĞİŞİKLİĞİ
+
+Mevcut raporda proje daha çok “RL roketi hedefe yönlendirecek” fikri üzerinden tanımlanmıştı. Rapor sonrasındaki en önemli teknik ilerleme, hedef takibi probleminde bütün geometriyi doğrudan RL’e bırakmanın gereksiz ve dengesiz olabileceğinin fark edilmesi olmuştur. Bu nedenle proje mimarisi saf “end-to-end RL” yaklaşımından, daha kontrollü ve mühendislik açısından daha savunulabilir bir “hibrit guidance-control” yapısına evrilmiştir.
+
+Bu yeni yaklaşımda RL tamamen kaldırılmamıştır. Aksine RL korunmuş, ancak RL’in öğrenmesi gereken problem daha iyi tanımlanmıştır. Temel karar şu şekilde oluşmuştur: geometrik referans sistemleri, dünya-yerel koordinat dönüşümleri, hedefin roket gövdesine göre nerede kaldığı, hangi eksende ne yönde moment uygulanacağı gibi düşük seviye ve deterministik problemler C# / Unity tarafındaki geometri bloğunda çözülecek; RL ise bu geometrik çerçeve üzerinde thrust, pitch ve yaw komutlarının ne büyüklükte verilmesi gerektiğini öğrenecektir. Böylece RL gereksiz koordinat kaosu yerine gerçek takip davranışına odaklanacaktır.
+
+2. GÜDÜM VE KONTROL TARAFINDA YAPILAN TEORİK DERİNLEŞME
+
+Rapor sonrasında en büyük çalışma, roketin hedefe yönelme probleminin aslında sadece “mesafe azalması” problemi olmadığı, aynı zamanda ciddi bir referans çerçevesi problemi olduğu gerçeği üzerinde yapılmıştır. Bu kapsamda dünya koordinat sistemi, roketin gövde koordinat sistemi ve hedefe uzanan görüş hattı (LOS – Line of Sight) sistemi ayrıştırılmıştır. Bu ayrım, hazırlanan teknik araştırma metninde de açık biçimde anlatılmıştır: dünya eksenleri mutlak konum referansıdır, çalışma/LOS eksenleri hedefe giden hat üzerinden güdüm hesapları için kullanılır, gövde eksenleri ise fiziksel moment uygulamasının yapıldığı yerel sistemdir. 
+
+Bu teorik inceleme ile şu kritik sonuçlara ulaşılmıştır:
+
+Roket ile hedef arasındaki toplam sapma tek bir skaler açı ile ifade edilebilir; ancak kontrol uygulaması için bu yeterli değildir. Çünkü roketin burnu ile hedef arasındaki hata sadece “kaç derece sapma var?” değil, aynı zamanda “hangi yönde sapma var?” sorusunu da cevaplamak zorundadır. Bu yüzden hedef doğrultusunun roketin yerel koordinat sistemine çevrilmesi ve bu yerel eksenlerde yatay/dikey hata bileşenlerinin değerlendirilmesi gerektiği anlaşılmıştır. Gemini sohbeti ve yönelim analizlerinde de bu mantık, hedef doğrultusunun local frame’e dönüştürülmesi ve oradan yaw/pitch benzeri hata bileşenlerinin çıkarılması şeklinde ele alınmıştır.  
+
+Ayrıca, roketin roll yapması durumunda “yukarı/aşağı” ve “sağ/sol” komutlarının anlam değiştirdiği, yani aynı hedef geometrisinin farklı roll açılarında farklı pitch-yaw bileşenlerine dağılabildiği görülmüştür. Hazırlanan ayrıntılı teorik dokümanda da bu durum, roll-pitch-yaw kaplini ve cross-coupling problemi olarak tanımlanmıştır. Dönen roketlerde eksenler arası geçişin kontrolü zorlaştırdığı, roll’ün yüksek olduğu durumlarda klasik up/down-right/left eylemlerinin doğrudan uygulanmasının kararsızlığa yol açabileceği belirtilmiştir. 
+
+Bu tartışmalar sonucunda proje için şu ara karar benimsenmiştir: ilk sürümde roll kontrolü ya tamamen kapatılacak ya da güçlü biçimde sönümlenecek; böylece pitch ve yaw kanalları izole edilerek RL’in ilk aşamada daha kolay öğrenmesi sağlanacaktır. Bu fikir, Gemini tarafında önerilen “roll-stabilize body” yaklaşımı ile de örtüşmektedir. Orada da roll stabilize gövdenin RL için daha kolay ve daha doğrusal bir kontrol problemi oluşturduğu belirtilmiştir. 
+
+3. DİKEY FIRLATMADAN YATAY TAKİBE GEÇİŞ PROBLEMİNİN ÇÖZÜMÜ
+
+Rapor sonrası en kapsamlı tartışmalardan biri, dikey fırlatmadan yatay takip rejimine geçişte “up/down/right/left” komutlarının hangi referansa göre yorumlanacağı üzerine olmuştur. Başlangıçta roket dikey durduğundan, roketin gövde sırtı ve sağı dünya eksenlerine göre tekil olmayan biçimde değişebilmektedir. Bu da özellikle roket roll yapmasa bile “takla benzeri” oryantasyon belirsizliklerine yol açmaktadır.
+
+Bu probleme çözüm olarak iki saf faz önerilmiştir. Birinci faz, dikey launch bölgesi için sabit bir launch referansı kullanmaktır. İkinci faz ise yatay takibe geçildikçe world-up referanslı bir sanal “up/right” çerçevesi kurmaktır. Sonrasında bu iki fazı sert biçimde değiştirmek yerine, roketin eğimine bağlı olarak harmanlayan bir sanal referans çerçevesi fikri benimsenmiştir. Böylece roket dikeye yakınken launch referansı baskın kalmakta, yatay uçuşa geçildikçe world-up tabanlı pursuit referansı ağır basmaktadır. Bu çözüm sayesinde dikey launch sırasında oluşan eksen tekillikleri ile yatay takipte istenen tutarlı up/down-right/left komutları aynı sistem içinde birleştirilebilmektedir.
+
+Bu yaklaşım, Gemini tarafından önerilen uçuşu open-loop launch, gravity turn ve terminal faz olarak düşünme yaklaşımı ile de kavramsal olarak örtüşmektedir. Gemini notlarında dikey kalkışın ilk saniyeleri için açık döngü launch, sonrasında gravity turn ve terminal faz ayrımı önerilmiştir. 
+
+4. SAF RL YERİNE HİBRİT RL + GEOMETRİ YAKLAŞIMINA GEÇİŞ
+
+Rapor sonrasındaki en önemli karar değişimi, RL’in doğrudan “hangi eksene ne tork uygulanacak?” problemini çözmek zorunda bırakılmaması olmuştur. Çünkü yapılan tartışmalarda şu fark edilmiştir: roketin mevcut forward vektörü ile hedefe uzanan LOS vektörü arasındaki çapraz çarpım, burnun hedefe yönelmesi için gerekli dönme eksenini analitik olarak zaten verebilmektedir. Bunun anlamı şudur: roketin hangi yöne dönmesi gerektiği geometri ile bulunabilir; RL’in öğrenmesi gereken asıl şey, bu dönüşün ne kadar kuvvetli, ne kadar hızlı ve ne kadar yumuşak uygulanacağı olabilir.
+
+Bu farkındalık sonucunda iki alternatif yapı değerlendirilmiştir. Birinci alternatifte RL sadece “dönüş şiddeti” öğrenen tek boyutlu ya da düşük boyutlu bir politika olacaktı. İkinci alternatifte ise RL yine pitch/yaw komutları üretecek, fakat bu komutların fiziksel moment eksenlerine eşlenmesi C# tarafındaki geometri bloğu tarafından yapılacaktı. Nihai olarak ikinci seçeneğe yakın bir hibrit yapı tercih edilmiştir. Yani RL agent:
+
+* main thrust,
+* pitch command,
+* yaw command
+  üretecek; fakat bu komutların world/local referanslara göre fiziksel momentlere dönüştürülmesi Unity tarafında yapılacaktır. Bu tasarım, mevcut raporda başlangıçta planlanan thrust + pitch-roll-yaw kontrol yapısını korumakla birlikte, uygulama detayında çok daha kontrollü ve sistematik bir çerçeve kazandırmıştır. Mevcut raporda thrust ile pitch-roll-yaw momentleri aksiyonlar olarak planlanmıştı. 
+
+5. ADDTORQUE / ADDRELATIVETORQUE TEMELLİ KONTROL KARARI
+
+Teorik tartışmalar sonucunda, Unity içindeki roket modelinin gerçek aerodinamik kanatçık davranışını birebir simüle etmeye çalışmak yerine, bir üst seviye moment komutu ile Rigidbody üzerine tork uygulanmasının daha uygun olduğuna karar verilmiştir. Bu nedenle kontrol mantığının merkezine AddTorque / AddRelativeTorque tabanlı uygulama alınmıştır. Gemini tarafında da ajan çıktılarının doğrudan Rigidbody üzerine sürekli değerli torque komutları olarak uygulanabileceği belirtilmiştir. 
+
+Bu tercih şu avantajları sağlamaktadır:
+
+* aerodinamik kanat modeli kurma yükünü azaltır,
+* RL’in doğrudan yönelim ve takip davranışına odaklanmasını sağlar,
+* C# tarafında action-to-torque eşlemesini daha açık hale getirir,
+* ilk sürüm için gereksiz fizik ayrıntılarını sadeleştirir.
+
+6. STATE TASARIMININ KÖKLÜ ŞEKİLDE GÜNCELLENMESİ
+
+Mevcut raporda başlangıç state tasarımı; hedef doğrusal hızı, hedef-roket arası dx-dy-dz farkı, quaternion yönelim verileri ve hedef türü üzerinden düşünülmüştü.  Ancak yapılan detaylı tartışmalar sonucunda bu tasarımın hem fazla ham hem de RL açısından eksik olduğu görülmüştür.
+
+Quaternion tabanlı doğrudan state verme yaklaşımı terk edilmiştir. Bunun yerine, roketin hedefi “kendi gözünden” nasıl gördüğünü anlatan, daha anlamlı ve daha düşük seviyede fiziksel yorum gerektiren state’ler seçilmiştir. Son durumda belirlenen state seti aşağıdaki gibidir:
+
+target_dir_x, target_dir_y, target_dir_z
+Roketten hedefe giden unit vektörün bileşenleri. Bu, eski rapordaki DistanceLine / ForwardLine mantığının RL tarafına taşınmış soyut karşılığıdır. Mesafe hattı ve sapma ilişkisi zaten raporda da temel geometrik ölçüm sistemi olarak tanımlanmıştı. 
+
+rel_vel_x, rel_vel_y, rel_vel_z
+Hedefin rokete göre göreli hızı. Hedefin sadece nerede olduğu değil, nereye kaydığı da bu state ile temsil edilmektedir.
+
+roc_vel_x, roc_vel_y, roc_vel_z
+Roketin kendi doğrusal hızı.
+
+roc_ang_vel_x, roc_ang_vel_y, roc_ang_vel_z
+Roketin açısal hızı. Bu state, özellikle overshoot ve yüksek frekanslı salınımların bastırılması için kritik görülmüştür.
+
+gx, gy, gz
+Yerçekimi vektörünün roketin yerel koordinat sistemindeki izdüşümü. Bu state, roketin dünya yukarısı/dünya aşağısı ile kendi gövdesi arasındaki ilişkiyi anlaması için eklenmiştir. Özellikle world-referenced up/down tartışması sonrası bu state’in gerekli olduğuna karar verilmiştir.
+
+distance
+Roket ile hedef arası toplam mesafe.
+
+closing_rate
+Hedefe yaklaşma / uzaklaşma hızı. Bu, distance’ın türevine karşılık gelir ve guidance açısından son derece kritiktir.
+
+blend_w
+Launch referansı ile pursuit referansı arasında kullanılan guidance blend ağırlığı.
+
+roc_h
+Roketin irtifası. Son güncellemelerle birlikte bu state ayrıca eklenmiştir. Çünkü yere çarpma, çok düşük irtifa ve çok yüksek irtifa durumlarını collision tabanlı değil, daha kontrollü ve daha açık bir irtifa mantığı ile değerlendirme kararı alınmıştır.
+
+Böylece başlangıçtaki state tasarımı, raporda belirtilen ham hız/mesafe/quaternion yapısından, çok daha olgun bir guidance-oriented state uzayına dönüşmüştür.
+
+7. ACTION TASARIMININ GÜNCELLENMESİ
+
+Başlangıç raporunda thrust ile pitch, roll, yaw kontrol girdileri planlanmıştı.  Rapor sonrasında yapılan detaylı tartışmalar sonucunda, ilk çalışan sürüm için aksiyon uzayı sadeleştirilmiştir. Nihai olarak şu karar alınmıştır:
+
+İlk sürüm aksiyonları:
+
+* main_thrust_cmd
+* pitch_cmd
+* yaw_cmd
+
+Roll komutu ilk eğitim sürümünde kapatılacak veya çok düşük etkili tutulacaktır. Bunun gerekçesi, roll’ün erken aşamada kontrol problemini gereksiz zorlaştırması ve pitch-yaw davranışını bozma riskidir.
+
+Ayrıca PPO’nun normalize aksiyon üreteceği, yani Python agent’ın aksiyonları [-1, 1] aralığında vereceği; bu aksiyonların gerçek thrust ve gerçek torque değerlerine Python tarafında denormalize edilerek Unity’ye gönderileceği netleştirilmiştir. Böylece:
+
+* action normalize gelir,
+* Python env içinde fiziksel karşılığına dönüştürülür,
+* Unity bu gerçek komutları uygular.
+
+8. PYTHON – UNITY HABERLEŞME MİMARİSİNİN YENİDEN TASARLANMASI
+
+Mevcut raporda train.py, agent.py, env.py, connector.py, env.cs ve connector.cs modülleri tanımlanmıştı.  Rapor sonrası bu modüllerin aralarındaki veri akışı daha net hale getirilmiştir.
+
+Eski projelerde kullanılan düz string parse mantığı bırakılmış; onun yerine TCP üzerinden JSON tabanlı dict paketleri taşınmasına karar verilmiştir. Yeni connector.py tarafında:
+
+* packet’ler JSON’a çevrilmekte,
+* 4-byte length prefix ile framing yapılmakta,
+* `sendPacket(data: dict)` ile Python’dan C#’a dict gönderilmekte,
+* `readPacket()` ile C#’tan Python’a dict alınmaktadır.
+
+Bu yaklaşımın sonucu olarak env.py içindeki veri katmanları net biçimde ayrılmıştır:
+
+* raw_state: Unity’den gelen ham dict paket,
+* parsed_state: Python içinde sabit sıraya dizilmiş sayısal vektör,
+* normalized_state: PPO’ya verilmek üzere ölçeklenmiş observation vektörü.
+
+Aynı şekilde aksiyon tarafında da şu ayrım yapılmıştır:
+
+* action: PPO’nun normalize çıktısı,
+* real_action: Python içinde fiziksel değerlere dönüştürülmüş thrust/pitch/yaw komutu,
+* action_packet: Unity’ye gönderilen JSON dict.
+
+Bu mimari değişiklik, projenin kod yapısını daha modüler ve sürdürülebilir hale getirmiştir.
+
+9. JSON MESAJ YAPISININ TASARIMI
+
+Rapor sonrasında JSON/dict haberleşme yapısı ana dallar halinde tasarlanmıştır. Unity’den Python’a giden paketin tek bir düz state listesi yerine daha zengin bir ağaç yapısında olması kararlaştırılmıştır. Buna göre paket ana başlıkları şunlardır:
+
+* episode_id
+* step_id
+* states
+* info
+
+Burada:
+
+* `states` altında agent’a verilecek fiziksel durum büyüklükleri bulunacaktır.
+* `info` altında ise reward/done/terminal hesapları için gerekli yardımcı bilgiler yer alacaktır.
+
+Ancak daha sonra reward ve terminal hesabının Python tarafında yapılmasına karar verilmiştir. Bu yüzden Unity, reward’ı doğrudan hesaplamayacak; yalnızca reward ve terminal kararı için gerekli olay bilgilerini iletecektir. Python ise step sayımı, timeout ve ödül mantığını kendi içinde hesaplayacaktır. Bu ayrım, reward tasarımının hızlı değiştirilebilir ve deneysel olarak test edilebilir kalmasını sağlamaktadır.
+
+10. ENV.PY MİMARİSİNİN TEMİZLENMESİ
+
+Eski projeden gelen env.py iskeleti incelenmiş; oradaki bazı fonksiyonların korunması, bazılarının yeniden adlandırılması ve bazılarının kaldırılması gerektiği görülmüştür. Yeni projede env.py için aşağıdaki temel fonksiyon seti benimsenmiştir:
+
+* `__init__`
+* `read_state`
+* `parse_state`
+* `normalize_state`
+* `denormalize_action`
+* `reset`
+* `calculate_reward`
+* `step`
+* opsiyonel olarak `build_info`
+
+Bu noktada eski projedeki `initialStart()` ve `readStates()` mantıkları `reset()` ve `read_state()` yapısı içinde daha düzenli biçimde birleştirilmiştir. Eski projedeki ödül fonksiyonunun ise doğrudan bu projeye taşınamayacağı, çünkü eski yapının iniş/landing görevine özgü olduğu tespit edilmiştir.
+
+11. REWARD VE DONE MANTIĞININ GÜNCELLENMESİ
+
+Mevcut raporda sınır ihlali, yere çarpma, hedef vurma ve adım cezası gibi genel ödül unsurları tanımlanmıştı.  Ancak son güncellemelerde bu yapı daha rafine hale getirilmiştir.
+
+Özellikle iki önemli değişiklik yapılmıştır:
+
+Birincisi, “out of range” terminali ilk sürüm için kaldırılmıştır. Bunun gerekçesi, roketin bir arena sınırı içinde kalmasını öğretmek için ayrıca sınır marjı ve güvenli bölge bilgisi gibi ek state’ler vermek gerekeceği; bunun ise takip problemini gereksiz karmaşıklaştıracağı yönündeki değerlendirmedir. Bu nedenle ilk sürümde menzil dışı yerine step sayısı bazlı timeout kullanılmasına karar verilmiştir.
+
+İkincisi, “yere çarpma” mantığı trigger/collision tabanlı değil, irtifa tabanlı yeniden düşünülmüştür. Buna göre:
+
+* roc_h çok düşerse terminal fail,
+* roc_h çok yükselirse terminal fail veya ağır ceza,
+* proximity/early explosion mantığı ile yeterince yakın ve uygun geometri oluşursa success
+  şeklinde daha kontrollü bir terminal sistemi hedeflenmektedir.
+
+Bu yeni reward/done yaklaşımı ile görev tanımı şöyle sadeleşmiştir:
+
+* hedefe zamanında ulaş,
+* çok aşağı düşme,
+* gereksiz aşırı yükselme,
+* proximity başarı durumuna ulaş,
+* timeout olursa başarısız sayıl.
+
+12. UNITY SAHNE VE BAŞLANGIÇ KOŞULLARININ GÜNCELLENMESİ
+
+Rapor sonrası sahne boyutları ve başlangıç koşulları daha sayısal biçimde sabitlenmiştir. Buna göre:
+
+* Ground: 100 x 100
+* Border: 800 x 800
+* Range: 500 x 500
+
+Target başlangıç koşulları ise şu şekilde güncellenmiştir:
+
+* merkezden yaklaşık 300 metre uzaklıkta,
+* yerden yaklaşık 50 birim yüksekte,
+* merkeze bakacak şekilde,
+* heading doğrultusunda ±60 derece sapmalı olarak başlayacaktır.
+
+Bu karar, mevcut raporda zaten ifade edilen “hedefin fırlatma rampası hizasından yatay düzlemde ±60 derece rastgele doğrultuda başlatılması” fikrinin daha somut ve daha ölçülü bir sayısal karşılığıdır. Raporun taslak environment ve random initializing bölümünde bu ±60 derece rastgele başlatma fikri zaten yer almaktaydı. 
+
+13. SUCCESS / HIT MEKANİĞİNİN YENİDEN DEĞERLENDİRİLMESİ
+
+Mevcut raporda hit tespiti Trigger/Hurtbox ile planlanmıştı.  Ancak son tartışmalarda, success durumunun daha öğrenilebilir ve daha gerçekçi hale getirilmesi için proximity fuse / early explosion mantığının tekrar değerlendirilmesine karar verilmiştir.
+
+Bunun nedeni şudur:
+
+* doğrudan fiziksel hurtbox çarpışması çok hassas olabilir,
+* RL eğitiminde başarı sinyali çok seyrek kalabilir,
+* hedefe çok yakın ve uygun geometri ile gelen roketin salt collider kesişimi beklemeden başarı sayılması eğitim açısından daha verimli olabilir.
+
+Dolayısıyla hit/success mantığı artık yalnızca trigger tabanlı kesin temas değil, “hedefe belirli eşik altında yaklaşma + uygun angajman geometrisi” şeklinde daha geniş bir çerçevede ele alınmaktadır.
+
+14. GÜDÜM KONTROL ARAŞTIRMASINDAN PROJEYE AKTARILAN TEMEL SONUÇLAR
+
+Hazırlanan “Roket Yönelim ve Sapma Açısı Hesaplaması” araştırma metni ve Gemini sohbetlerinden sonra projeye aktarılan temel mühendislik sonuçları şunlar olmuştur:
+
+* Dünya frame, LOS/working frame ve body frame ayrımı proje kararlarına açık biçimde yansıtılmıştır. 
+* Hedefe dönme problemi bir skaler theta açısı ile değil, yönlü hata bileşenleri ve yerel vektörler üzerinden ele alınmaya başlanmıştır. 
+* Roll varsa eksenler arası kaplin oluştuğu, ilk sürümde roll’ün kapatılmasının daha doğru olacağı benimsenmiştir. 
+* Up/Down ve Right/Left komutlarının fiziksel eyleyicilere doğrudan değil, bir geometri/mixer katmanı üzerinden karşılanması gerektiği anlaşılmıştır. Araştırma metnindeki kontrol aksiyonları tablosu da hedef üstte/altta/sağda/solda olduğunda gerekli up/down/right/left davranışını bu şekilde tarif etmektedir.  
+* Proportional Navigation (PN) mantığı ve LOS açısal hızı fikri, ileride reward shaping veya guidance-blend tasarımında kullanılabilecek teorik bir referans olarak not edilmiştir. Araştırma dokümanında PN yasasının LOS açısal hızını sıfıra indirmeye çalıştığı ve bunun çarpışma rotasına karşılık geldiği açıkça belirtilmiştir. 
+* W-L dönüşümünün, özellikle Unity içinde InverseTransformDirection benzeri dönüşümlerle gerçekleştirilmesinin önemine karar verilmiştir. Araştırma metninin sentez kısmında da dünya koordinatlarındaki hedef bilgisinin body frame’e çevrilmesinin kontrolün temel problemi olduğu vurgulanmaktadır. 
+
+15. GELİNEN NOKTADA PROJENİN GÜNCEL TEKNİK TANIMI
+
+Mevcut durumda proje artık şu şekilde tanımlanabilir:
+
+Unity tarafında Ground, Border, Range, Ramp, Rocket ve Target içeren bir 3B simülasyon sahnesi kurulmuştur. RocketPoint–TargetPoint–DistanceLine–ForwardLine tabanlı geometrik ölçüm mantığı korunmaktadır. RL agent Python tarafında PPO ile eğitilecektir. Ancak RL artık doğrudan ham koordinat kaosuyla uğraşmayacak; Unity/C# tarafı hedef yönü, göreli hız, roket hızı, açısal hız, gravity local, distance, closing rate, blend ağırlığı ve roket irtifası gibi anlamlı state’leri üretecek; Python env bu ham fiziksel değerleri parse edip gerekiyorsa normalize ederek PPO’ya verecektir.
+
+Aksiyon tarafında PPO üç temel sürekli komut üretecektir:
+
+* main thrust,
+* pitch,
+* yaw.
+
+Bu komutlar normalize olarak üretilecek, Python içinde gerçek kuvvet/moment değerlerine dönüştürülecek ve TCP-JSON üzerinden Unity’ye gönderilecektir. Unity, bu komutları AddTorque / AddRelativeTorque mantığıyla uygulayacaktır. Roll ilk sürümde baskılanacak veya kapatılacaktır.
+
+Terminal mantığında timeout Python tarafından step sayısı ile yönetilecek; out-of-range ilk sürümde kaldırılmıştır. Başarı proximity / early explosion mantığıyla yeniden değerlendirilmektedir. Altitude tabanlı düşük ve yüksek irtifa cezaları ile terminal fail’ler tanımlanacaktır.
+
+16. SONUÇ
+
+Bu rapor güncellemesiyle birlikte proje, mevcut ilk rapordaki kavramsal taslaktan daha olgun, daha mühendislik temelli ve daha uygulanabilir bir mimariye evrilmiştir. Başlangıç raporunda tanımlanan genel amaç, Curriculum Learning yaklaşımı, Unity sahne yapısı, geometrik ölçüm sistemleri ve RL tabanlı hedef takibi ana fikri korunmuştur.   Ancak state uzayı, aksiyon uzayı, reward-done mantığı, JSON haberleşme yapısı ve en önemlisi güdüm-kontrol geometrisi ciddi biçimde rafine edilmiştir.
+
+En kritik ilerleme, projenin “RL bir roketi uçursun” fikrinden “geometrik guidance ve RL tabanlı kontrol büyüklüğü birlikte çalışsın” noktasına gelmiş olmasıdır. Bu sayede hem projenin öğrenilebilirliği artmış, hem de gerçek güdümlü roket sistemlerine daha yakın bir sistem mimarisi kurulmaya başlanmıştır.
+
+İstersen bunu bir sonraki mesajda sana daha resmi bir formatta, doğrudan “Word raporuna yapıştırılabilir” başlık numaralandırmasıyla yeniden düzenleyeyim.

@@ -1,0 +1,9 @@
+ADS-AI Hava Savunma Sistemi
+
+Genel Proje Amacı:
+	
+	Yapay zeka destekli roketin hava aracını vurması. Burada Roketin hedef takibi ve yönelimi Pekiştirmeli Öğrenme Algoritması ile gerçekleşecek. Hedef Unsur menzile girdiğinde otomatik ateşleme ile roket ateşlenecek ve adım adım RL algoritması ile hedef yaklaşımı planlanacak.
+
+İlk Hedeflenen Proje Unsurları:
+	Roket, Hava Unsurları (Dost veya Düşman). Dost - Düşman hava unsurları için doğru kilitlenme seçimi gerekiyor.
+	Tekli Ajan Trainingi (Tek roket ile öğrenme). İleride Multi-Agent (Birden çok roket çoklu öğrenme)
