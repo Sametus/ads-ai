@@ -256,6 +256,7 @@ class Env:
     
     
     def reset(self):
+        self.episode_id += 1
         px, pz, ry, rz = calculate_new_loc()
         random_rot_degree = np.random.randint(-45,+45)
         rz += random_rot_degree
@@ -291,6 +292,7 @@ class Env:
 
 
     def calculate_reward(self, raw_state):
+
         states = raw_state["states"]
 
         distance = float(states["distance"])
@@ -473,3 +475,5 @@ class Env:
 
         return info
 
+    def close(self):
+        self.connect.close()

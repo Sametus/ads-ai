@@ -23,6 +23,7 @@ def ensure_log_files():
                 "timestamp",
                 "update_id",
                 "episode_id",
+                "step_id",
                 "reward",
                 "done",
                 "done_reason",
@@ -73,10 +74,10 @@ def ensure_log_files():
         with open(UPDATE_LOG_FILE, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow([
-                "tiemstamp",
+                "timestamp",
                 "update_id",
                 "loss",
-                "poicy_loss",
+                "policy_loss",
                 "value_loss",
                 "entropy",
                 "kl",
@@ -100,8 +101,8 @@ def append_step_csv(update_id, info):
             info["distance"],
             info["closing_rate"],
             info["roc_h"],
-            info["blend_w"],
             info["target_h"],
+            info["blend_w"],
             info["target_dir_x"],
             info["target_dir_y"],
             info["target_dir_z"],
@@ -167,7 +168,7 @@ def append_update_csv(update_id, logs, gamma, lam, lr):
 
 def print_step_console(update_id, info):
     msg = (
-        f"[UP] {update_id:<4} | EP {info['episode_id']:<4} | ST {info['step_id']:<4}] "
+        f"[UP {update_id:<4} | EP {info['episode_id']:<4} | ST {info['step_id']:<4}] "
         f"Dst: {info['distance']:>7.2f} | "
         f"RocH: {info['roc_h']:>6.2f} | "
         f"TarH: {info['target_h']:>6.2f} | "
@@ -183,10 +184,10 @@ def print_episode_console(episode_id, episode_return, episode_len, done_reason, 
 
     msg = (
         f"[EP {episode_id:<5}] {done_reason:<12} | "
-        f"Ret: {episode_return:>4}] | "
+        f"Ret: {episode_return:>8.2f} | "
         f"Len: {episode_len:>4} | "
         f"Start D/H: {start_info['distance']:>6.1f} / {start_info['roc_h']:>6.1f} | "
-        f"End D/H: {final_info['distance']:>6.1f} / {final_info['roc_h']:6.1f} | "
+        f"End D/H: {final_info['distance']:>6.1f} / {final_info['roc_h']:>6.1f} | "
         f"{timestamp}"
     )
 
@@ -211,7 +212,13 @@ def print_update_console(update_id, logs):
     )
     print(msg, flush=True)
 
-def print_reset_console(episode_id, px, py, pz, ry, rz):
+def print_reset_console(episode_id, start_info):
+    px = start_info["reset_px"]
+    py = start_info["reset_py"]
+    pz = start_info["reset_pz"]
+    ry = start_info["reset_ry"]
+    rz = start_info["reset_rz"]
+
     msg = (
         f"[EP {episode_id:<5}] RESET | "
         f"Target Pos: ({px:.2f}, {py:.2f}, {pz:.2f}) | "
