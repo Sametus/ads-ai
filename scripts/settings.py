@@ -95,26 +95,22 @@ def latest_index(pattern, regex=r"_up(\d+)\.keras$"):
 
 def load_checkpoint(agent):
     start_update = 0
-
     last_up = latest_index(os.path.join(MODELS_DIR, f"{MODEL_PREFIX}_up*.keras"))
 
     if last_up is not None:
         print(f"Kayıtlı model bulundu: Update {last_up}. Yükleniyor...")
-        
         try:
-
             agent.model = tf.keras.models.load_model(
                 model_path(last_up),
-                compile=True
+                compile=False
             )
             load_agent_state(agent, state_path(last_up))
             start_update = last_up + 1
             print(f">>> Başarılı! Update {start_update} seviyesinden devam ediliyor")
-        
         except Exception as e:
             print(f"HATA: Model Yüklenemedi. Sıfırdan başlanıyor. {e}")
             start_update = 0
-    
+
     return start_update
 
 def save_checkpoint(agent, update_id):
