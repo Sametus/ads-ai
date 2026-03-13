@@ -127,7 +127,7 @@ class Env:
         CLOSING_RATE_CLIP = 80.0
 
         SUCCESS_DISTANCE = 12.0
-        MIN_AGL = 0.20
+        MIN_AGL = 0.40
         MAX_ALTITUDE = 100.0
 
         SUCCESS_REWARD = 200.0
