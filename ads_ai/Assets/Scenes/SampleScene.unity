@@ -6320,18 +6320,22 @@ MonoBehaviour:
   distanceLine: {fileID: 684538538}
   forwardLine: {fileID: 2039309739}
   forwardLineLength: 20
-  rocketExhaustFx: {fileID: 1341534238}
-  targetExhaustFx: {fileID: 1296251870}
   rocketResetPosition: {x: -0.492, y: 0.8375, z: 0.022}
   rocketResetEuler: {x: -90, y: 0, z: 0}
   thrustScale: 1
   torqueScale: 1
   useLocalFrame: 1
-  blendW: 0
   keepTargetYFixed: 1
   keepTargetRotXFixed: 1
   targetSpeed: 25
-  moveTargetOnlyAfterReset: 1
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  groundRayMax: 100
+  groundedRayThreshold: 0.15
+  lowAltitudeGraceSteps: 8
+  rocketExhaustFx: {fileID: 1341534238}
+  targetExhaustFx: {fileID: 1296251870}
 --- !u!1 &1296251869
 GameObject:
   m_ObjectHideFlags: 0

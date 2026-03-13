@@ -5,3 +5,10 @@
 - Rapor dokümanları ve 3D model dosyalarının `docs` altına taşınması
 - JSON bağımlılıklarının projeye eklenmesi
 
+# v1.1 - Fizik senkronizasyonu ve reward güncellemeleri
+
+- Unity `Env` ortamında manuel fizik adımı (Physics.Simulate) ve güvenli reset akışı
+- Raycast tabanlı AGL (yerden yükseklik) ve grounded flag ile iyileştirilmiş state tanımı
+- Python `env.py` tarafında reward/terminal mantığının AGL ve grounded bilgisiyle güncellenmesi
+- Ortam problemlerine yönelik detaylı `docs/deep_research/deep-research-report.md` teknik analizi eklendi
+
