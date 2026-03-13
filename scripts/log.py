@@ -33,7 +33,7 @@ def ensure_log_files():
                 "distance",
                 "closing_rate",
                 "roc_h",
-                "target_h",
+                "height_error",
                 "blend_w",
                 "target_dir_x",
                 "target_dir_y",
@@ -69,8 +69,8 @@ def ensure_log_files():
                 "final_distance",
                 "start_roc_h",
                 "final_roc_h",
-                "start_target_h",
-                "final_target_h"
+                "start_height_error",
+                "final_height_error"
             ])
     
     if not os.path.exists(UPDATE_LOG_FILE):
@@ -104,7 +104,7 @@ def append_step_csv(update_id, info):
             info["distance"],
             info["closing_rate"],
             info["roc_h"],
-            info["target_h"],
+            info["height_error"],
             info["blend_w"],
             info["target_dir_x"],
             info["target_dir_y"],
@@ -142,8 +142,8 @@ def append_episode_csv(update_id, episode_id, episode_return, episode_len, done_
             final_info["distance"],
             start_info["roc_h"],
             final_info["roc_h"],
-            start_info["target_h"],
-            final_info["target_h"]
+            start_info["height_error"],
+            final_info["height_error"]
         ])
 
 def append_update_csv(update_id, logs, gamma, lam, lr):
@@ -174,7 +174,7 @@ def print_step_console(update_id, info):
         f"[UP {update_id:<4} | EP {info['episode_id']:<4} | ST {info['step_id']:<4}] "
         f"Dst: {info['distance']:>7.2f} | "
         f"RocH: {info['roc_h']:>6.2f} | "
-        f"TarH: {info['target_h']:>6.2f} | "
+        f"ErrH: {info['height_error']:>6.2f} | "
         f"CR: {info['closing_rate']:>7.2f} | "
         f"R: {info['reward']:>7.3f} | "
         f"Act: [{info['thrust']:.2f}, {info['pitch_f']:.2f}, {info['yaw_f']:.2f}]"

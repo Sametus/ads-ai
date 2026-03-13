@@ -147,7 +147,7 @@ if __name__ == "__main__":
                         f"Dst={info['distance']:.2f} | "
                         f"CR={info['closing_rate']:.2f} | "
                         f"RocH={info['roc_h']:.2f} | "
-                        f"TarH={info['target_h']:.2f} | "
+                        f"ErrH={info['height_error']:.2f} | "
                         f"R={reward:.3f} | "
                         f"V={value:.3f} | "
                         f"Act=[{info['thrust']:.2f}, {info['pitch_f']:.2f}, {info['yaw_f']:.2f}]"

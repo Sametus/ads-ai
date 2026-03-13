@@ -19,7 +19,7 @@ public class OutgoingStateData
     public float[] roc_ang_vel = new float[3];
 
     public float roc_h;      // artık AGL (yerden yükseklik)
-    public float target_h;
+    public float height_error;
 
     public float[] g = new float[3];
 
@@ -396,7 +396,8 @@ public class Env : MonoBehaviour
         bool grounded;
         float agl = ComputeAGL(out grounded);
         s.roc_h = agl;
-        s.target_h = targetPoint.position.y;
+        float targetH = targetPoint.position.y;
+        s.height_error = targetH - agl;
 
         s.g[0] = gravityUsed.x;
         s.g[1] = gravityUsed.y;

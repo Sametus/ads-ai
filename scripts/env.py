@@ -7,7 +7,7 @@ STATE_KEYS = [
     "rel_vel_x", "rel_vel_y", "rel_vel_z",
     "roc_vel_x", "roc_vel_y", "roc_vel_z",
     "roc_ang_vel_x", "roc_ang_vel_y", "roc_ang_vel_z",
-    "roc_h", "target_h", "gx", "gy", "gz",
+    "roc_h", "height_error", "gx", "gy", "gz",
     "distance", "closing_rate", "blend_w"
 ]
 
@@ -59,7 +59,7 @@ class Env:
             s["rel_vel"][0], s["rel_vel"][1], s["rel_vel"][2],
             s["roc_vel"][0], s["roc_vel"][1], s["roc_vel"][2],
             s["roc_ang_vel"][0], s["roc_ang_vel"][1], s["roc_ang_vel"][2],
-            s["roc_h"], s["target_h"],
+            s["roc_h"], s["height_error"],
             s["g"][0], s["g"][1], s["g"][2],
             s["distance"], s["closing_rate"], s["blend_w"],
         ], dtype=np.float32)
@@ -71,7 +71,7 @@ class Env:
         s[6:9] = np.clip(s[6:9] / ROC_VEL_SCALE, -1.0, 1.0)
         s[9:12] = np.clip(s[9:12] / ROC_ANG_VEL_SCALE, -1.0, 1.0)
         s[12] = np.clip(s[12] / HEIGHT_SCALE, -1.0, 1.0)    # roc_h artık AGL
-        s[13] = np.clip(s[13] / HEIGHT_SCALE, -1.0, 1.0)
+        s[13] = np.clip(s[13] / HEIGHT_SCALE, -1.0, 1.0) # height_error
         s[14:17] = np.clip(s[14:17] / GRAVITY_SCALE, -1.0, 1.0)
         s[17] = np.clip(s[17] / DISTANCE_SCALE, -1.0, 1.0)
         s[18] = np.clip(s[18] / CLOSING_RATE_SCALE, -1.0, 1.0)
@@ -226,30 +226,39 @@ class Env:
 
     def build_info(self, raw_state, denorm_action=None, reward=None, done=None, done_reason=None):
         s = raw_state["states"]
+
         info = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "episode_id": raw_state["episode_id"],
             "step_id": raw_state["step_id"],
+
             "reward": reward,
             "done": done,
             "done_reason": done_reason,
+
             "target_dir_x": s["target_dir"][0],
             "target_dir_y": s["target_dir"][1],
             "target_dir_z": s["target_dir"][2],
+
             "rel_vel_x": s["rel_vel"][0],
             "rel_vel_y": s["rel_vel"][1],
             "rel_vel_z": s["rel_vel"][2],
+
             "roc_vel_x": s["roc_vel"][0],
             "roc_vel_y": s["roc_vel"][1],
             "roc_vel_z": s["roc_vel"][2],
+
             "roc_ang_vel_x": s["roc_ang_vel"][0],
             "roc_ang_vel_y": s["roc_ang_vel"][1],
             "roc_ang_vel_z": s["roc_ang_vel"][2],
+
             "roc_h": s["roc_h"],
-            "target_h": s["target_h"],
+            "height_error": s["height_error"],
+
             "gx": s["g"][0],
             "gy": s["g"][1],
             "gz": s["g"][2],
+
             "distance": s["distance"],
             "closing_rate": s["closing_rate"],
             "blend_w": s["blend_w"],
