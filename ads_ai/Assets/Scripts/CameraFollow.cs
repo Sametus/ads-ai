@@ -10,12 +10,8 @@ public class CameraFollow : MonoBehaviour
     public float height = 4f;
     public float sideOffset = 2f;
 
-    [Header("Yumusatma")]
-    public float positionDamping = 7f;
-    public float rotationDamping = 5f;
-
     [Header("Bakis Ayari")]
-    public Vector3 lookOffset = new Vector3(0f, 0f, 0f);
+    public Vector3 lookOffset = Vector3.zero;
 
     void LateUpdate()
     {
@@ -27,19 +23,9 @@ public class CameraFollow : MonoBehaviour
             + target.up * sideOffset
             + Vector3.up * height;
 
-        transform.position = Vector3.Lerp(
-            transform.position,
-            desiredPosition,
-            Time.deltaTime * positionDamping
-        );
+        transform.position = desiredPosition;
 
         Vector3 lookTarget = target.position + lookOffset;
-        Quaternion desiredRotation = Quaternion.LookRotation(lookTarget - transform.position);
-
-        transform.rotation = Quaternion.Slerp(
-            transform.rotation,
-            desiredRotation,
-            Time.deltaTime * rotationDamping
-        );
+        transform.rotation = Quaternion.LookRotation(lookTarget - transform.position);
     }
 }

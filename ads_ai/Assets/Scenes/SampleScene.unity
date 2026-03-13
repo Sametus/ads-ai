@@ -273,7 +273,7 @@ GameObject:
   - component: {fileID: 306416286}
   - component: {fileID: 306416285}
   - component: {fileID: 306416284}
-  - component: {fileID: 306416283}
+  - component: {fileID: 306416288}
   m_Layer: 0
   m_Name: Cam_RocketFollow
   m_TagString: Untagged
@@ -281,25 +281,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &306416283
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 306416282}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d064790e78c93eb4ab37b084d618d43d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
-  target: {fileID: 590348159}
-  distance: 3.5
-  height: 4
-  sideOffset: 2
-  positionDamping: 15
-  rotationDamping: 11
-  lookOffset: {x: 0, y: 0, z: 0}
 --- !u!114 &306416284
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -418,6 +399,23 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &306416288
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 306416282}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d064790e78c93eb4ab37b084d618d43d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
+  target: {fileID: 2129727328}
+  distance: 3.5
+  height: 4
+  sideOffset: 2
+  lookOffset: {x: 0, y: 0, z: 0}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0

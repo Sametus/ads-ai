@@ -6,7 +6,7 @@
 > - PPO eğitim scriptleri ve ayarları
 > - Rapor dokümanları ve 3D model dosyalarının `docs` altına taşınması
 > - JSON bağımlılıklarının projeye eklenmesi
-
+>
 > ## v1.1 - Fizik senkronizasyonu ve reward güncellemeleri
 >
 > - Unity `Env` ortamında manuel fizik adımı (Physics.Simulate) ve güvenli reset akışı
@@ -26,28 +26,32 @@
 > >
 > > - `Env.ComputeAGL` içinde yerden yükseklik raycast yönü `-Physics.gravity.normalized` yerine sabit `Vector3.down` kullanacak şekilde sadeleştirildi.
 > > - `CameraFollow` bileşeninde `positionDamping` ve `rotationDamping` değerleri yumuşak ama daha tepkisel bir takip için yeniden ayarlandı.
-
+> >
 > > ### v1.1.3 - AGL ray mesafesi ve max irtifa sınırı
 > >
 > > - Unity `Env` tarafında AGL hesaplaması için kullanılan `groundRayMax` değeri **100.0 → 180.0** olarak artırıldı (daha yüksek irtifalarda da yer tespiti yapabilmek için).
 > > - Python `env.py` içinde `MAX_ALTITUDE` eşiği **250.0 → 150.0** olarak düşürüldü; yüksek irtifa cezalandırması artık daha erken devreye giriyor.
->
+> >
 > > ### v1.1.4 - Thrust limitlerinin yumuşatılması
 > >
 > > - Python `env.py` içinde thrust limitleri daha yumuşak ve kontrol edilebilir bir uçuş için güncellendi:
 > >   - `MIN_THRUST`: **700.0 → 600.0**
 > >   - `MAX_THRUST`: **1200.0 → 1000.0**
->
+> >
 > > ### v1.1.5 - Kamera damping ayarları ve sahne güncellemeleri
 > >
 > > - `CameraFollow.cs` bileşeninde takip yumuşatma değerleri daha akıcı bir görünüm için optimize edildi:
 > >   - `positionDamping`: **12.0 → 10.0**
 > >   - `rotationDamping`: **9.0 → 7.0**
 > > - Unity tarafında sahne (`SampleScene.unity`) ve ortam düzenlemeleri güncellendi.
->
+> >
 > > ### v1.1.6 - Kamera damping optimizasyonu
 > >
 > > - `CameraFollow.cs` bileşeninde takip yumuşatma değerleri daha hassas ve akıcı bir takip için tekrar optimize edildi:
 > >   - `positionDamping`: **10.0 → 7.0**
 > >   - `rotationDamping`: **7.0 → 5.0**
+>
+> ## v1.2 - Kamera takip modernizasyonu
+>
+> - `CameraFollow.cs` içindeki `positionDamping` ve `rotationDamping` mantığı tamamen kaldırıldı. Kamera artık hedefi herhangi bir gecikme (smoothing/damping) olmadan doğrudan takip ediyor. Bu, özellikle yüksek hızlarda ve ani manevralarda takibin daha tutarlı olmasını sağlıyor.
 
