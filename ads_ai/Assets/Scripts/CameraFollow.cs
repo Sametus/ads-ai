@@ -11,8 +11,8 @@ public class CameraFollow : MonoBehaviour
     public float sideOffset = 2f;
 
     [Header("Yumusatma")]
-    public float positionDamping = 15f;
-    public float rotationDamping = 11f;
+    public float positionDamping = 12f;
+    public float rotationDamping = 9f;
 
     [Header("Bakis Ayari")]
     public Vector3 lookOffset = new Vector3(0f, 0f, 0f);

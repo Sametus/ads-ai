@@ -333,7 +333,7 @@ public class Env : MonoBehaviour
     private float ComputeAGL(out bool grounded)
     {
         Vector3 origin = rocketRb.worldCenterOfMass;
-        Vector3 down = -Physics.gravity.normalized;
+        Vector3 down = Vector3.down;
 
         if (Physics.Raycast(origin, down, out RaycastHit hit, groundRayMax, groundMask, QueryTriggerInteraction.Ignore))
         {
