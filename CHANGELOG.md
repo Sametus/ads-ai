@@ -44,4 +44,10 @@
 > >   - `positionDamping`: **12.0 → 10.0**
 > >   - `rotationDamping`: **9.0 → 7.0**
 > > - Unity tarafında sahne (`SampleScene.unity`) ve ortam düzenlemeleri güncellendi.
+>
+> > ### v1.1.6 - Kamera damping optimizasyonu
+> >
+> > - `CameraFollow.cs` bileşeninde takip yumuşatma değerleri daha hassas ve akıcı bir takip için tekrar optimize edildi:
+> >   - `positionDamping`: **10.0 → 7.0**
+> >   - `rotationDamping`: **7.0 → 5.0**
 
