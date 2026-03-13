@@ -120,7 +120,7 @@ public class Env : MonoBehaviour
 
     private void Update()
     {
-        UpdateDebugLines();
+
 
         if (connector == null || !connector.IsConnected || !connector.HasData)
             return;
@@ -228,7 +228,7 @@ public class Env : MonoBehaviour
         UpdateParticleFX();
 
         Physics.Simulate(Time.fixedDeltaTime);
-
+        UpdateDebugLines();
         SendStateToPython();
     }
 
@@ -420,7 +420,7 @@ public class Env : MonoBehaviour
         if (forwardLine != null)
         {
             forwardLine.SetPosition(0, rocketPoint.position);
-            forwardLine.SetPosition(1, rocketPoint.position + rocket.forward * forwardLineLength);
+            forwardLine.SetPosition(1, rocketPoint.position + rocketPoint.forward * forwardLineLength);
         }
     }
 
