@@ -77,7 +77,7 @@ public class Env : MonoBehaviour
 
     [Header("Ground / Collision")]
     public LayerMask groundMask = ~0;
-    public float groundRayMax = 100f;
+    public float groundRayMax = 180f;
     public float groundedRayThreshold = 0.15f;
     public int lowAltitudeGraceSteps = 8;
 
