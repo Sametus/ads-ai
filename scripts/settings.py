@@ -10,7 +10,7 @@ import tensorflow as tf
 warnings.filterwarnings("ignore")
 
 IP = "127.0.0.1"
-PORT = 5050
+PORT = 5005
 
 ROLLOUT_LEN = 512
 TOTAL_UPDATES = 10

@@ -1,1 +1,0 @@
-timestamp,update_id,episode_id,step_id,reward,done,done_reason,distance,closing_rate,roc_h,target_h,blend_w,target_dir_x,target_dir_y,target_dir_z,rel_vel_x,rel_vel_y,rel_vel_z,roc_vel_x,roc_vel_y,roc_vel_z,roc_ang_vel_x,roc_ang_vel_y,roc_ang_vel_z,gx,gy,gz,thrust,pitch_f,yaw_f

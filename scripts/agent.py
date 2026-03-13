@@ -69,7 +69,7 @@ class PPOAgent:
         v = float(tf.squeeze(v,0).numpy())
 
         std = tf.exp(self.log_std)
-        eps = tf.random.normal((self.action_size))
+        eps = tf.random.normal((self.action_size,))
         pre_tanh = mu + std * eps
         a = tf.tanh(pre_tanh)
 

@@ -5748,20 +5748,17 @@ MonoBehaviour:
   target: {fileID: 1471600559}
   targetPoint: {fileID: 480969346}
   rocketRb: {fileID: 2129727333}
-  targetRb: {fileID: 1471600566}
+  targetRb: {fileID: 1471600563}
   distanceLine: {fileID: 684538538}
   forwardLine: {fileID: 2039309739}
   forwardLineLength: 20
+  thrustForceScale: 1
+  torqueScale: 1
+  useLocalFrameStates: 1
+  dampRollRate: 1
+  rollDamping: 2
   rocketResetPosition: {x: -0.492, y: 0.8375, z: 0.022}
   rocketResetEuler: {x: -90, y: 0, z: 0}
-  thrustScale: 1
-  torqueScale: 1
-  useLocalFrame: 1
-  blendW: 0
-  keepTargetYFixed: 1
-  keepTargetRotXFixed: 1
-  targetSpeed: 40
-  moveTargetOnlyAfterReset: 1
 --- !u!1 &1304240720
 GameObject:
   m_ObjectHideFlags: 0
@@ -10908,7 +10905,7 @@ PrefabInstance:
       addedObject: {fileID: 1471600560}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 6b198f8976adcf74baa63e8599972cf4, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1471600566}
+      addedObject: {fileID: 1471600563}
   m_SourcePrefab: {fileID: 100100000, guid: 6b198f8976adcf74baa63e8599972cf4, type: 3}
 --- !u!4 &1471600559 stripped
 Transform:
@@ -10936,7 +10933,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.12363, y: 4.0013876, z: 1.1331605}
   m_Center: {x: 0.0062634377, y: -0.018388988, z: -0.008741436}
---- !u!54 &1471600566
+--- !u!54 &1471600563
 Rigidbody:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -10959,7 +10956,7 @@ Rigidbody:
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
   m_UseGravity: 0
-  m_IsKinematic: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
@@ -11119,7 +11116,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: ede1cf4fbd7be2542986ef97a9d32b46, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.933
+      value: 0.95
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: ede1cf4fbd7be2542986ef97a9d32b46, type: 3}
       propertyPath: m_LocalPosition.z

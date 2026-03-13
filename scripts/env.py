@@ -305,7 +305,7 @@ class Env:
 
         SUCCESS_DISTANCE = 12.0
 
-        MIN_ALTITUDE = 2.0
+        MIN_ALTITUDE = 0.5
         MAX_ALTITUDE = 250.0
         
         SUCCESS_REWARD = 200.0
