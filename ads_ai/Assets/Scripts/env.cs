@@ -57,6 +57,10 @@ public class Env : MonoBehaviour
     public LineRenderer forwardLine;
     public float forwardLineLength = 20f;
 
+    [Header("Particle FX (Opsiyonel)")]
+    public ParticleSystem rocketExhaustFx;
+    public ParticleSystem targetExhaustFx;
+
     [Header("Rocket Reset Pose")]
     public Vector3 rocketResetPosition = new Vector3(-0.492f, 2.5f, 0.022f);
     public Vector3 rocketResetEuler = new Vector3(-90f, 0f, 0f);
@@ -74,7 +78,7 @@ public class Env : MonoBehaviour
     public bool keepTargetRotXFixed = true;
 
     [Header("Target Motion")]
-    public float targetSpeed = 40f;
+    public float targetSpeed = 25f;
     public bool moveTargetOnlyAfterReset = true;
 
     private Connector connector;
@@ -111,12 +115,25 @@ public class Env : MonoBehaviour
 
         prevDistance = Vector3.Distance(rocketPoint.position, targetPoint.position);
 
+        // Target exhaust başlat
+        if (targetExhaustFx != null && !targetExhaustFx.isPlaying)
+        {
+            targetExhaustFx.Play();
+        }
+
+        // Rocket exhaust başlangıçta kapalı olsun
+        if (rocketExhaustFx != null && rocketExhaustFx.isPlaying)
+        {
+            rocketExhaustFx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
         Debug.Log($"[Env] Başladı | fixedTargetY={fixedTargetY:F2} | fixedTargetRotX={fixedTargetRotX:F2}");
     }
 
     private void Update()
     {
         UpdateDebugLines();
+        UpdateParticleFX();
 
         if (connector == null) return;
         if (!connector.IsConnected) return;
@@ -303,6 +320,19 @@ public class Env : MonoBehaviour
 
         prevDistance = Vector3.Distance(rocketPoint.position, targetPoint.position);
 
+        // Reset sonrası rocket exhaust kapat
+        if (rocketExhaustFx != null)
+        {
+            rocketExhaustFx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
+        // Reset sonrası target exhaust yeniden başlat
+        if (targetExhaustFx != null)
+        {
+            targetExhaustFx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            targetExhaustFx.Play();
+        }
+
         Debug.Log(
             $"[Env] RESET uygulandı | " +
             $"Target Pos=({target.position.x:F2}, {target.position.y:F2}, {target.position.z:F2}) | " +
@@ -417,6 +447,45 @@ public class Env : MonoBehaviour
         {
             forwardLine.SetPosition(0, rocketPoint.position);
             forwardLine.SetPosition(1, rocketPoint.position + rocket.forward * forwardLineLength);
+        }
+    }
+
+    private void UpdateParticleFX()
+    {
+        if (rocketExhaustFx != null)
+        {
+            if (currentThrust > 0.1f)
+            {
+                if (!rocketExhaustFx.isPlaying)
+                {
+                    rocketExhaustFx.Play();
+                }
+            }
+            else
+            {
+                if (rocketExhaustFx.isPlaying)
+                {
+                    rocketExhaustFx.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                }
+            }
+        }
+
+        if (targetExhaustFx != null)
+        {
+            if (targetMotionEnabled)
+            {
+                if (!targetExhaustFx.isPlaying)
+                {
+                    targetExhaustFx.Play();
+                }
+            }
+            else
+            {
+                if (targetExhaustFx.isPlaying)
+                {
+                    targetExhaustFx.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                }
+            }
         }
     }
 

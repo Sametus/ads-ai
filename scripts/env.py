@@ -151,12 +151,12 @@ GRAVITY_SCALE = 9.81
 DISTANCE_SCALE = 500.0
 CLOSING_RATE_SCALE = 100.0
 
-MIN_THRUST = 600.0
-MAX_THRUST = 1000.0
+MIN_THRUST = 700.0
+MAX_THRUST = 1200.0
 
 MAX_PITCH_FORCE = 1.5
 MAX_YAW_FORCE = 1.5
-TARGET_VELOCITY = 40 # M/S
+TARGET_VELOCITY = 25 # M/S
 
 def calculate_new_loc():
     theta = np.random.uniform(0, 2*np.pi)
@@ -305,7 +305,7 @@ class Env:
 
         SUCCESS_DISTANCE = 12.0
 
-        MIN_ALTITUDE = 0.5
+        MIN_ALTITUDE = 0.8
         MAX_ALTITUDE = 250.0
         
         SUCCESS_REWARD = 200.0
