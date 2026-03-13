@@ -6331,7 +6331,7 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  groundRayMax: 100
+  groundRayMax: 180
   groundedRayThreshold: 0.15
   lowAltitudeGraceSteps: 8
   rocketExhaustFx: {fileID: 1341534238}

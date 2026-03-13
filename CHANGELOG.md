@@ -31,4 +31,17 @@
 > >
 > > - Unity `Env` tarafında AGL hesaplaması için kullanılan `groundRayMax` değeri **100.0 → 180.0** olarak artırıldı (daha yüksek irtifalarda da yer tespiti yapabilmek için).
 > > - Python `env.py` içinde `MAX_ALTITUDE` eşiği **250.0 → 150.0** olarak düşürüldü; yüksek irtifa cezalandırması artık daha erken devreye giriyor.
+>
+> > ### v1.1.4 - Thrust limitlerinin yumuşatılması
+> >
+> > - Python `env.py` içinde thrust limitleri daha yumuşak ve kontrol edilebilir bir uçuş için güncellendi:
+> >   - `MIN_THRUST`: **700.0 → 600.0**
+> >   - `MAX_THRUST`: **1200.0 → 1000.0**
+>
+> > ### v1.1.5 - Kamera damping ayarları ve sahne güncellemeleri
+> >
+> > - `CameraFollow.cs` bileşeninde takip yumuşatma değerleri daha akıcı bir görünüm için optimize edildi:
+> >   - `positionDamping`: **12.0 → 10.0**
+> >   - `rotationDamping`: **9.0 → 7.0**
+> > - Unity tarafında sahne (`SampleScene.unity`) ve ortam düzenlemeleri güncellendi.
 
