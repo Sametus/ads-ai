@@ -128,7 +128,7 @@ class Env:
 
         SUCCESS_DISTANCE = 12.0
         MIN_AGL = 0.20
-        MAX_ALTITUDE = 150.0
+        MAX_ALTITUDE = 100.0
 
         SUCCESS_REWARD = 200.0
         COLLISION_PENALTY = -100.0
