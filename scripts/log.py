@@ -11,6 +11,9 @@ STEP_PRINT_EVERY = 50
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
+RED = "\033[91m"
+MAGENTA = "\033[95m"
+CYAN = "\033[96m"
 RESET = "\033[0m"
 
 def ensure_log_files():
@@ -192,9 +195,17 @@ def print_episode_console(episode_id, episode_return, episode_len, done_reason, 
     )
 
     if done_reason == "success":
-        print(f"{GREEN}{msg}{RESET}", flush=True)
+        color = GREEN
+    elif done_reason in ["low_agl", "low_altitude"]:
+        color = YELLOW
+    elif done_reason == "high_altitude":
+        color = MAGENTA
+    elif done_reason == "timeout":
+        color = RED
     else:
-        print(msg, flush=True)
+        color = RESET
+
+    print(f"{color}{msg}{RESET}", flush=True)
 
 
 def print_update_console(update_id, logs):
