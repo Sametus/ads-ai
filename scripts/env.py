@@ -27,13 +27,13 @@ MIN_THRUST      = 600.0
 MAX_THRUST      = 1050.0
 MAX_PITCH_FORCE = 1.7
 MAX_YAW_FORCE   = 1.7
-TARGET_VELOCITY = 25.0
+TARGET_VELOCITY = 0.0
 
 
 def calculate_new_loc():
     theta = np.random.uniform(0, 2 * np.pi)
-    px = 300 * np.cos(theta)
-    pz = 300 * np.sin(theta)
+    px = 0 * np.cos(theta)
+    pz = 0 * np.sin(theta)
     ry = 180.0
     rz = 90.0 - np.degrees(np.arctan2(pz, px))
     return px, pz, ry, rz
