@@ -32,8 +32,8 @@ TARGET_VELOCITY = 0.0
 
 def calculate_new_loc():
     theta = np.random.uniform(0, 2 * np.pi)
-    px = 5 * np.cos(theta)
-    pz = 5 * np.sin(theta)
+    px = np.random.randint(0,3) * np.cos(theta)
+    pz = np.random.randint(0,3) * np.sin(theta)
     ry = 180.0
     rz = 90.0 - np.degrees(np.arctan2(pz, px))
     return px, pz, ry, rz
@@ -105,7 +105,7 @@ class Env:
     def reset(self):
         self.episode_id += 1
         # px, pz, ry, rz = calculate_new_loc()
-        px, pz, ry, rz = 0,0,0,0
+        px, pz, ry, rz = calculate_new_loc()
         random_rot_degree = np.random.randint(-5, +5)
         rz += random_rot_degree
         py = 50.0
