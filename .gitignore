@@ -14,6 +14,5 @@ ads_ai/[Aa]ssets/StreamingAssets/aa.meta
 # Ignore IDE specific files (keep workspace settings if needed)
 ads_ai/.vs/
 
-# Project-specific directories to exclude from git
-logs/
-models/
+# Project-specific: logs/ ve models/ Faz tamamlandığında commit edilir (faz-yonetimi kuralı)
+**/__pycache__/
