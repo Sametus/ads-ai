@@ -1,29 +1,3 @@
-
-
-# Proje Fazları ve Kontrol Noktaları
-
-## [Faz 3] - 2026-03-14
-### Final Cila
-- Phase 3 final eğitimi ve stabilizasyon aşaması başarıyla tamamlandı.
-- Model en yüksek performans ve tutarlılık seviyesine ulaştı.
-- **Önemli Parametreler**: Kapsamlı ödül optimizasyonları ve final stabilizasyon katsayıları devrede.
-- Tüm loglar ve modeller GitHub'a yedeklendi.
-
-## [Faz 2] - 2026-03-14
-### Başarılı Eğitim
-- Phase 2 müfredatlı eğitimi (Curriculum Learning) hedeflerine ulaştı.
-- Agent hedef davranışları daha stabil hale getirildi.
-- **Önemli Parametreler**: Dinamik konumlar devrede, hedef sabit, DISTANCE_GAIN = 0.15, ANGLE_GAIN = 0.04.
-- Log ve model dosyaları commit edildi.
-
-## [Faz 1] - 2026-03-14
-### İlk Kontrol Noktası
-- İlk eğitim koşulu tamamlandı (sabit başlangıç, yeni state yapısı).
-- **Önemli Parametreler**: TARGET_VELOCITY = 0.0, Sabit Başlangıç (0,0), Yeni State: look_angle_rad.
-- Büyük log dosyaları limitler dahilinde (parçalı/sıkıştırılmış) yedeklendi.
-
----
-
 # v1.0 sürüm ailesi
 
 > ## v1.0 - İlk kararlı sürüm
@@ -216,38 +190,32 @@
 > > - **Reward Ölçeklendirme (Scale-up)**: `DISTANCE_GAIN` ve `ANGLE_GAIN` gibi temel ödül katsayıları artırılarak ajanın daha güçlü sinyallerle eğitilmesi sağlandı.
 > > - **Başarı Oranı Takibi (Success Rate)**: `train.py` ve `log.py` güncellenerek eğitim süresince toplam episode ve başarı sayısı (success rate) anlık olarak takip edilmeye başlandı.
 > > - **Dinamik Konsol Çıktısı**: Eğitim sırasında konsola yazdırılan metrikler daha detaylı hale getirilerek ilerleme görünürlüğü artırıldı.
-
+>
 > > ### Faz 1 - İlk Kontrol Noktası
 > > - İlk eğitim koşulu tamamlandı (sabit başlangıç, yeni state yapısı).
-> > - **Önemli Parametreler**: TARGET_VELOCITY = 0.0, Sabit Başlangıç (0,0), Yeni State: look_angle_rad.
+> > - **Önemli Parametreler**:
+> >   - `TARGET_VELOCITY = 0.0` (hedef sabit)
+> >   - Başlangıç konumu: `px=0, pz=0` (sabitlendi)
+> >   - Yeni state: `look_angle_rad` eklendi
 > > - Büyük log dosyaları limitler dahilinde (parçalı/sıkıştırılmış) yedeklendi.
-> 
+>
 > > ### Faz 2 - Başarılı Eğitim
 > > - Phase 2 müfredatlı eğitimi (Curriculum Learning) hedeflerine ulaştı.
 > > - Agent hedef davranışları daha stabil hale getirildi.
-> > - **Önemli Parametreler**: Dinamik konumlar devrede, hedef sabit, DISTANCE_GAIN = 0.15, ANGLE_GAIN = 0.04.
+> > - **Önemli Parametreler**:
+> >   - Dinamik başlangıç konumları devrede (`calculate_new_loc` aktif)
+> >   - `DISTANCE_GAIN = 0.15`
+> >   - `ANGLE_GAIN = 0.04`
+> >   - `HEIGHT_ALIGN_GAIN = 0.015`
 > > - Log ve model dosyaları commit edildi.
-> 
+>
 > > ### Faz 3 - Final Cila
 > > - Phase 3 final eğitimi ve stabilizasyon aşaması başarıyla tamamlandı.
 > > - Model en yüksek performans ve tutarlılık seviyesine ulaştı.
-> > - **Önemli Parametreler**: Kapsamlı ödül optimizasyonları ve final stabilizasyon katsayıları devrede.
+> > - **Önemli Parametreler**:
+> >   - `SUCCESS_REWARD = 210.0`
+> >   - `ESCAPE_MULTIPLIER = 1.4`
+> >   - `SOFT_FLOOR = 5.0`
+> >   - Tüm reward katsayıları (DISTANCE, ANGLE, HEIGHT_ALIGN) stabilize edildi
 > > - Tüm loglar ve modeller GitHub'a yedeklendi.
 
-
-
-> > - Dinamik Konsol kts: Eitim srasnda konsola yazdrlan metrikler daha detayl hale getirilerek ilerleme grnrl artrld.
->
-> > ### Faz 1 - lk Kontrol Noktas
-> > - lk eitim koulu (sabit balang, yeni state yaps) tamamland.
-> > - Byk log dosyalar limitler dahilinde (paral/sktrlm) yedeklendi.
->
-> > ### Faz 2 - Baarl Eitim
-> > - Phase 2 mfredatl eitimi (Curriculum Learning) hedeflerine ulat.
-> > - Agent hedef davranlar daha stabil hale getirildi.
-> > - Log ve model dosyalar commit edildi.
->
-> > ### Faz 3 - Final Cila
-> > - Phase 3 final eitimi ve stabilizasyon aamas baaryla tamamland.
-> > - Model en yksek performans ve tutarllk seviyesine ulat.
-> > - Tm loglar ve modeller GitHub'a yedeklendi.
