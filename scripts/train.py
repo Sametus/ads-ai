@@ -44,7 +44,7 @@ if __name__ == "__main__":
     episode_id = 0
     episode_return = 0.0
     episode_len = 0
-    
+    total_episode_count, total_success_count = log.load_success_counters()
     raw_state, vector_state, state, start_info = env.reset()
     episode_id = env.episode_id
 
@@ -85,6 +85,12 @@ if __name__ == "__main__":
                 log.print_step_console(update_id + 1, info)
             
             if done:
+
+                total_episode_count += 1
+
+                if info["done_reason"] == "success":
+                    total_success_count += 1
+
                 log.append_episode_csv(
                     update_id + 1,
                     episode_id,
@@ -101,7 +107,9 @@ if __name__ == "__main__":
                     episode_len,
                     info["done_reason"],
                     start_info,
-                    info
+                    info,
+                    total_success_count,
+                    total_episode_count
                 )
 
                 episode_return = 0.0

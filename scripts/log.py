@@ -209,12 +209,14 @@ def print_step_console(update_id, info):
 
 
 def print_episode_console(episode_id, episode_return, episode_len,
-                          done_reason, start_info, final_info):
+                          done_reason, start_info, final_info,
+                          success_count, total_episode_count):
     timestamp = datetime.now().strftime("%H:%M:%S")
 
-    # [DEĞİŞİKLİK] final_alignment eklendi
     final_align = final_info.get("alignment")
     align_str = f" | Aln: {final_align:>5.2f}" if final_align is not None else ""
+
+    success_rate = 100.0 * success_count / max(1, total_episode_count)
 
     msg = (
         f"[EP {episode_id:<5}] {done_reason:<12} | "
@@ -223,6 +225,7 @@ def print_episode_console(episode_id, episode_return, episode_len,
         f"Start D/H: {start_info['distance']:>6.1f} / {start_info['roc_h']:>6.1f} | "
         f"End D/H: {final_info['distance']:>6.1f} / {final_info['roc_h']:>6.1f}"
         f"{align_str} | "
+        f"Succ: {success_count}/{total_episode_count} ({success_rate:>6.2f}%) | "
         f"{timestamp}"
     )
 
@@ -235,7 +238,7 @@ def print_episode_console(episode_id, episode_return, episode_len,
     elif done_reason == "timeout":
         color = RED
     elif done_reason == "escaped":
-        color = CYAN   # [YENİ] kaçış terminali — turkuaz ile ayırt et
+        color = CYAN
     elif done_reason == "bad_angle":
         color = RED
     else:
@@ -275,6 +278,22 @@ def print_reset_console(episode_id, start_info):
     print(msg, flush=True)
 
 
+
+def load_success_counters():
+    if not os.path.exists(EPISODE_LOG_FILE):
+        return 0, 0
+
+    total_episode_count = 0
+    total_success_count = 0
+
+    with open(EPISODE_LOG_FILE, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            total_episode_count += 1
+            if row.get("done_reason", "") == "success":
+                total_success_count += 1
+
+    return total_episode_count, total_success_count
 """
 Başlangıçta:
     ensure_log_files()
