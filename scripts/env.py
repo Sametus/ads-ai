@@ -104,7 +104,8 @@ class Env:
 
     def reset(self):
         self.episode_id += 1
-        px, pz, ry, rz = calculate_new_loc()
+        # px, pz, ry, rz = calculate_new_loc()
+        px, pz, ry, rz = 0,0,0,0
         random_rot_degree = np.random.randint(-5, +5)
         rz += random_rot_degree
         py = 50.0
