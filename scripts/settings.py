@@ -12,9 +12,9 @@ warnings.filterwarnings("ignore")
 IP = "127.0.0.1"
 PORT = 5005
 
-ROLLOUT_LEN = 1024
+ROLLOUT_LEN = 1200
 TOTAL_UPDATES = 10000
-SAVE_EVERY_UPDATES = 16
+SAVE_EVERY_UPDATES = 20
 
 MODELS_DIR = "models"
 MODEL_PREFIX = "ppo_model"

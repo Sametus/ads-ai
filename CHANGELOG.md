@@ -112,4 +112,21 @@
 > > - **İrtifa Kısıtlaması**: `MAX_ALTITUDE` (maksimum irtifa) **100.0 -> 95.0** olarak düşürüldü.
 > > - **Başarı Ödülü Artırımı**: `SUCCESS_REWARD` (başarı ödülü) **200.0 -> 210.0** olarak güncellendi.
 > > - **Düşük İrtifa Cezası**: `LOW_ALTITUDE_PENALTY` (düşük irtifa cezası) **-70.0 -> -75.0** olarak artırıldı.
+>
+> > ## v3.2.0 - Başlangıç Koşulları Stabilizasyonu
+> >
+> > - **Heading Offset Kısıtlaması**: Reset sırasında roketin rastgele atanan başlangıç yönü sapması (heading offset) **±45 derece -> ±5 derece** aralığına düşürüldü. Bu, eğitimin başlangıç aşamasında daha kararlı bir öğrenme süreci sağlar.
+>
+> > ## v3.3.0 - Performans Zarflarının Genişletilmesi ve Eğitim Optimizasyonu
+> >
+> > - **Thrust ve Kontrol Kuvveti Artırımı**:
+> >     - `MIN_THRUST` **600.0 -> 580.0**, `MAX_THRUST` **1000.0 -> 1050.0** olarak güncellendi.
+> >     - `MAX_PITCH_FORCE` ve `MAX_YAW_FORCE` **1.5 -> 1.7** değerine çıkarılarak manevra kabiliyeti artırıldı.
+> > - **İrtifa ve Ceza Güncellemeleri**:
+> >     - `MAX_ALTITUDE` **95.0 -> 100.0** olarak esnetildi.
+> >     - `HIGH_ALTITUDE_PENALTY` (yüksek irtifa cezası) **-80.0 -> -82.0** olarak güncellendi.
+> > - **Eğitim ve Loglama Ayarları**:
+> >     - `ROLLOUT_LEN` **1024 -> 1200** olarak artırıldı (daha uzun veri toplama periyodu).
+> >     - `SAVE_EVERY_UPDATES` **16 -> 20** olarak güncellendi.
+> >     - `STEP_PRINT_EVERY` **50 -> 25** yapılarak konsol takibi sıklaştırıldı.
 

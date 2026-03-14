@@ -23,10 +23,10 @@ GRAVITY_SCALE      = 9.81
 DISTANCE_SCALE     = 500.0
 CLOSING_RATE_SCALE = 120.0
 
-MIN_THRUST      = 600.0
-MAX_THRUST      = 1000.0
-MAX_PITCH_FORCE = 1.5
-MAX_YAW_FORCE   = 1.5
+MIN_THRUST      = 580.0
+MAX_THRUST      = 1050.0
+MAX_PITCH_FORCE = 1.7
+MAX_YAW_FORCE   = 1.7
 TARGET_VELOCITY = 25.0
 
 
@@ -105,7 +105,7 @@ class Env:
     def reset(self):
         self.episode_id += 1
         px, pz, ry, rz = calculate_new_loc()
-        random_rot_degree = np.random.randint(-45, +45)
+        random_rot_degree = np.random.randint(-5, +5)
         rz += random_rot_degree
         py = 50.0
 
@@ -161,13 +161,13 @@ class Env:
         ang_vel_mag = float(np.sqrt(av[0]**2 + av[1]**2 + av[2]**2))
 
         # --- Sabitler ---
-        STEP_PENALTY         = -0.02
-        DISTANCE_GAIN        =  0.30   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
+        STEP_PENALTY         = -0.018
+        DISTANCE_GAIN        =  0.35   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
         DISTANCE_DELTA_CLIP  = 10.0
-        CLOSING_RATE_GAIN    =  0.015  # [DEĞİŞİKLİK 5] 0.004 → 0.010
+        CLOSING_RATE_GAIN    =  0.017  # [DEĞİŞİKLİK 5] 0.004 → 0.010
         CLOSING_RATE_CLIP    = 80.0
-        ALIGNMENT_GAIN       =  0.04   # [YENİ] cos(sapma) ödülü, maks 0.04/adım
-        ANG_VEL_PENALTY      =  0.005  # [YENİ] açısal hız cezası katsayısı
+        ALIGNMENT_GAIN       =  0.045   # [YENİ] cos(sapma) ödülü, maks 0.04/adım
+        ANG_VEL_PENALTY      =  0.004  # [YENİ] açısal hız cezası katsayısı
         ANG_VEL_CLIP         = 10.0    # [YENİ] rad/s üst sınırı
 
         SUCCESS_DISTANCE     = 12.0
@@ -178,12 +178,12 @@ class Env:
         # [DEĞİŞİKLİK 7] Düşük irtifa grace süresi 8 → 15
         # Rampadan kalkış için daha uzun tolerans tanımlıyoruz.
         LOW_AGL_GRACE_STEPS  = 15
-        MAX_ALTITUDE         = 95.0
+        MAX_ALTITUDE         = 100.0
 
         SUCCESS_REWARD       =  210.0
         COLLISION_PENALTY    = -100.0
         LOW_ALTITUDE_PENALTY =  -75.0
-        HIGH_ALTITUDE_PENALTY = -80.0
+        HIGH_ALTITUDE_PENALTY = -82.0
         TIMEOUT_PENALTY      =  -60.0
         # [YENİ] Kaçış terminali
         # Roket başlangıç mesafesinin 1.5 katına çıkarsa bölümü kes.

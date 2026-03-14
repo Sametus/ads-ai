@@ -7,7 +7,7 @@ STEP_LOG_FILE    = os.path.join(LOG_DIR, "step_log.csv")
 EPISODE_LOG_FILE = os.path.join(LOG_DIR, "episode_log.csv")
 UPDATE_LOG_FILE  = os.path.join(LOG_DIR, "update_log.csv")
 
-STEP_PRINT_EVERY = 50
+STEP_PRINT_EVERY = 25
 
 GREEN   = "\033[92m"
 YELLOW  = "\033[93m"
