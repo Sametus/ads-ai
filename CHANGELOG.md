@@ -191,23 +191,28 @@
 > > - **Başarı Oranı Takibi (Success Rate)**: `train.py` ve `log.py` güncellenerek eğitim süresince toplam episode ve başarı sayısı (success rate) anlık olarak takip edilmeye başlandı.
 > > - **Dinamik Konsol Çıktısı**: Eğitim sırasında konsola yazdırılan metrikler daha detaylı hale getirilerek ilerleme görünürlüğü artırıldı.
 
-> > ### Faz 1 - İlk Kontrol Noktası
+> > ### Faz 1 - Tamamlandı
 > > - Modeller ve loglar ilk kez commit edildi; scripts değişmedi.
 > > - **Başlangıç konfigürasyonu** (`env.py` v5.0.2 ile aynı):
 > >   - `TARGET_VELOCITY = 0.0` (hedef sabit)
-> >   - `px, pz, ry, rz = 0, 0, 0, 0` (sabit başlangıç konumu)
+> >   - `reset`: `px, pz, ry, rz = 0, 0, 0, 0` (sabit başlangıç)
+> >   - `calculate_new_loc()` içinde `px = 0 * np.cos(theta)`, `pz = 0 * np.sin(theta)` (efektif sabit konum)
 > >   - `ANGLE_GAIN = 0.22`, `DISTANCE_GAIN = 0.15`
 > > - Büyük log dosyaları 40MB parçalara bölünerek GitHub'a yedeklendi.
 >
-> > ### Faz 2 - Başarılı Eğitim
-> > - Phase 2 müfredatlı eğitimi (Curriculum Learning) tamamlandı.
-> > - **env.py değişiklikleri** (Faz 1 → Faz 2):
-> >   - `calculate_new_loc()` aktif edildi (sabit `0,0,0,0` başlangıcından dinamik konuma geçiş)
-> >   - Başlangıç mesafesi aralığı: `randint(0,3)` (0–2 birim, yakın alan)
-> >   - `rz`: dinamik kuzeye yönelik hesaplama aktif
+> > ### Faz 2 - Tamamlandı
+> > - Faz 2 müfredatlı eğitimi (Curriculum Learning) tamamlandı.
+> > - **env.py değişiklikleri** (Faz 1 → Faz 2, git diff ile):
+> >   - `calculate_new_loc()`: `px`/`pz` artık `0 * np.cos(theta)` / `0 * np.sin(theta)` yerine `np.random.randint(0,3) * np.cos(theta)` / `np.random.randint(0,3) * np.sin(theta)` (0–2 birim, yakın alan)
+> >   - `reset`: `px, pz, ry, rz = 0,0,0,0` → `px, pz, ry, rz = calculate_new_loc()` (dinamik konum ve rz kuzeye yönelik)
 >
-> > ### Faz 3 - Final Cila
-> > - Phase 3 final eğitimi ve stabilizasyon tamamlandı.
-> > - **env.py değişiklikleri** (Faz 2 → Faz 3):
-> >   - Başlangıç mesafesi aralığı genişletildi: `randint(0,3)` → `randint(0,5)` (0–4 birim, daha geniş alan)
+> > ### Faz 3 - Tamamlandı
+> > - Faz 3 final eğitimi ve stabilizasyon tamamlandı.
+> > - **env.py değişiklikleri** (Faz 2 → Faz 3, git diff ile):
+> >   - Başlangıç mesafe çarpanı: `np.random.randint(0,3)` → `np.random.randint(1,5.5)` (1–4 birim, daha geniş alan)
 > > - Tüm modeller ve loglar GitHub'a yedeklendi.
+>
+> > ### Faz 4 - Tamamlandı
+> > - Faz 4 eğitimi tamamlandı.
+> > - **env.py değişiklikleri** (Faz 3 → Faz 4):
+> >   - Başlangıç mesafe çarpanı: `np.random.randint(1,5.5)` → `np.random.randint(2,7)` (2–6 birim, daha geniş alan)
