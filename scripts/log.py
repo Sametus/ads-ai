@@ -228,6 +228,8 @@ def print_episode_console(episode_id, episode_return, episode_len,
         color = MAGENTA
     elif done_reason == "timeout":
         color = RED
+    elif done_reason == "escaped":
+        color = CYAN   # [YENİ] kaçış terminali — turkuaz ile ayırt et
     else:
         color = RESET
 

@@ -48,7 +48,8 @@ class Env:
         self.max_step    = 1300
         self.step_count  = 0
         self.episode_id  = 0
-        self.prev_distance = None
+        self.prev_distance  = None
+        self.reset_distance = None  # [YENİ] kaçış tespiti için başlangıç mesafesi
 
     # ------------------------------------------------------------------
     # STATE
@@ -122,7 +123,8 @@ class Env:
         raw_state = self.read_state()
         vector_state     = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
-        self.prev_distance = float(raw_state["states"]["distance"])
+        self.prev_distance  = float(raw_state["states"]["distance"])
+        self.reset_distance = self.prev_distance  # [YENİ] kaçış tespiti için başlangıç mesafesi
         start_info = self.build_info(raw_state)
 
         start_info.update({
@@ -162,7 +164,7 @@ class Env:
         STEP_PENALTY         = -0.02
         DISTANCE_GAIN        =  0.30   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
         DISTANCE_DELTA_CLIP  = 10.0
-        CLOSING_RATE_GAIN    =  0.010  # [DEĞİŞİKLİK 5] 0.004 → 0.010
+        CLOSING_RATE_GAIN    =  0.015  # [DEĞİŞİKLİK 5] 0.004 → 0.010
         CLOSING_RATE_CLIP    = 80.0
         ALIGNMENT_GAIN       =  0.04   # [YENİ] cos(sapma) ödülü, maks 0.04/adım
         ANG_VEL_PENALTY      =  0.005  # [YENİ] açısal hız cezası katsayısı
@@ -172,17 +174,24 @@ class Env:
         # [DEĞİŞİKLİK 6] MIN_AGL 0.40 → 0.25
         # Roket rampada 0.406m AGL'de başlıyor, bu değer eski eşiğe çok yakındı.
         # 0.25'e düşürerek kalkış sırasında erken terminal cezası engelleniyor.
-        MIN_AGL              =  0.25
+        MIN_AGL              =  0.35
         # [DEĞİŞİKLİK 7] Düşük irtifa grace süresi 8 → 15
         # Rampadan kalkış için daha uzun tolerans tanımlıyoruz.
         LOW_AGL_GRACE_STEPS  = 15
-        MAX_ALTITUDE         = 100.0
+        MAX_ALTITUDE         = 95.0
 
-        SUCCESS_REWARD       =  200.0
+        SUCCESS_REWARD       =  210.0
         COLLISION_PENALTY    = -100.0
-        LOW_ALTITUDE_PENALTY =  -70.0
+        LOW_ALTITUDE_PENALTY =  -75.0
         HIGH_ALTITUDE_PENALTY = -80.0
         TIMEOUT_PENALTY      =  -60.0
+        # [YENİ] Kaçış terminali
+        # Roket başlangıç mesafesinin 1.5 katına çıkarsa bölümü kes.
+        # EP17 gibi "dönüp uzaklaşma" davranışını 200-300 adımda keser,
+        # 581 adımlık −399 return value function'ı patlatmaz.
+        ESCAPE_MULTIPLIER    =  1.5
+        ESCAPE_PENALTY       = -50.0
+        ESCAPE_GRACE_STEPS   =  50    # ilk 50 adımda kontrol etme (kalkış toleransı)
 
         reward = STEP_PENALTY
         done = False
@@ -222,10 +231,17 @@ class Env:
             reward += HIGH_ALTITUDE_PENALTY
             done = True
             done_reason = "high_altitude"
-        elif self.step_count >= self.max_step:
+        elif (self.step_count >= self.max_step):
             reward += TIMEOUT_PENALTY
             done = True
             done_reason = "timeout"
+        elif (self.step_count > ESCAPE_GRACE_STEPS
+              and self.reset_distance is not None
+              and distance > self.reset_distance * ESCAPE_MULTIPLIER):
+            # [YENİ] Kaçış tespiti: başlangıç mesafesinin 1.5 katına çıktı
+            reward += ESCAPE_PENALTY
+            done = True
+            done_reason = "escaped"
 
         self.prev_distance = distance
 
