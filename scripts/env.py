@@ -8,8 +8,8 @@ STATE_KEYS = [
     "roc_vel_x", "roc_vel_y", "roc_vel_z",
     "roc_ang_vel_x", "roc_ang_vel_y", "roc_ang_vel_z",
     "roc_h", "height_error", "gx", "gy", "gz",
-    "distance", "closing_rate",
-    "time_remaining",   # [DEĞİŞİKLİK 1] blend_w yerine time_remaining (0→1)
+    "distance", "look_angle_rad",
+    "time_remaining",
 ]
 
 ACTION_KEYS = ["thrust", "pitch_f", "yaw_f"]
@@ -21,7 +21,7 @@ ROC_ANG_VEL_SCALE  = 10.0
 HEIGHT_SCALE       = 100.0
 GRAVITY_SCALE      = 9.81
 DISTANCE_SCALE     = 500.0
-CLOSING_RATE_SCALE = 120.0
+LOOK_ANGLE_SCALE = np.pi
 
 MIN_THRUST      = 600.0
 MAX_THRUST      = 1050.0
@@ -80,8 +80,8 @@ class Env:
             s["height_error"],
             s["g"][0], s["g"][1], s["g"][2],
             s["distance"],
-            s["closing_rate"],
-            time_remaining,     # index 19
+            s["look_angle_rad"],
+            time_remaining,
         ], dtype=np.float32)
 
     def normalize_state(self, vector_state):
@@ -94,7 +94,7 @@ class Env:
         s[13]   = np.clip(s[13]   / HEIGHT_SCALE,        -1.0, 1.0)
         s[14:17]= np.clip(s[14:17]/ GRAVITY_SCALE,       -1.0, 1.0)
         s[17]   = np.clip(s[17]   / DISTANCE_SCALE,      -1.0, 1.0)
-        s[18]   = np.clip(s[18]   / CLOSING_RATE_SCALE,  -1.0, 1.0)
+        s[18]   = np.clip(s[18]   / LOOK_ANGLE_SCALE,     0.0, 1.0)
         s[19]   = np.clip(s[19],                          0.0,  1.0) # time_remaining zaten [0,1]
         return s.astype(np.float32)
 
@@ -146,16 +146,12 @@ class Env:
     def calculate_reward(self, raw_state):
         states = raw_state["states"]
 
-        distance    = float(states["distance"])
-        agl         = float(states["roc_h"])
-        grounded    = float(states["blend_w"]) > 0.5
-        closing_rate = float(states["closing_rate"])
-
-        # [DEĞİŞİKLİK 2] Hizalama sinyali için target_dir[2]
-        # Roketin yerel ekseninde (rocketPoint.forward = +Z), target_dir[2] = cos(sapma açısı).
-        # +1 → burun tam hedefe bakıyor, −1 → tam tersi yön.
-        # Sadece pozitif tarafı ödüllendiriyoruz (max 0 ile kırpıyoruz).
-        target_dir_z = float(states["target_dir"][2])
+        distance       = float(states["distance"])
+        agl            = float(states["roc_h"])
+        grounded       = float(states["blend_w"]) > 0.5
+        look_angle_rad = float(states["look_angle_rad"])
+        look_angle_deg = np.degrees(look_angle_rad)
+        target_dir_z   = float(states["target_dir"][2])
 
         # [DEĞİŞİKLİK 3] Açısal hız büyüklüğü (takla cezası için)
         av = states["roc_ang_vel"]
@@ -163,46 +159,27 @@ class Env:
 
         # --- Sabitler ---
         STEP_PENALTY         = -0.018
-        DISTANCE_GAIN        =  0.35   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
+        DISTANCE_GAIN        =  0.20   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
         DISTANCE_DELTA_CLIP  = 10.0
-        CLOSING_RATE_GAIN    =  0.017  # [DEĞİŞİKLİK 5] 0.004 → 0.010
-        CLOSING_RATE_CLIP    = 80.0
-        ALIGNMENT_GAIN       =  0.045   # [YENİ] cos(sapma) ödülü, maks 0.04/adım
+        ANGLE_GAIN            = 0.22
+        BAD_ANGLE_DEG         = 135.0
+        BAD_ANGLE_RAD         = np.deg2rad(BAD_ANGLE_DEG)
+        BAD_ANGLE_PENALTY     = -60.0
         ANG_VEL_PENALTY      =  0.004  # [YENİ] açısal hız cezası katsayısı
         ANG_VEL_CLIP         = 10.0    # [YENİ] rad/s üst sınırı
-
         SUCCESS_DISTANCE     = 12.0
-        # [DEĞİŞİKLİK 6] MIN_AGL 0.40 → 0.25
-        # Roket rampada 0.406m AGL'de başlıyor, bu değer eski eşiğe çok yakındı.
-        # 0.25'e düşürerek kalkış sırasında erken terminal cezası engelleniyor.
         MIN_AGL              =  0.35
-        # [DEĞİŞİKLİK 7] Düşük irtifa grace süresi 8 → 15
-        # Rampadan kalkış için daha uzun tolerans tanımlıyoruz.
         LOW_AGL_GRACE_STEPS  = 15
         MAX_ALTITUDE         = 100.0
-
         SUCCESS_REWARD       =  210.0
         COLLISION_PENALTY    = -100.0
         LOW_ALTITUDE_PENALTY =  -75.0
         HIGH_ALTITUDE_PENALTY = -82.0
         TIMEOUT_PENALTY      =  -60.0
-        # Kaçış terminali
-        ESCAPE_MULTIPLIER    =  1.4    # [DEĞİŞİKLİK] 1.5 → 1.4: EP11'de max mesafe 445m iken
-                                       # reset=303m, 1.5×=454m tetiklenmiyordu; 1.4×=424m → step 532'de yakalar
+        ESCAPE_MULTIPLIER    =  1.4    
         ESCAPE_PENALTY       = -50.0
         ESCAPE_GRACE_STEPS   =  50
-
-        # [YENİ] İrtifa hizalama ödülü
-        # height_error state'te var ama reward'da katkısı sıfırdı; ajan hedef irtifasını görmezden geliyordu.
-        # height_error = target_h − agl; 0 olduğunda roket tam hedef irtifasında.
-        # Formül: gain × (1 − |height_error| / 100)
-        # Katkı aralığı: h_err=0 → +0.020, h_err=50 → +0.010, h_err≥100 → 0
         HEIGHT_ALIGN_GAIN    =  0.015
-
-        # [YENİ] Zemin yumuşak cezası (soft floor)
-        # Adımların %19.9'u roc_h < 5m. Terminal gelmeden önce sürekli sinyal olmalı.
-        # Formül: −gain × (SOFT_FLOOR − agl) if agl < SOFT_FLOOR else 0
-        # Katkı aralığı: agl=0 → −0.200, agl=3 → −0.080, agl≥5 → 0
         SOFT_FLOOR           =  5.0
         SOFT_FLOOR_GAIN      =  0.040
 
@@ -216,19 +193,19 @@ class Env:
         delta_distance = np.clip(delta_distance, -DISTANCE_DELTA_CLIP, DISTANCE_DELTA_CLIP)
         reward += DISTANCE_GAIN * delta_distance
 
-        # Kapanma hızı ödülü (artık daha ağırlıklı)
-        reward += CLOSING_RATE_GAIN * np.clip(closing_rate, -CLOSING_RATE_CLIP, CLOSING_RATE_CLIP)
+        angle_norm = np.clip(look_angle_rad / np.pi, 0.0, 1.0)
 
-        # [YENİ] Hizalama ödülü: burun hedefi gösteriyorsa bonus
-        # target_dir[2] yerel eksende cos(sapma açısı), +1 = mükemmel hizalama
-        reward += ALIGNMENT_GAIN * max(0.0, target_dir_z)
+        # 0 deg -> +ANGLE_GAIN
+        # 90 deg -> 0
+        # 180 deg -> -ANGLE_GAIN
+        reward += ANGLE_GAIN * (1.0 - 2.0 * angle_norm)
 
         # [YENİ] Açısal hız cezası: takla atan roketi caydır
         reward -= ANG_VEL_PENALTY * min(ang_vel_mag, ANG_VEL_CLIP)
 
         # [YENİ] İrtifa hizalama ödülü: hedef irtifasına yaklaşmayı teşvik eder
         height_error = np.abs(float(states["height_error"]))
-        reward -= HEIGHT_ALIGN_GAIN * height_error
+        reward += HEIGHT_ALIGN_GAIN * np.clip(1.0 - height_error / 50.0, 0.0, 1.0)
 
         # [YENİ] Zemin yumuşak cezası: terminale ulaşmadan önce sürekli uyarı sinyali
         if agl < SOFT_FLOOR:
@@ -263,6 +240,10 @@ class Env:
             reward += ESCAPE_PENALTY
             done = True
             done_reason = "escaped"
+        elif look_angle_rad >= BAD_ANGLE_RAD and self.step_count > 8:
+            reward += BAD_ANGLE_PENALTY
+            done = True
+            done_reason = "bad_angle"
 
         self.prev_distance = distance
 
@@ -271,9 +252,10 @@ class Env:
             "distance":      float(distance),
             "delta_distance":float(delta_distance),
             "roc_h":         float(agl),
-            "closing_rate":  float(closing_rate),
             "height_error":  float(states["height_error"]),
-            "alignment":     float(target_dir_z),
+            "look_angle_rad": float(look_angle_rad),
+            "look_angle_deg": float(look_angle_deg),
+            "alignment":      float(target_dir_z),
             "ang_vel_mag":   float(ang_vel_mag),
             "grounded":      grounded,
             "done_reason":   done_reason,
@@ -311,9 +293,11 @@ class Env:
             done=done,
             done_reason=reward_info["done_reason"]
         )
-        info["grounded"]    = reward_info["grounded"]
-        info["alignment"]   = reward_info["alignment"]
-        info["ang_vel_mag"] = reward_info["ang_vel_mag"]
+        info["grounded"]       = reward_info["grounded"]
+        info["alignment"]      = reward_info["alignment"]
+        info["ang_vel_mag"]    = reward_info["ang_vel_mag"]
+        info["look_angle_rad"] = reward_info["look_angle_rad"]
+        info["look_angle_deg"] = reward_info["look_angle_deg"]
 
         self.done = done
         return normalized_state, reward, done, info
@@ -367,9 +351,10 @@ class Env:
             "gy": s["g"][1],
             "gz": s["g"][2],
 
-            "distance":      s["distance"],
-            "closing_rate":  s["closing_rate"],
-            "blend_w":       s["blend_w"],  # sadece log/reward hesabı için saklanıyor
+            "distance":        s["distance"],
+            "look_angle_rad":  s["look_angle_rad"],
+            "look_angle_deg":  float(np.degrees(s["look_angle_rad"])),
+            "blend_w":         s["blend_w"],
         }
 
         if denorm_action is not None:

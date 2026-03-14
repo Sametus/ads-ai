@@ -32,7 +32,8 @@ def ensure_log_files():
                 "done_reason",
                 # --- durum bileşenleri ---
                 "distance",
-                "closing_rate",
+                "look_angle_rad",
+                "look_angle_deg",
                 "roc_h",
                 "height_error",
                 "blend_w",          # Unity'den gelen ham grounded flag (reward hesabında kullanılır)
@@ -77,8 +78,10 @@ def ensure_log_files():
                 "final_roc_h",
                 "start_height_error",
                 "final_height_error",
-                "final_alignment",      # bölüm sonu hizalama kalitesi
-                "final_ang_vel_mag",    # bölüm sonu açısal hız büyüklüğü
+                "final_look_angle_rad",
+                "final_look_angle_deg",
+                "final_alignment",
+                "final_ang_vel_mag",
             ])
 
     if not os.path.exists(UPDATE_LOG_FILE):
@@ -111,7 +114,8 @@ def append_step_csv(update_id, info):
             int(info["done"]) if info["done"] is not None else "",
             info["done_reason"],
             info["distance"],
-            info["closing_rate"],
+            info["look_angle_rad"],
+            info["look_angle_deg"],
             info["roc_h"],
             info["height_error"],
             info["blend_w"],
@@ -145,21 +149,23 @@ def append_episode_csv(update_id, episode_id, episode_return, episode_len,
     with open(EPISODE_LOG_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
-            timestamp,
-            update_id,
-            episode_id,
-            episode_return,
-            episode_len,
-            done_reason,
-            start_info["distance"],
-            final_info["distance"],
-            start_info["roc_h"],
-            final_info["roc_h"],
-            start_info["height_error"],
-            final_info["height_error"],
-            final_info.get("alignment", ""),      # [YENİ]
-            final_info.get("ang_vel_mag", ""),     # [YENİ]
-        ])
+        timestamp,
+        update_id,
+        episode_id,
+        episode_return,
+        episode_len,
+        done_reason,
+        start_info["distance"],
+        final_info["distance"],
+        start_info["roc_h"],
+        final_info["roc_h"],
+        start_info["height_error"],
+        final_info["height_error"],
+        final_info.get("look_angle_rad", ""),
+        final_info.get("look_angle_deg", ""),
+        final_info.get("alignment", ""),
+        final_info.get("ang_vel_mag", ""),
+    ])
 
 
 def append_update_csv(update_id, logs, gamma, lam, lr):
@@ -194,7 +200,7 @@ def print_step_console(update_id, info):
         f"Dst: {info['distance']:>7.2f} | "
         f"RocH: {info['roc_h']:>6.2f} | "
         f"ErrH: {info['height_error']:>6.2f} | "
-        f"CR: {info['closing_rate']:>7.2f} | "
+        f"Ang: {info['look_angle_deg']:>7.2f}° | "
         f"Aln: {align_str} | "
         f"R: {info['reward']:>7.3f} | "
         f"Act: [{info['thrust']:.2f}, {info['pitch_f']:.2f}, {info['yaw_f']:.2f}]"
@@ -230,6 +236,8 @@ def print_episode_console(episode_id, episode_return, episode_len,
         color = RED
     elif done_reason == "escaped":
         color = CYAN   # [YENİ] kaçış terminali — turkuaz ile ayırt et
+    elif done_reason == "bad_angle":
+        color = RED
     else:
         color = RESET
 
