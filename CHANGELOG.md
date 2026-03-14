@@ -217,6 +217,24 @@
 > > - **Başarı Oranı Takibi (Success Rate)**: `train.py` ve `log.py` güncellenerek eğitim süresince toplam episode ve başarı sayısı (success rate) anlık olarak takip edilmeye başlandı.
 > > - **Dinamik Konsol Çıktısı**: Eğitim sırasında konsola yazdırılan metrikler daha detaylı hale getirilerek ilerleme görünürlüğü artırıldı.
 
+> > ### Faz 1 - İlk Kontrol Noktası
+> > - İlk eğitim koşulu tamamlandı (sabit başlangıç, yeni state yapısı).
+> > - **Önemli Parametreler**: TARGET_VELOCITY = 0.0, Sabit Başlangıç (0,0), Yeni State: look_angle_rad.
+> > - Büyük log dosyaları limitler dahilinde (parçalı/sıkıştırılmış) yedeklendi.
+> 
+> > ### Faz 2 - Başarılı Eğitim
+> > - Phase 2 müfredatlı eğitimi (Curriculum Learning) hedeflerine ulaştı.
+> > - Agent hedef davranışları daha stabil hale getirildi.
+> > - **Önemli Parametreler**: Dinamik konumlar devrede, hedef sabit, DISTANCE_GAIN = 0.15, ANGLE_GAIN = 0.04.
+> > - Log ve model dosyaları commit edildi.
+> 
+> > ### Faz 3 - Final Cila
+> > - Phase 3 final eğitimi ve stabilizasyon aşaması başarıyla tamamlandı.
+> > - Model en yüksek performans ve tutarlılık seviyesine ulaştı.
+> > - **Önemli Parametreler**: Kapsamlı ödül optimizasyonları ve final stabilizasyon katsayıları devrede.
+> > - Tüm loglar ve modeller GitHub'a yedeklendi.
+
+
 
 > > - Dinamik Konsol kts: Eitim srasnda konsola yazdrlan metrikler daha detayl hale getirilerek ilerleme grnrl artrld.
 >
