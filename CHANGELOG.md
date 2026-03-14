@@ -1,4 +1,29 @@
 
+
+# Proje Fazları ve Kontrol Noktaları
+
+## [Faz 3] - 2026-03-14
+### Final Cila
+- Phase 3 final eğitimi ve stabilizasyon aşaması başarıyla tamamlandı.
+- Model en yüksek performans ve tutarlılık seviyesine ulaştı.
+- **Önemli Parametreler**: Kapsamlı ödül optimizasyonları ve final stabilizasyon katsayıları devrede.
+- Tüm loglar ve modeller GitHub'a yedeklendi.
+
+## [Faz 2] - 2026-03-14
+### Başarılı Eğitim
+- Phase 2 müfredatlı eğitimi (Curriculum Learning) hedeflerine ulaştı.
+- Agent hedef davranışları daha stabil hale getirildi.
+- **Önemli Parametreler**: Dinamik konumlar devrede, hedef sabit, DISTANCE_GAIN = 0.15, ANGLE_GAIN = 0.04.
+- Log ve model dosyaları commit edildi.
+
+## [Faz 1] - 2026-03-14
+### İlk Kontrol Noktası
+- İlk eğitim koşulu tamamlandı (sabit başlangıç, yeni state yapısı).
+- **Önemli Parametreler**: TARGET_VELOCITY = 0.0, Sabit Başlangıç (0,0), Yeni State: look_angle_rad.
+- Büyük log dosyaları limitler dahilinde (parçalı/sıkıştırılmış) yedeklendi.
+
+---
+
 # v1.0 sürüm ailesi
 
 > ## v1.0 - İlk kararlı sürüm
