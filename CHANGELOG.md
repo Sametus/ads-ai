@@ -1,3 +1,24 @@
+# Proje Fazları ve Kontrol Noktaları
+
+## [Faz 3] - 2026-03-14
+### Final Cila
+- Phase 3 final eğitimi ve stabilizasyon aşaması başarıyla tamamlandı.
+- Model en yüksek performans ve tutarlılık seviyesine ulaştı.
+- Tüm loglar ve modeller GitHub'a yedeklendi.
+
+## [Faz 2] - 2026-03-14
+### Başarılı Eğitim
+- Phase 2 müfredatlı eğitimi (Curriculum Learning) hedeflerine ulaştı.
+- Agent hedef davranışları daha stabil hale getirildi.
+- Log ve model dosyaları commit edildi.
+
+## [Faz 1] - 2026-03-14
+### İlk Kontrol Noktası
+- İlk eğitim koşulu (sabit başlangıç, yeni state yapısı) tamamlandı.
+- Büyük log dosyaları limitler dahilinde (parçalı/sıkıştırılmış) yedeklendi.
+
+---
+
 # v1.0 sürüm ailesi
 
 > ## v1.0 - İlk kararlı sürüm
