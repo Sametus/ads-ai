@@ -190,32 +190,24 @@
 > > - **Reward Ölçeklendirme (Scale-up)**: `DISTANCE_GAIN` ve `ANGLE_GAIN` gibi temel ödül katsayıları artırılarak ajanın daha güçlü sinyallerle eğitilmesi sağlandı.
 > > - **Başarı Oranı Takibi (Success Rate)**: `train.py` ve `log.py` güncellenerek eğitim süresince toplam episode ve başarı sayısı (success rate) anlık olarak takip edilmeye başlandı.
 > > - **Dinamik Konsol Çıktısı**: Eğitim sırasında konsola yazdırılan metrikler daha detaylı hale getirilerek ilerleme görünürlüğü artırıldı.
->
+
 > > ### Faz 1 - İlk Kontrol Noktası
-> > - İlk eğitim koşulu tamamlandı (sabit başlangıç, yeni state yapısı).
-> > - **Önemli Parametreler**:
+> > - Modeller ve loglar ilk kez commit edildi; scripts değişmedi.
+> > - **Başlangıç konfigürasyonu** (`env.py` v5.0.2 ile aynı):
 > >   - `TARGET_VELOCITY = 0.0` (hedef sabit)
-> >   - Başlangıç konumu: `px=0, pz=0` (sabitlendi)
-> >   - Yeni state: `look_angle_rad` eklendi
-> > - Büyük log dosyaları limitler dahilinde (parçalı/sıkıştırılmış) yedeklendi.
+> >   - `px, pz, ry, rz = 0, 0, 0, 0` (sabit başlangıç konumu)
+> >   - `ANGLE_GAIN = 0.22`, `DISTANCE_GAIN = 0.15`
+> > - Büyük log dosyaları 40MB parçalara bölünerek GitHub'a yedeklendi.
 >
 > > ### Faz 2 - Başarılı Eğitim
-> > - Phase 2 müfredatlı eğitimi (Curriculum Learning) hedeflerine ulaştı.
-> > - Agent hedef davranışları daha stabil hale getirildi.
-> > - **Önemli Parametreler**:
-> >   - Dinamik başlangıç konumları devrede (`calculate_new_loc` aktif)
-> >   - `DISTANCE_GAIN = 0.15`
-> >   - `ANGLE_GAIN = 0.04`
-> >   - `HEIGHT_ALIGN_GAIN = 0.015`
-> > - Log ve model dosyaları commit edildi.
+> > - Phase 2 müfredatlı eğitimi (Curriculum Learning) tamamlandı.
+> > - **env.py değişiklikleri** (Faz 1 → Faz 2):
+> >   - `calculate_new_loc()` aktif edildi (sabit `0,0,0,0` başlangıcından dinamik konuma geçiş)
+> >   - Başlangıç mesafesi aralığı: `randint(0,3)` (0–2 birim, yakın alan)
+> >   - `rz`: dinamik kuzeye yönelik hesaplama aktif
 >
 > > ### Faz 3 - Final Cila
-> > - Phase 3 final eğitimi ve stabilizasyon aşaması başarıyla tamamlandı.
-> > - Model en yüksek performans ve tutarlılık seviyesine ulaştı.
-> > - **Önemli Parametreler**:
-> >   - `SUCCESS_REWARD = 210.0`
-> >   - `ESCAPE_MULTIPLIER = 1.4`
-> >   - `SOFT_FLOOR = 5.0`
-> >   - Tüm reward katsayıları (DISTANCE, ANGLE, HEIGHT_ALIGN) stabilize edildi
-> > - Tüm loglar ve modeller GitHub'a yedeklendi.
-
+> > - Phase 3 final eğitimi ve stabilizasyon tamamlandı.
+> > - **env.py değişiklikleri** (Faz 2 → Faz 3):
+> >   - Başlangıç mesafesi aralığı genişletildi: `randint(0,3)` → `randint(0,5)` (0–4 birim, daha geniş alan)
+> > - Tüm modeller ve loglar GitHub'a yedeklendi.
