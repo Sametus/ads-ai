@@ -10,7 +10,7 @@ def build_raw_state(
     episode_id=1,
     step_id=1,
     distance=300.0,
-    closing_rate=10.0,
+    look_angle_rad=0.0,
     roc_h=50.0,
     height_error=0.0,
     target_dir=(0.0, 0.0, 1.0),
@@ -32,7 +32,7 @@ def build_raw_state(
             "height_error": float(height_error),
             "g": list(g),
             "distance": float(distance),
-            "closing_rate": float(closing_rate),
+            "look_angle_rad": float(look_angle_rad),
             "blend_w": float(blend_w),
         }
     }
@@ -72,7 +72,7 @@ def run_case(env, name, prev_distance, step_count, reset_distance, raw_state):
     print(f"prev_distance  : {prev_distance}")
     print(f"distance       : {raw_state['states']['distance']}")
     print(f"delta_distance : {prev_distance - raw_state['states']['distance']}")
-    print(f"closing_rate   : {raw_state['states']['closing_rate']}")
+    print(f"look_angle_rad : {raw_state['states']['look_angle_rad']}")
     print(f"roc_h          : {raw_state['states']['roc_h']}")
     print(f"height_error   : {raw_state['states']['height_error']}")
     print(f"target_dir_z   : {raw_state['states']['target_dir'][2]}")
@@ -92,8 +92,7 @@ def main():
 
     # 1) Normal yaklaşma
     raw = build_raw_state(
-        distance=280.0,
-        closing_rate=18.0,
+        look_angle_rad=0.1,
         roc_h=45.0,
         height_error=5.0,
         target_dir=(0.0, 0.0, 0.95),

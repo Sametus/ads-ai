@@ -159,7 +159,7 @@ class Env:
 
         # --- Sabitler ---
         STEP_PENALTY         = -0.018
-        DISTANCE_GAIN        =  0.20   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
+        DISTANCE_GAIN        =  0.15   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
         DISTANCE_DELTA_CLIP  = 10.0
         ANGLE_GAIN            = 0.22
         BAD_ANGLE_DEG         = 135.0

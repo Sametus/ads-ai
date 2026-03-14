@@ -164,12 +164,19 @@
 > > - **Başlangıç Oryantasyonu Sabitleme**: `env.py` içindeki `reset` fonksiyonunda `calculate_new_loc` devre dışı bırakılarak `px, pz, ry, rz = 0,0,0,0` olarak sabitlendi. Bu, ajanın her bölüme tam olarak aynı konum ve yönelimle başlamasını sağlar.
 > > - **Eğitim Kararlılığı**: Rastgeleliğin (randomness) azaltılmasıyla ajanın temel hareketleri ve dengeyi daha hızlı öğrenmesi hedeflenmektedir.
 >
-> # v5.0 - Yeni Eyalet Tanımı ve Müfredat Gelişimi
+> # v5.0 - Yeni State Tanımı ve Müfredat Gelişimi
 >
-> > ## v5.0.0 - Yeni Eyalet Tanımı ve Gelişmiş Loglama
+> > ## v5.0.0 - Yeni State Tanımı ve Gelişmiş Loglama
 > >
 > > - **Major State Güncellemesi**: State vektöründen `closing_rate` çıkarılarak yerine `look_angle_rad` (bakış açısı - radyan) eklendi. Bu, ajanın hedefe olan yönelimini daha hassas algılamasını sağlar.
 > > - **State Normalizasyonu**: Yeni eklenen bakış açısı için `LOOK_ANGLE_SCALE = np.pi` tanımlandı ve [0, 1] aralığına normalize edildi.
 > > - **Gelişmiş Loglama**: `log.py` güncellenerek `step_log.csv` ve `episode_log.csv` dosyalarına `look_angle_rad` ve `look_angle_deg` verileri eklendi.
 > > - **Müfredat Takibi**: Curriculum Learning Step 2 (Sabit Başlangıç) devam ederken yeni state yapısıyla eğitim kararlılığı hedefleniyor.
+>
+> > ## v5.0.0a - Reward Fonksiyonu ve Terminal Şart İyileştirmeleri
+> >
+> > - **Açı Odaklı Ödül (Angle Reward)**: `look_angle_rad` üzerinden hesaplanan `ANGLE_GAIN` ödülü eklendi. Burun hedefe baktıkça ödül artar, ters yöne döndükçe ceza verilir.
+> > - **Yüksek Sapma Terminali (Bad Angle Terminal)**: Roketin hedeften 135 dereceden fazla saptığı durumlar için `bad_angle` terminali ve `-60` puanlık ceza tanımlandı.
+> > - **İrtifa Hizalama Revizyonu**: İrtifa ödülü (`HEIGHT_ALIGN_GAIN`) artık lineer ceza yerine, 50m hata payı içerisinde pozitif bir çarpan olarak hesaplanıyor.
+> > - **Dengeleme**: `DISTANCE_GAIN` değeri **0.35 -> 0.15** seviyesine çekilerek açısal ödüllerle uyumlu hale getirildi.
 
