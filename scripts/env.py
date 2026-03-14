@@ -23,7 +23,7 @@ GRAVITY_SCALE      = 9.81
 DISTANCE_SCALE     = 500.0
 CLOSING_RATE_SCALE = 120.0
 
-MIN_THRUST      = 580.0
+MIN_THRUST      = 600.0
 MAX_THRUST      = 1050.0
 MAX_PITCH_FORCE = 1.7
 MAX_YAW_FORCE   = 1.7
@@ -185,13 +185,25 @@ class Env:
         LOW_ALTITUDE_PENALTY =  -75.0
         HIGH_ALTITUDE_PENALTY = -82.0
         TIMEOUT_PENALTY      =  -60.0
-        # [YENİ] Kaçış terminali
-        # Roket başlangıç mesafesinin 1.5 katına çıkarsa bölümü kes.
-        # EP17 gibi "dönüp uzaklaşma" davranışını 200-300 adımda keser,
-        # 581 adımlık −399 return value function'ı patlatmaz.
-        ESCAPE_MULTIPLIER    =  1.5
+        # Kaçış terminali
+        ESCAPE_MULTIPLIER    =  1.4    # [DEĞİŞİKLİK] 1.5 → 1.4: EP11'de max mesafe 445m iken
+                                       # reset=303m, 1.5×=454m tetiklenmiyordu; 1.4×=424m → step 532'de yakalar
         ESCAPE_PENALTY       = -50.0
-        ESCAPE_GRACE_STEPS   =  50    # ilk 50 adımda kontrol etme (kalkış toleransı)
+        ESCAPE_GRACE_STEPS   =  50
+
+        # [YENİ] İrtifa hizalama ödülü
+        # height_error state'te var ama reward'da katkısı sıfırdı; ajan hedef irtifasını görmezden geliyordu.
+        # height_error = target_h − agl; 0 olduğunda roket tam hedef irtifasında.
+        # Formül: gain × (1 − |height_error| / 100)
+        # Katkı aralığı: h_err=0 → +0.020, h_err=50 → +0.010, h_err≥100 → 0
+        HEIGHT_ALIGN_GAIN    =  0.020
+
+        # [YENİ] Zemin yumuşak cezası (soft floor)
+        # Adımların %19.9'u roc_h < 5m. Terminal gelmeden önce sürekli sinyal olmalı.
+        # Formül: −gain × (SOFT_FLOOR − agl) if agl < SOFT_FLOOR else 0
+        # Katkı aralığı: agl=0 → −0.200, agl=3 → −0.080, agl≥5 → 0
+        SOFT_FLOOR           =  5.0
+        SOFT_FLOOR_GAIN      =  0.040
 
         reward = STEP_PENALTY
         done = False
@@ -212,6 +224,14 @@ class Env:
 
         # [YENİ] Açısal hız cezası: takla atan roketi caydır
         reward -= ANG_VEL_PENALTY * min(ang_vel_mag, ANG_VEL_CLIP)
+
+        # [YENİ] İrtifa hizalama ödülü: hedef irtifasına yaklaşmayı teşvik eder
+        height_error = float(states["height_error"])
+        reward += HEIGHT_ALIGN_GAIN * (1.0 - min(abs(height_error), 100.0) / 100.0)
+
+        # [YENİ] Zemin yumuşak cezası: terminale ulaşmadan önce sürekli uyarı sinyali
+        if agl < SOFT_FLOOR:
+            reward -= SOFT_FLOOR_GAIN * (SOFT_FLOOR - agl)
 
         # Terminal koşullar
         if distance <= SUCCESS_DISTANCE:
@@ -251,6 +271,7 @@ class Env:
             "delta_distance":float(delta_distance),
             "roc_h":         float(agl),
             "closing_rate":  float(closing_rate),
+            "height_error":  float(states["height_error"]),
             "alignment":     float(target_dir_z),
             "ang_vel_mag":   float(ang_vel_mag),
             "grounded":      grounded,
