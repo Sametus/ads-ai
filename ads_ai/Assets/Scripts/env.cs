@@ -1,6 +1,32 @@
 using System;
 using UnityEngine;
 
+// =============================================================================
+// PYTHON STATE VEKTÖRİ SÖZLEŞMESİ  (env.py – parse_state + normalize_state)
+// =============================================================================
+// Bu C# tarafının göndereceği JSON alanları ve Python'un oluşturduğu
+// 20 boyutlu state vektörü arasındaki tam eşleme:
+//
+//  Index  | Python state adı    | JSON alanı (bu dosyadan gönderilir)
+//  -------|---------------------|-------------------------------------
+//   0-2   | target_dir_x/y/z   | states.target_dir[0..2]
+//   3-5   | rel_vel_x/y/z      | states.rel_vel[0..2]
+//   6-8   | roc_vel_x/y/z      | states.roc_vel[0..2]
+//   9-11  | roc_ang_vel_x/y/z  | states.roc_ang_vel[0..2]
+//   12    | roc_h              | states.roc_h   (AGL, raycast)
+//   13    | height_error       | states.height_error  (hedef_h – agl)
+//   14-16 | gx/gy/gz           | states.g[0..2]
+//   17    | distance           | states.distance
+//   18    | closing_rate       | states.closing_rate
+//   19    | time_remaining     | ** Python'da hesaplanır **
+//          |                   | (max_step - step_count) / max_step
+//          |                   | Unity'den GELMEZ; JSON'da karşılığı yok.
+//
+// NOT: states.blend_w alanı artık state vektörünün 19. indisi DEĞİLDİR.
+//      Python reward hesabında grounded tespiti için okunmaya devam eder,
+//      dolayısıyla JSON paketinde gönderilmesi GEREKİR.
+// =============================================================================
+
 [Serializable]
 public class IncomingPacket
 {
@@ -25,7 +51,11 @@ public class OutgoingStateData
 
     public float distance;
     public float closing_rate;
-    public float blend_w;    // grounded flag: 0/1
+    // blend_w: grounded flag (0 = havada, 1 = yerde).
+    // Reward hesabı için Python'a gönderilir (çarpışma/low_agl tespiti).
+    // UYARI: State vektörü index 19 artık time_remaining'dir (Python'da hesaplanır).
+    //        blend_w state observation DEĞİLDİR; sadece JSON paketinde taşınır.
+    public float blend_w;
 }
 
 [Serializable]
@@ -405,6 +435,10 @@ public class Env : MonoBehaviour
 
         s.distance = distance;
         s.closing_rate = -Vector3.Dot(relVelWorld, targetDirWorld); // + ise hedefe yaklaşıyor
+
+        // blend_w: grounded flag – reward hesabı için Python'a gönderilir.
+        // State vektörü index 19 = time_remaining (Python'da hesaplanır; burada değil).
+        // target_dir[2] (yerel eksen): cos(sapma açısı) → Python hizalama ödülünde kullanılır.
         s.blend_w = grounded ? 1f : 0f;
 
         return s;

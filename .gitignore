@@ -15,3 +15,5 @@ ads_ai/[Aa]ssets/StreamingAssets/aa.meta
 ads_ai/.vs/
 
 # Project-specific directories to exclude from git
+logs/
+models/

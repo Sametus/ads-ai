@@ -8,24 +8,25 @@ STATE_KEYS = [
     "roc_vel_x", "roc_vel_y", "roc_vel_z",
     "roc_ang_vel_x", "roc_ang_vel_y", "roc_ang_vel_z",
     "roc_h", "height_error", "gx", "gy", "gz",
-    "distance", "closing_rate", "blend_w"
+    "distance", "closing_rate",
+    "time_remaining",   # [DEĞİŞİKLİK 1] blend_w yerine time_remaining (0→1)
 ]
 
 ACTION_KEYS = ["thrust", "pitch_f", "yaw_f"]
 
-TARGET_DIR_SCALE = 1.0
-REL_VEL_SCALE = 100.0
-ROC_VEL_SCALE = 100.0
-ROC_ANG_VEL_SCALE = 10.0
-HEIGHT_SCALE = 100.0
-GRAVITY_SCALE = 9.81
-DISTANCE_SCALE = 500.0
+TARGET_DIR_SCALE   = 1.0
+REL_VEL_SCALE      = 100.0
+ROC_VEL_SCALE      = 100.0
+ROC_ANG_VEL_SCALE  = 10.0
+HEIGHT_SCALE       = 100.0
+GRAVITY_SCALE      = 9.81
+DISTANCE_SCALE     = 500.0
 CLOSING_RATE_SCALE = 120.0
 
-MIN_THRUST = 600.0
-MAX_THRUST = 1000.0
+MIN_THRUST      = 600.0
+MAX_THRUST      = 1000.0
 MAX_PITCH_FORCE = 1.5
-MAX_YAW_FORCE = 1.5
+MAX_YAW_FORCE   = 1.5
 TARGET_VELOCITY = 25.0
 
 
@@ -42,41 +43,63 @@ class Env:
     def __init__(self, ip, port):
         self.connect = connector.Connector(ip, port)
         self.done = False
-        self.state_size = 20
+        self.state_size  = 20
         self.action_size = 3
-        self.max_step = 1300
-        self.step_count = 0
-        self.episode_id = 0
+        self.max_step    = 1300
+        self.step_count  = 0
+        self.episode_id  = 0
         self.prev_distance = None
+
+    # ------------------------------------------------------------------
+    # STATE
+    # ------------------------------------------------------------------
 
     def read_state(self):
         return self.connect.read_packet()
 
     def parse_state(self, raw_state):
         s = raw_state["states"]
+
+        # [DEĞİŞİKLİK 1] blend_w → time_remaining
+        # blend_w uçuş boyunca neredeyse daima 0, terminal olduğunda bölüm
+        # zaten bitiyor → faydasız bir slot.
+        # time_remaining ajanın zamanı ne kadar kaldığını bilmesini sağlar;
+        # timeout yaklaştığında daha agresif davranabilir.
+        time_remaining = np.clip(
+            (self.max_step - self.step_count) / self.max_step,
+            0.0, 1.0
+        )
+
         return np.array([
             s["target_dir"][0], s["target_dir"][1], s["target_dir"][2],
-            s["rel_vel"][0], s["rel_vel"][1], s["rel_vel"][2],
-            s["roc_vel"][0], s["roc_vel"][1], s["roc_vel"][2],
+            s["rel_vel"][0],    s["rel_vel"][1],    s["rel_vel"][2],
+            s["roc_vel"][0],    s["roc_vel"][1],    s["roc_vel"][2],
             s["roc_ang_vel"][0], s["roc_ang_vel"][1], s["roc_ang_vel"][2],
-            s["roc_h"], s["height_error"],
+            s["roc_h"],
+            s["height_error"],
             s["g"][0], s["g"][1], s["g"][2],
-            s["distance"], s["closing_rate"], s["blend_w"],
+            s["distance"],
+            s["closing_rate"],
+            time_remaining,     # index 19
         ], dtype=np.float32)
 
     def normalize_state(self, vector_state):
         s = vector_state.copy()
-        s[0:3] = np.clip(s[0:3] / TARGET_DIR_SCALE, -1.0, 1.0)
-        s[3:6] = np.clip(s[3:6] / REL_VEL_SCALE, -1.0, 1.0)
-        s[6:9] = np.clip(s[6:9] / ROC_VEL_SCALE, -1.0, 1.0)
-        s[9:12] = np.clip(s[9:12] / ROC_ANG_VEL_SCALE, -1.0, 1.0)
-        s[12] = np.clip(s[12] / HEIGHT_SCALE, -1.0, 1.0)    # roc_h artık AGL
-        s[13] = np.clip(s[13] / HEIGHT_SCALE, -1.0, 1.0) # height_error
-        s[14:17] = np.clip(s[14:17] / GRAVITY_SCALE, -1.0, 1.0)
-        s[17] = np.clip(s[17] / DISTANCE_SCALE, -1.0, 1.0)
-        s[18] = np.clip(s[18] / CLOSING_RATE_SCALE, -1.0, 1.0)
-        s[19] = np.clip(s[19], 0.0, 1.0)                     # grounded flag
+        s[0:3]  = np.clip(s[0:3]  / TARGET_DIR_SCALE,   -1.0, 1.0)
+        s[3:6]  = np.clip(s[3:6]  / REL_VEL_SCALE,      -1.0, 1.0)
+        s[6:9]  = np.clip(s[6:9]  / ROC_VEL_SCALE,      -1.0, 1.0)
+        s[9:12] = np.clip(s[9:12] / ROC_ANG_VEL_SCALE,  -1.0, 1.0)
+        s[12]   = np.clip(s[12]   / HEIGHT_SCALE,        -1.0, 1.0)
+        s[13]   = np.clip(s[13]   / HEIGHT_SCALE,        -1.0, 1.0)
+        s[14:17]= np.clip(s[14:17]/ GRAVITY_SCALE,       -1.0, 1.0)
+        s[17]   = np.clip(s[17]   / DISTANCE_SCALE,      -1.0, 1.0)
+        s[18]   = np.clip(s[18]   / CLOSING_RATE_SCALE,  -1.0, 1.0)
+        s[19]   = np.clip(s[19],                          0.0,  1.0) # time_remaining zaten [0,1]
         return s.astype(np.float32)
+
+    # ------------------------------------------------------------------
+    # RESET
+    # ------------------------------------------------------------------
 
     def reset(self):
         self.episode_id += 1
@@ -97,7 +120,7 @@ class Env:
         self.connect.send_packet(data=init_loc)
 
         raw_state = self.read_state()
-        vector_state = self.parse_state(raw_state)
+        vector_state     = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
         self.prev_distance = float(raw_state["states"]["distance"])
         start_info = self.build_info(raw_state)
@@ -113,40 +136,75 @@ class Env:
 
         return raw_state, vector_state, normalized_state, start_info
 
+    # ------------------------------------------------------------------
+    # REWARD
+    # ------------------------------------------------------------------
+
     def calculate_reward(self, raw_state):
         states = raw_state["states"]
-        distance = float(states["distance"])
-        agl = float(states["roc_h"])
-        grounded = float(states["blend_w"]) > 0.5
+
+        distance    = float(states["distance"])
+        agl         = float(states["roc_h"])
+        grounded    = float(states["blend_w"]) > 0.5
         closing_rate = float(states["closing_rate"])
 
-        STEP_PENALTY = -0.02
-        DISTANCE_GAIN = 0.35
-        DISTANCE_DELTA_CLIP = 10.0
-        CLOSING_RATE_GAIN = 0.004
-        CLOSING_RATE_CLIP = 80.0
+        # [DEĞİŞİKLİK 2] Hizalama sinyali için target_dir[2]
+        # Roketin yerel ekseninde (rocketPoint.forward = +Z), target_dir[2] = cos(sapma açısı).
+        # +1 → burun tam hedefe bakıyor, −1 → tam tersi yön.
+        # Sadece pozitif tarafı ödüllendiriyoruz (max 0 ile kırpıyoruz).
+        target_dir_z = float(states["target_dir"][2])
 
-        SUCCESS_DISTANCE = 12.0
-        MIN_AGL = 0.40
-        MAX_ALTITUDE = 100.0
+        # [DEĞİŞİKLİK 3] Açısal hız büyüklüğü (takla cezası için)
+        av = states["roc_ang_vel"]
+        ang_vel_mag = float(np.sqrt(av[0]**2 + av[1]**2 + av[2]**2))
 
-        SUCCESS_REWARD = 200.0
-        COLLISION_PENALTY = -100.0
-        LOW_ALTITUDE_PENALTY = -70.0
+        # --- Sabitler ---
+        STEP_PENALTY         = -0.02
+        DISTANCE_GAIN        =  0.30   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
+        DISTANCE_DELTA_CLIP  = 10.0
+        CLOSING_RATE_GAIN    =  0.010  # [DEĞİŞİKLİK 5] 0.004 → 0.010
+        CLOSING_RATE_CLIP    = 80.0
+        ALIGNMENT_GAIN       =  0.04   # [YENİ] cos(sapma) ödülü, maks 0.04/adım
+        ANG_VEL_PENALTY      =  0.005  # [YENİ] açısal hız cezası katsayısı
+        ANG_VEL_CLIP         = 10.0    # [YENİ] rad/s üst sınırı
+
+        SUCCESS_DISTANCE     = 12.0
+        # [DEĞİŞİKLİK 6] MIN_AGL 0.40 → 0.25
+        # Roket rampada 0.406m AGL'de başlıyor, bu değer eski eşiğe çok yakındı.
+        # 0.25'e düşürerek kalkış sırasında erken terminal cezası engelleniyor.
+        MIN_AGL              =  0.25
+        # [DEĞİŞİKLİK 7] Düşük irtifa grace süresi 8 → 15
+        # Rampadan kalkış için daha uzun tolerans tanımlıyoruz.
+        LOW_AGL_GRACE_STEPS  = 15
+        MAX_ALTITUDE         = 100.0
+
+        SUCCESS_REWARD       =  200.0
+        COLLISION_PENALTY    = -100.0
+        LOW_ALTITUDE_PENALTY =  -70.0
         HIGH_ALTITUDE_PENALTY = -80.0
-        TIMEOUT_PENALTY = -60.0
+        TIMEOUT_PENALTY      =  -60.0
 
         reward = STEP_PENALTY
         done = False
         done_reason = None
         success = False
 
+        # Mesafe delta ödülü
         delta_distance = self.prev_distance - distance
         delta_distance = np.clip(delta_distance, -DISTANCE_DELTA_CLIP, DISTANCE_DELTA_CLIP)
         reward += DISTANCE_GAIN * delta_distance
 
+        # Kapanma hızı ödülü (artık daha ağırlıklı)
         reward += CLOSING_RATE_GAIN * np.clip(closing_rate, -CLOSING_RATE_CLIP, CLOSING_RATE_CLIP)
 
+        # [YENİ] Hizalama ödülü: burun hedefi gösteriyorsa bonus
+        # target_dir[2] yerel eksende cos(sapma açısı), +1 = mükemmel hizalama
+        reward += ALIGNMENT_GAIN * max(0.0, target_dir_z)
+
+        # [YENİ] Açısal hız cezası: takla atan roketi caydır
+        reward -= ANG_VEL_PENALTY * min(ang_vel_mag, ANG_VEL_CLIP)
+
+        # Terminal koşullar
         if distance <= SUCCESS_DISTANCE:
             reward += SUCCESS_REWARD
             done = True
@@ -156,7 +214,7 @@ class Env:
             reward += COLLISION_PENALTY
             done = True
             done_reason = "collision"
-        elif agl <= MIN_AGL and self.step_count > 8:
+        elif agl <= MIN_AGL and self.step_count > LOW_AGL_GRACE_STEPS:
             reward += LOW_ALTITUDE_PENALTY
             done = True
             done_reason = "low_agl"
@@ -172,16 +230,22 @@ class Env:
         self.prev_distance = distance
 
         reward_info = {
-            "reward_total": float(reward),
-            "distance": float(distance),
-            "delta_distance": float(delta_distance),
-            "roc_h": float(agl),
-            "closing_rate": float(closing_rate),
-            "grounded": grounded,
-            "done_reason": done_reason,
-            "success": success
+            "reward_total":  float(reward),
+            "distance":      float(distance),
+            "delta_distance":float(delta_distance),
+            "roc_h":         float(agl),
+            "closing_rate":  float(closing_rate),
+            "alignment":     float(target_dir_z),
+            "ang_vel_mag":   float(ang_vel_mag),
+            "grounded":      grounded,
+            "done_reason":   done_reason,
+            "success":       success,
         }
         return float(reward), done, reward_info
+
+    # ------------------------------------------------------------------
+    # STEP
+    # ------------------------------------------------------------------
 
     def step(self, action):
         self.step_count += 1
@@ -189,15 +253,15 @@ class Env:
 
         action_dict = {
             "episode_id": self.episode_id,
-            "step_id": self.step_count,
-            "type": "action",
-            "values": denorm_action
+            "step_id":    self.step_count,
+            "type":       "action",
+            "values":     denorm_action
         }
 
         self.connect.send_packet(action_dict)
 
-        raw_state = self.read_state()
-        vector_state = self.parse_state(raw_state)
+        raw_state        = self.read_state()
+        vector_state     = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
 
         reward, done, reward_info = self.calculate_reward(raw_state)
@@ -209,18 +273,24 @@ class Env:
             done=done,
             done_reason=reward_info["done_reason"]
         )
-        info["grounded"] = reward_info["grounded"]
+        info["grounded"]    = reward_info["grounded"]
+        info["alignment"]   = reward_info["alignment"]
+        info["ang_vel_mag"] = reward_info["ang_vel_mag"]
 
         self.done = done
         return normalized_state, reward, done, info
+
+    # ------------------------------------------------------------------
+    # YARDIMCI METODLAR
+    # ------------------------------------------------------------------
 
     def denormalize_action(self, action):
         a = np.asarray(action, dtype=np.float32)
         a = np.clip(a, -1.0, 1.0)
 
-        thrust = MIN_THRUST + ((a[0] + 1.0) / 2.0) * (MAX_THRUST - MIN_THRUST)
+        thrust  = MIN_THRUST + ((a[0] + 1.0) / 2.0) * (MAX_THRUST - MIN_THRUST)
         pitch_f = a[1] * MAX_PITCH_FORCE
-        yaw_f = a[2] * MAX_YAW_FORCE
+        yaw_f   = a[2] * MAX_YAW_FORCE
 
         return [float(thrust), float(pitch_f), float(yaw_f)]
 
@@ -228,50 +298,50 @@ class Env:
         s = raw_state["states"]
 
         info = {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "episode_id": raw_state["episode_id"],
-            "step_id": raw_state["step_id"],
+            "timestamp":    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "episode_id":   raw_state["episode_id"],
+            "step_id":      raw_state["step_id"],
 
-            "reward": reward,
-            "done": done,
-            "done_reason": done_reason,
+            "reward":       reward,
+            "done":         done,
+            "done_reason":  done_reason,
 
             "target_dir_x": s["target_dir"][0],
             "target_dir_y": s["target_dir"][1],
             "target_dir_z": s["target_dir"][2],
 
-            "rel_vel_x": s["rel_vel"][0],
-            "rel_vel_y": s["rel_vel"][1],
-            "rel_vel_z": s["rel_vel"][2],
+            "rel_vel_x":    s["rel_vel"][0],
+            "rel_vel_y":    s["rel_vel"][1],
+            "rel_vel_z":    s["rel_vel"][2],
 
-            "roc_vel_x": s["roc_vel"][0],
-            "roc_vel_y": s["roc_vel"][1],
-            "roc_vel_z": s["roc_vel"][2],
+            "roc_vel_x":    s["roc_vel"][0],
+            "roc_vel_y":    s["roc_vel"][1],
+            "roc_vel_z":    s["roc_vel"][2],
 
             "roc_ang_vel_x": s["roc_ang_vel"][0],
             "roc_ang_vel_y": s["roc_ang_vel"][1],
             "roc_ang_vel_z": s["roc_ang_vel"][2],
 
-            "roc_h": s["roc_h"],
-            "height_error": s["height_error"],
+            "roc_h":         s["roc_h"],
+            "height_error":  s["height_error"],
 
             "gx": s["g"][0],
             "gy": s["g"][1],
             "gz": s["g"][2],
 
-            "distance": s["distance"],
-            "closing_rate": s["closing_rate"],
-            "blend_w": s["blend_w"],
+            "distance":      s["distance"],
+            "closing_rate":  s["closing_rate"],
+            "blend_w":       s["blend_w"],  # sadece log/reward hesabı için saklanıyor
         }
 
         if denorm_action is not None:
-            info["thrust"] = denorm_action[0]
-            info["pitch_f"] = denorm_action[1]
-            info["yaw_f"] = denorm_action[2]
+            info["thrust"]   = denorm_action[0]
+            info["pitch_f"]  = denorm_action[1]
+            info["yaw_f"]    = denorm_action[2]
         else:
-            info["thrust"] = None
-            info["pitch_f"] = None
-            info["yaw_f"] = None
+            info["thrust"]   = None
+            info["pitch_f"]  = None
+            info["yaw_f"]    = None
 
         return info
 
