@@ -179,4 +179,9 @@
 > > - **Yüksek Sapma Terminali (Bad Angle Terminal)**: Roketin hedeften 135 dereceden fazla saptığı durumlar için `bad_angle` terminali ve `-60` puanlık ceza tanımlandı.
 > > - **İrtifa Hizalama Revizyonu**: İrtifa ödülü (`HEIGHT_ALIGN_GAIN`) artık lineer ceza yerine, 50m hata payı içerisinde pozitif bir çarpan olarak hesaplanıyor.
 > > - **Dengeleme**: `DISTANCE_GAIN` değeri **0.35 -> 0.15** seviyesine çekilerek açısal ödüllerle uyumlu hale getirildi.
+>
+> > ## v5.0.1 - Ödül ve Terminal Şartı Refakatçı Düzenlemeleri
+> >
+> > - **Terminal Şartı Kaldırıldı**: `bad_angle` terminal şartı `env.py` dosyasından kaldırılarak ajanın aşırı yönelmelerde de öğrenmeye devam etmesi sağlandı.
+> > - **Bakış Açısı Hesaplaması İyileştirildi (Unity)**: `env.cs` içerisinde bakış açısı (`look_angle_rad`) artık `Mathf.Acos` kullanılarak daha hassas ve kararlı bir şekilde hesaplanıyor.
 

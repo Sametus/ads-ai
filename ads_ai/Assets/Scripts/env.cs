@@ -17,7 +17,7 @@ using UnityEngine;
 //   13    | height_error       | states.height_error  (hedef_h – agl)
 //   14-16 | gx/gy/gz           | states.g[0..2]
 //   17    | distance           | states.distance
-//   18    | closing_rate       | states.closing_rate
+//   18    | look_angle_rad     | states.look_angle_rad
 //   19    | time_remaining     | ** Python'da hesaplanır **
 //          |                   | (max_step - step_count) / max_step
 //          |                   | Unity'den GELMEZ; JSON'da karşılığı yok.
@@ -50,11 +50,7 @@ public class OutgoingStateData
     public float[] g = new float[3];
 
     public float distance;
-    public float closing_rate;
-    // blend_w: grounded flag (0 = havada, 1 = yerde).
-    // Reward hesabı için Python'a gönderilir (çarpışma/low_agl tespiti).
-    // UYARI: State vektörü index 19 artık time_remaining'dir (Python'da hesaplanır).
-    //        blend_w state observation DEĞİLDİR; sadece JSON paketinde taşınır.
+    public float look_angle_rad;
     public float blend_w;
 }
 
@@ -103,7 +99,7 @@ public class Env : MonoBehaviour
     public bool keepTargetRotXFixed = true;
 
     [Header("Target Motion")]
-    public float targetSpeed = 25f;
+    public float targetSpeed = 0f;
 
     [Header("Ground / Collision")]
     public LayerMask groundMask = ~0;
@@ -434,11 +430,10 @@ public class Env : MonoBehaviour
         s.g[2] = gravityUsed.z;
 
         s.distance = distance;
-        s.closing_rate = -Vector3.Dot(relVelWorld, targetDirWorld); // + ise hedefe yaklaşıyor
 
-        // blend_w: grounded flag – reward hesabı için Python'a gönderilir.
-        // State vektörü index 19 = time_remaining (Python'da hesaplanır; burada değil).
-        // target_dir[2] (yerel eksen): cos(sapma açısı) → Python hizalama ödülünde kullanılır.
+        float zClamped = Mathf.Clamp(targetDirUsed.z, -1f, 1f);
+        s.look_angle_rad = Mathf.Acos(zClamped);
+
         s.blend_w = grounded ? 1f : 0f;
 
         return s;

@@ -240,10 +240,6 @@ class Env:
             reward += ESCAPE_PENALTY
             done = True
             done_reason = "escaped"
-        elif look_angle_rad >= BAD_ANGLE_RAD and self.step_count > 8:
-            reward += BAD_ANGLE_PENALTY
-            done = True
-            done_reason = "bad_angle"
 
         self.prev_distance = distance
 
