@@ -196,7 +196,7 @@ class Env:
         # height_error = target_h − agl; 0 olduğunda roket tam hedef irtifasında.
         # Formül: gain × (1 − |height_error| / 100)
         # Katkı aralığı: h_err=0 → +0.020, h_err=50 → +0.010, h_err≥100 → 0
-        HEIGHT_ALIGN_GAIN    =  0.020
+        HEIGHT_ALIGN_GAIN    =  0.035
 
         # [YENİ] Zemin yumuşak cezası (soft floor)
         # Adımların %19.9'u roc_h < 5m. Terminal gelmeden önce sürekli sinyal olmalı.
@@ -226,8 +226,8 @@ class Env:
         reward -= ANG_VEL_PENALTY * min(ang_vel_mag, ANG_VEL_CLIP)
 
         # [YENİ] İrtifa hizalama ödülü: hedef irtifasına yaklaşmayı teşvik eder
-        height_error = float(states["height_error"])
-        reward += HEIGHT_ALIGN_GAIN * (1.0 - min(abs(height_error), 100.0) / 100.0)
+        height_error = np.abs(float(states["height_error"]))
+        reward -= HEIGHT_ALIGN_GAIN * height_error
 
         # [YENİ] Zemin yumuşak cezası: terminale ulaşmadan önce sürekli uyarı sinyali
         if agl < SOFT_FLOOR:
