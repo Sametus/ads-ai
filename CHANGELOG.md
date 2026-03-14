@@ -193,18 +193,18 @@
 > > - **Dinamik Konsol Ã‡Ä±ktÄ±sÄ±**: EÄŸitim sÄ±rasÄ±nda konsola yazdÄ±rÄ±lan metrikler daha detaylÄ± hale getirilerek ilerleme gÃ¶rÃ¼nÃ¼rlÃ¼ÄŸÃ¼ artÄ±rÄ±ldÄ±.
 
 
-> > - Dinamik Konsol Çýktýsý: Eðitim sýrasýnda konsola yazdýrýlan metrikler daha detaylý hale getirilerek ilerleme görünürlüðü artýrýldý.
+> > - Dinamik Konsol kts: Eitim srasnda konsola yazdrlan metrikler daha detayl hale getirilerek ilerleme grnrl artrld.
 >
-> > ### Faz 1 - Ýlk Kontrol Noktasý
-> > - Ýlk eðitim koþulu (sabit baþlangýç, yeni state yapýsý) tamamlandý.
-> > - Büyük log dosyalarý limitler dahilinde (parçalý/sýkýþtýrýlmýþ) yedeklendi.
+> > ### Faz 1 - lk Kontrol Noktas
+> > - lk eitim koulu (sabit balang, yeni state yaps) tamamland.
+> > - Byk log dosyalar limitler dahilinde (paral/sktrlm) yedeklendi.
 >
-> > ### Faz 2 - Baþarýlý Eðitim
-> > - Phase 2 müfredatlý eðitimi (Curriculum Learning) hedeflerine ulaþtý.
-> > - Agent hedef davranýþlarý daha stabil hale getirildi.
-> > - Log ve model dosyalarý commit edildi.
+> > ### Faz 2 - Baarl Eitim
+> > - Phase 2 mfredatl eitimi (Curriculum Learning) hedeflerine ulat.
+> > - Agent hedef davranlar daha stabil hale getirildi.
+> > - Log ve model dosyalar commit edildi.
 >
 > > ### Faz 3 - Final Cila
-> > - Phase 3 final eðitimi ve stabilizasyon aþamasý baþarýyla tamamlandý.
-> > - Model en yüksek performans ve tutarlýlýk seviyesine ulaþtý.
-> > - Tüm loglar ve modeller GitHub'a yedeklendi.
+> > - Phase 3 final eitimi ve stabilizasyon aamas baaryla tamamland.
+> > - Model en yksek performans ve tutarllk seviyesine ulat.
+> > - Tm loglar ve modeller GitHub'a yedeklendi.
