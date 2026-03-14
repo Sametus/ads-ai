@@ -196,7 +196,7 @@ class Env:
         # height_error = target_h − agl; 0 olduğunda roket tam hedef irtifasında.
         # Formül: gain × (1 − |height_error| / 100)
         # Katkı aralığı: h_err=0 → +0.020, h_err=50 → +0.010, h_err≥100 → 0
-        HEIGHT_ALIGN_GAIN    =  0.035
+        HEIGHT_ALIGN_GAIN    =  0.015
 
         # [YENİ] Zemin yumuşak cezası (soft floor)
         # Adımların %19.9'u roc_h < 5m. Terminal gelmeden önce sürekli sinyal olmalı.
