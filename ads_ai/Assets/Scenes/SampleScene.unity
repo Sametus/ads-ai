@@ -6325,7 +6325,7 @@ MonoBehaviour:
   useLocalFrame: 1
   keepTargetYFixed: 1
   keepTargetRotXFixed: 1
-  targetSpeed: 25
+  targetSpeed: 0
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
