@@ -32,8 +32,8 @@ TARGET_VELOCITY = 0.0
 
 def calculate_new_loc():
     theta = np.random.uniform(0, 2 * np.pi)
-    px = np.random.randint(0,3) * np.cos(theta)
-    pz = np.random.randint(0,3) * np.sin(theta)
+    px = np.random.randint(0,5) * np.cos(theta)
+    pz = np.random.randint(0,5) * np.sin(theta)
     ry = 180.0
     rz = 90.0 - np.degrees(np.arctan2(pz, px))
     return px, pz, ry, rz
