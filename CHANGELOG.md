@@ -192,3 +192,19 @@
 > > - **BaÅŸarÄ± OranÄ± Takibi (Success Rate)**: `train.py` ve `log.py` gÃ¼ncellenerek eÄŸitim sÃ¼resince toplam episode ve baÅŸarÄ± sayÄ±sÄ± (success rate) anlÄ±k olarak takip edilmeye baÅŸlandÄ±.
 > > - **Dinamik Konsol Ã‡Ä±ktÄ±sÄ±**: EÄŸitim sÄ±rasÄ±nda konsola yazdÄ±rÄ±lan metrikler daha detaylÄ± hale getirilerek ilerleme gÃ¶rÃ¼nÃ¼rlÃ¼ÄŸÃ¼ artÄ±rÄ±ldÄ±.
 
+
+> > - Dinamik Konsol Çýktýsý: Eðitim sýrasýnda konsola yazdýrýlan metrikler daha detaylý hale getirilerek ilerleme görünürlüðü artýrýldý.
+>
+> > ### Faz 1 - Ýlk Kontrol Noktasý
+> > - Ýlk eðitim koþulu (sabit baþlangýç, yeni state yapýsý) tamamlandý.
+> > - Büyük log dosyalarý limitler dahilinde (parçalý/sýkýþtýrýlmýþ) yedeklendi.
+>
+> > ### Faz 2 - Baþarýlý Eðitim
+> > - Phase 2 müfredatlý eðitimi (Curriculum Learning) hedeflerine ulaþtý.
+> > - Agent hedef davranýþlarý daha stabil hale getirildi.
+> > - Log ve model dosyalarý commit edildi.
+>
+> > ### Faz 3 - Final Cila
+> > - Phase 3 final eðitimi ve stabilizasyon aþamasý baþarýyla tamamlandý.
+> > - Model en yüksek performans ve tutarlýlýk seviyesine ulaþtý.
+> > - Tüm loglar ve modeller GitHub'a yedeklendi.
