@@ -216,3 +216,8 @@
 > > - Faz 4 eğitimi tamamlandı.
 > > - **env.py değişiklikleri** (Faz 3 → Faz 4):
 > >   - Başlangıç mesafe çarpanı: `np.random.randint(1,5.5)` → `np.random.randint(2,7)` (2–6 birim, daha geniş alan)
+>
+> > ### Faz 5 - Tamamlandı
+> > - Faz 5 eğitimi tamamlandı.
+> > - **env.py değişiklikleri** (Faz 4 → Faz 5):
+> >   - Başlangıç mesafe çarpanı: `np.random.randint(2,7)` → `np.random.randint(3,10)` (3–9 birim, daha geniş alan)
