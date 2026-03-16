@@ -135,7 +135,17 @@ Projemiz, stabil bir hava savunma modeli elde edebilmek adına, ilk günden bug�
 
 ### Gelişmiş State'ler ve Zorunlu Ölçeklendirme (v5.0 ve Fazlar Dönemi)
 - **v5.0 Look Angle:** Kapanma hızı (`closing_rate`) state'i çıkartıldı, yerine ajanın hedefe hangi radyanda baktığını gösteren `look_angle_rad` state girdisi olarak sağlandı. Bununla bağlantılı pozitif yönde bir Angle Gauge ödül çarpanı atandı.
-- **Faz 1'den Faz 9'a Gelişim Çizgisi:**
-  - **Faz 1 ve Faz 2:** Hedef merkeze yakın ve tepede tutuldu, model temel itki-ve-hizalamayı garantiledi.
-  - **Faz 3 - Faz 6:** Ajan hedefe başarıyla yaklaşabildiğinde, her bir yeni eğitim serisinde hedefin oluşturulduğu bölgenin etki alanı (radyus birimleri) istikrarlı oranlarda genişletildi. (Faz 4: aralık 2-7; Faz 6: aralık 4-11).
-- **Faz 7, Faz 8 ve Faz 9:** En ileri seviye eğitimler bu fazlarda gerçekleştirilmiştir. Artık başlangıç mesafe çarpanı minimum 9 birim, maksimum 16 birim olacak kadar zorlu ve uzak hedefler atanmaktadır. Yanı sıra ajanın gereksiz manevralar yapmasına engel olmak için Step Ceza Sistemi (`-0.018` -> `-0.022`) daraltılmış; fakat bu daraltmalara, başarı ödül katsayıları ve Angle toleransı artırılarak (`0.30` -> `0.40`) dengeleyici destek eklenmiştir. **Mevcut durumda, model belli bir olgunluğa erişmiş olsa da; tam otonom ve kusursuz bir av-avcı reaksiyonu elde etmek için parametre optimizasyonu ve stabilizasyon eğitimleri aktif olarak devam etmektedir.**
+- **Faz 1'den Faz 9'a Detaylı Gelişim Çizgisi (Curriculum Learning):**
+  Ajanın görev karmaşıklığını sistematik olarak artırmak için aşağıdaki 9 eğitim fazı tamamlanmıştır:
+
+  - **Faz 1:** Hedef sabit ve roketin tam tepesindeydi (`TARGET_VELOCITY = 0.0`). Roketin başlangıç konumu hep merkez kabul edildi (`px, pz, ry, rz = 0`). Temel itki ve burun yönlendirme (hizalama) yetenekleri test edildi.
+  - **Faz 2:** Hedefin dinamik başlatılması ilk defa devreye alındı. Hedef çok yakın (0-2 birim mesafede) alanda rastgele noktalarda oluşturularak temel takipten ziyade hedef yönelim adaptasyonu sağlandı.
+  - **Faz 3:** Hedefin başlangıç mesafesi bir miktar genişletilerek 1-4 birim (daha geniş yakın alan) aralığına çıkartıldı. Model bu mesafede stabilize edildi.
+  - **Faz 4:** Görev zorlaştırılarak hedefin doğabileceği yarıçap alanı 2-6 birime çıkarıldı. Orta mesafe takip reaksiyonları gelişti.
+  - **Faz 5:** Hedef başlangıç alanı 3-9 birim aralığına genişletildi. Ajan, hem yönünü bulmayı hem de daha uzun süzülüşleri kavramaya başladı.
+  - **Faz 6:** Eğitimin ufkunu genişletecek 4-10 birim aralığı tanıtıldı. Ajan, yüksek irtifayı kaybetmeden uzak hedeflere kaymayı optimize etti.
+  - **Faz 7:** Başlangıç mesafesi 7-12 birim bandına çekilerek "uzak angajman" senaryolarına resmen geçiş yapıldı. Artan zorlukla başa çıkmak için sistem desteklendi: Ajanı rotasında tutacak `ANGLE_GAIN` 0.22'den 0.30'a çıkartıldı; uçuş başarılı olduğunda alınacak ana ödül de (`SUCCESS_REWARD`) 210'dan 250'ye yükseltildi. Öte yandan yüksek irtifa cezaları ve hedeften kaçış (`ESCAPE_PENALTY`) cezaları katılaştırıldı.
+  - **Faz 8:** Hedef menzili iyice öteye (yaklaşık 7-13 birim minimum uzaklığa) taşındı. Ajan uzak mesafe angajman karakteristiğine oturdu.
+  - **Faz 9:** Simülasyonun en ileri, zorlu eğitim senaryosuydu. Başlangıç mesafe alanı minimum 9 birim, maksimum 16 birim olacak kadar devasa ölçeklere oturtuldu. Yanı sıra, ajanın oyalanmasına engel olmak için "Step Ceza Sistemi" (`STEP_PENALTY`) daraltıldı (`-0.018` -> `-0.022`). Bu zorlaşmanın karşılığında, ajanın hedefe bakma başarı oranı ödülü (`ANGLE_GAIN`) `0.40` gibi yüksek bir limite çıkartıldı ve mesafe ödülleri iyileştirildi. 
+
+  **Mevcut durumda, model belli bir olgunluğa (Faz 9) erişmiş olsa da; tam otonom ve kusursuz bir av-avcı reaksiyonu elde etmek için hiperparametre optimizasyonu, farklı faz denemeleri ve stabilizasyon çalışmaları aktif olarak devam etmektedir.**
