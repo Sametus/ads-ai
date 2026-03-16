@@ -226,3 +226,15 @@
 > > - Faz 6 eğitimi tamamlandı.
 > > - **env.py değişiklikleri** (Faz 5 → Faz 6):
 > >   - Başlangıç mesafe çarpanı: `np.random.randint(3,10)` → `np.random.randint(4,11)` (4–10 birim, daha geniş alan)
+>
+> > ### Faz 7 - Tamamlandı
+> > - Faz 7 eğitimi tamamlandı.
+> > - **env.py değişiklikleri** (Faz 6 → Faz 7):
+> >   - Başlangıç mesafe çarpanı: `np.random.randint(4,11)` → `np.random.randint(7,13)` (7–12 birim, daha geniş alan)
+> >   - Ödül ve ceza ayarları: `ANGLE_GAIN = 0.22 → 0.30`, `SUCCESS_REWARD = 210.0 → 250.0`, `HIGH_ALTITUDE_PENALTY = -82.0 → -85.0`, `ESCAPE_PENALTY = -50.0 → -60.0`
+> > - **Log yönetimi**: `logs/step_log.csv` Faz 7 için `logs/step_log_faz7.zip` olarak sıkıştırıldı ve aktif dosya sıfırlandı (büyük dosya uyarılarını azaltmak için).
+
+> > ### Faz 8 - Tamamlandı
+> > - Faz 8 eğitimi tamamlandı.
+> > - **env.py değişiklikleri** (Faz 7 → Faz 8):
+> >   - Başlangıç mesafe çarpanı: `np.random.randint(5.5,12.5)` → `np.random.randint(7,13)` (yaklaşık 6–12 birimden 7–12 birime, daha uzak minimum mesafe)
