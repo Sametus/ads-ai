@@ -238,3 +238,14 @@
 > > - Faz 8 eğitimi tamamlandı.
 > > - **env.py değişiklikleri** (Faz 7 → Faz 8):
 > >   - Başlangıç mesafe çarpanı: `np.random.randint(5.5,12.5)` → `np.random.randint(7,13)` (yaklaşık 6–12 birimden 7–12 birime, daha uzak minimum mesafe)
+
+> > ### Faz 9 - Tamamlandı
+> > - Faz 9 eğitimi tamamlandı.
+> > - **env.py değişiklikleri** (Faz 8 → Faz 9):
+> >   - Başlangıç mesafe çarpanı: `np.random.randint(7,13)` → `np.random.randint(9,16)` (9–15 birim, hedef başlangıç mesafesi belirgin şekilde büyüdü)
+> >   - Ödül ve ceza ayarları:
+> >     - `STEP_PENALTY = -0.018 → -0.022` (adım başına ceza biraz artırıldı)
+> >     - `DISTANCE_GAIN = 0.15 → 0.17`, `ANGLE_GAIN = 0.30 → 0.40`
+> >     - `ANG_VEL_PENALTY = 0.004 → 0.005`
+> >     - `ESCAPE_PENALTY = -60.0 → -70.0`, `ESCAPE_GRACE_STEPS = 50 → 55`
+> >     - `HEIGHT_ALIGN_GAIN = 0.015 → 0.020`

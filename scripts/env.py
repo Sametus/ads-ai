@@ -32,8 +32,8 @@ TARGET_VELOCITY = 0.0
 
 def calculate_new_loc():
     theta = np.random.uniform(0, 2 * np.pi)
-    px = np.random.randint(7,13) * np.cos(theta)
-    pz = np.random.randint(7,13) * np.sin(theta)
+    px = np.random.randint(9,16) * np.cos(theta)
+    pz = np.random.randint(9,16) * np.sin(theta)
     ry = 180.0
     rz = 90.0 - np.degrees(np.arctan2(pz, px))
     return px, pz, ry, rz
@@ -158,14 +158,14 @@ class Env:
         ang_vel_mag = float(np.sqrt(av[0]**2 + av[1]**2 + av[2]**2))
 
         # --- Sabitler ---
-        STEP_PENALTY         = -0.018
-        DISTANCE_GAIN        =  0.15   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
+        STEP_PENALTY         = -0.022
+        DISTANCE_GAIN        =  0.17   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
         DISTANCE_DELTA_CLIP  = 10.0
-        ANGLE_GAIN            = 0.3
+        ANGLE_GAIN            = 0.4
         BAD_ANGLE_DEG         = 135.0
         BAD_ANGLE_RAD         = np.deg2rad(BAD_ANGLE_DEG)
         BAD_ANGLE_PENALTY     = -60.0
-        ANG_VEL_PENALTY      =  0.004  # [YENİ] açısal hız cezası katsayısı
+        ANG_VEL_PENALTY      =  0.005  # [YENİ] açısal hız cezası katsayısı
         ANG_VEL_CLIP         = 10.0    # [YENİ] rad/s üst sınırı
         SUCCESS_DISTANCE     = 12.0
         MIN_AGL              =  0.35
@@ -177,9 +177,9 @@ class Env:
         HIGH_ALTITUDE_PENALTY = -85.0
         TIMEOUT_PENALTY      =  -60.0
         ESCAPE_MULTIPLIER    =  1.4    
-        ESCAPE_PENALTY       = -60.0
-        ESCAPE_GRACE_STEPS   =  50
-        HEIGHT_ALIGN_GAIN    =  0.015
+        ESCAPE_PENALTY       = -70.0
+        ESCAPE_GRACE_STEPS   =  55
+        HEIGHT_ALIGN_GAIN    =  0.02
         SOFT_FLOOR           =  5.0
         SOFT_FLOOR_GAIN      =  0.040
 
