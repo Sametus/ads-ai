@@ -32,8 +32,8 @@ TARGET_VELOCITY = 0.0
 
 def calculate_new_loc():
     theta = np.random.uniform(0, 2 * np.pi)
-    px = np.random.randint(4,11) * np.cos(theta)
-    pz = np.random.randint(4,11) * np.sin(theta)
+    px = np.random.randint(5.5,12.5) * np.cos(theta)
+    pz = np.random.randint(5.5,12.5) * np.sin(theta)
     ry = 180.0
     rz = 90.0 - np.degrees(np.arctan2(pz, px))
     return px, pz, ry, rz
@@ -161,7 +161,7 @@ class Env:
         STEP_PENALTY         = -0.018
         DISTANCE_GAIN        =  0.15   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
         DISTANCE_DELTA_CLIP  = 10.0
-        ANGLE_GAIN            = 0.22
+        ANGLE_GAIN            = 0.3
         BAD_ANGLE_DEG         = 135.0
         BAD_ANGLE_RAD         = np.deg2rad(BAD_ANGLE_DEG)
         BAD_ANGLE_PENALTY     = -60.0
@@ -171,13 +171,13 @@ class Env:
         MIN_AGL              =  0.35
         LOW_AGL_GRACE_STEPS  = 15
         MAX_ALTITUDE         = 100.0
-        SUCCESS_REWARD       =  210.0
+        SUCCESS_REWARD       =  250.0
         COLLISION_PENALTY    = -100.0
         LOW_ALTITUDE_PENALTY =  -75.0
-        HIGH_ALTITUDE_PENALTY = -82.0
+        HIGH_ALTITUDE_PENALTY = -85.0
         TIMEOUT_PENALTY      =  -60.0
         ESCAPE_MULTIPLIER    =  1.4    
-        ESCAPE_PENALTY       = -50.0
+        ESCAPE_PENALTY       = -60.0
         ESCAPE_GRACE_STEPS   =  50
         HEIGHT_ALIGN_GAIN    =  0.015
         SOFT_FLOOR           =  5.0
