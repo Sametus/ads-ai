@@ -130,12 +130,7 @@ Projemiz, stabil bir hava savunma modeli elde edebilmek adına, ilk günden bug�
 - **v3.3 ve v3.4:** Performans sınırları yukarı çekildi (Max torklar 1.5'ten 1.7'ye esnetildi, yunuslama payı yükseldi). Yer ile temas ihtimallerine karşı (5 metre aşağısında) "Soft Floor" cezalandırma sistemi kurularak ajanın yere yaklaşımı kademeli olarak sertleştirildi.
 - **Analiz Betikleri:** Modelleri ölçmek adına `docs/analiz.py` ve `scripts/reward_test.py` gibi dış araçlar entegre edildi.
 
-### Müfredatlı Öğrenmenin (Curriculum Learning) Başlaması (v4.0 Sürümleri)
-- Ajanın aşırı zorlandığı fark edildi. Hedef başlangıçta hareketsiz kılındı (`TARGET_VELOCITY=0`) ve sadece roketin üstünde dairesel şekilde (koordinat 0,0) konumlanarak modelin temel manevraları ve dengeyi safça öğrenmesi sağlandı.
-
-### Gelişmiş State'ler ve Zorunlu Ölçeklendirme (v5.0 ve Fazlar Dönemi)
-- **v5.0 Look Angle:** Kapanma hızı (`closing_rate`) state'i çıkartıldı, yerine ajanın hedefe hangi radyanda baktığını gösteren `look_angle_rad` state girdisi olarak sağlandı. Bununla bağlantılı pozitif yönde bir Angle Gauge ödül çarpanı atandı.
-- **Faz 1'den Faz 9'a Detaylı Gelişim Çizgisi (Curriculum Learning):**
+### Müfreda- **Faz 1'den Faz 9'a Detaylı Gelişim Çizgisi (Curriculum Learning):**
   Ajanın görev karmaşıklığını sistematik olarak artırmak için aşağıdaki 9 eğitim fazı tamamlanmıştır:
 
   - **Faz 1:** Hedef sabit ve roketin tam tepesindeydi (`TARGET_VELOCITY = 0.0`). Roketin başlangıç konumu hep merkez kabul edildi (`px, pz, ry, rz = 0`). Temel itki ve burun yönlendirme (hizalama) yetenekleri test edildi. **(Başarı Oranı: %77.07)**
@@ -149,3 +144,5 @@ Projemiz, stabil bir hava savunma modeli elde edebilmek adına, ilk günden bug�
   - **Faz 9:** Simülasyonun en ileri, zorlu eğitim senaryosuydu. Başlangıç mesafe alanı minimum 9 birim, maksimum 16 birim olacak kadar devasa ölçeklere oturtuldu. Yanı sıra, ajanın oyalanmasına engel olmak için "Step Ceza Sistemi" (`STEP_PENALTY`) daraltıldı (`-0.018` -> `-0.022`). Bu zorlaşmanın karşılığında, ajanın hedefe bakma başarı oranı ödülü (`ANGLE_GAIN`) `0.40` gibi yüksek bir limite çıkartıldı ve mesafe ödülleri iyileştirildi. **(Başarı Oranı: %73.57)**
 
   **Mevcut durumda, model belli bir olgunluğa (Faz 9) erişmiş olsa da; tam otonom ve kusursuz bir av-avcı reaksiyonu elde etmek için hiperparametre optimizasyonu, farklı faz denemeleri ve stabilizasyon çalışmaları aktif olarak devam etmektedir.**
+
+![Şekil 1-7: Müfredatlı Öğrenme Başarı Oranları](docs/rapor/proje-rapor/success_rates.png)
