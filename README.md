@@ -130,8 +130,8 @@ Projemiz, stabil bir hava savunma modeli elde edebilmek adına, ilk günden bug�
 - **v3.3 ve v3.4:** Performans sınırları yukarı çekildi (Max torklar 1.5'ten 1.7'ye esnetildi, yunuslama payı yükseldi). Yer ile temas ihtimallerine karşı (5 metre aşağısında) "Soft Floor" cezalandırma sistemi kurularak ajanın yere yaklaşımı kademeli olarak sertleştirildi.
 - **Analiz Betikleri:** Modelleri ölçmek adına `docs/analiz.py` ve `scripts/reward_test.py` gibi dış araçlar entegre edildi.
 
-### Müfreda- **Faz 1'den Faz 9'a Detaylı Gelişim Çizgisi (Curriculum Learning):**
-  Ajanın görev karmaşıklığını sistematik olarak artırmak için aşağıdaki 9 eğitim fazı tamamlanmıştır:
+### Müfreda- **Faz 1'den Faz 10'a Detaylı Gelişim Çizgisi (Curriculum Learning):**
+  Ajanın görev karmaşıklığını sistematik olarak artırmak için aşağıdaki eğitim fazları tamamlanmıştır:
 
   - **Faz 1:** Hedef sabit ve roketin tam tepesindeydi (`TARGET_VELOCITY = 0.0`). Roketin başlangıç konumu hep merkez kabul edildi (`px, pz, ry, rz = 0`). Temel itki ve burun yönlendirme (hizalama) yetenekleri test edildi. **(Başarı Oranı: %77.07)**
   - **Faz 2:** Hedefin dinamik başlatılması ilk defa devreye alındı. Hedef çok yakın (0-2 birim mesafede) alanda rastgele noktalarda oluşturularak temel takipten ziyade hedef yönelim adaptasyonu sağlandı. **(Başarı Oranı: %94.65)**
@@ -142,7 +142,8 @@ Projemiz, stabil bir hava savunma modeli elde edebilmek adına, ilk günden bug�
   - **Faz 7:** Başlangıç mesafesi 7-12 birim bandına çekilerek "uzak angajman" senaryolarına resmen geçiş yapıldı. Artan zorlukla başa çıkmak için sistem desteklendi: Ajanı rotasında tutacak `ANGLE_GAIN` 0.22'den 0.30'a çıkartıldı; uçuş başarılı olduğunda alınacak ana ödül de (`SUCCESS_REWARD`) 210'dan 250'ye yükseltildi. Öte yandan yüksek irtifa cezaları ve hedeften kaçış (`ESCAPE_PENALTY`) cezaları katılaştırıldı. **(Başarı Oranı: %68.48)**
   - **Faz 8:** Hedef menzili iyice öteye (yaklaşık 7-13 birim minimum uzaklığa) taşındı. Ajan uzak mesafe angajman karakteristiğine oturdu. **(Başarı Oranı: %85.30)**
   - **Faz 9:** Simülasyonun en ileri, zorlu eğitim senaryosuydu. Başlangıç mesafe alanı minimum 9 birim, maksimum 16 birim olacak kadar devasa ölçeklere oturtuldu. Yanı sıra, ajanın oyalanmasına engel olmak için "Step Ceza Sistemi" (`STEP_PENALTY`) daraltıldı (`-0.018` -> `-0.022`). Bu zorlaşmanın karşılığında, ajanın hedefe bakma başarı oranı ödülü (`ANGLE_GAIN`) `0.40` gibi yüksek bir limite çıkartıldı ve mesafe ödülleri iyileştirildi. **(Başarı Oranı: %73.57)**
+  - **Faz 10 (Başarısız Faz):** Hedef başlangıç mesafesi agresif biçimde 10.5–20 birim aralığına taşındı (çok uzak angajman). Aynı anda epizot süresi `max_step = 255` ile ciddi biçimde kısaltıldı ve adım/irtifa/timeout cezaları belirgin derecede sertleştirildi (`STEP_PENALTY = -0.030`, `HIGH_ALTITUDE_PENALTY = -90.0`, `TIMEOUT_PENALTY = -90.0`, `HEIGHT_ALIGN_GAIN = 0.025`). Bu kombinasyon, ajanın öğrenmesini zorlaştırarak başarı oranını aşağı çekti. **(Başarı Oranı: %54.34 - Faz 10 başarısız olarak işaretlenmiştir.)**
 
-  **Mevcut durumda, model belli bir olgunluğa (Faz 9) erişmiş olsa da; tam otonom ve kusursuz bir av-avcı reaksiyonu elde etmek için hiperparametre optimizasyonu, farklı faz denemeleri ve stabilizasyon çalışmaları aktif olarak devam etmektedir.**
+  **Mevcut durumda, model belli bir olgunluğa (Faz 9–10 denemeleri) erişmiş olsa da; tam otonom ve kusursuz bir av-avcı reaksiyonu elde etmek için hiperparametre optimizasyonu, farklı faz denemeleri ve stabilizasyon çalışmaları aktif olarak devam etmektedir.**
 
 ![Şekil 1-7: Müfredatlı Öğrenme Başarı Oranları](docs/rapor/proje-rapor/success_rates.png)

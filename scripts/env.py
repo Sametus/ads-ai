@@ -32,8 +32,8 @@ TARGET_VELOCITY = 0.0
 
 def calculate_new_loc():
     theta = np.random.uniform(0, 2 * np.pi)
-    px = np.random.randint(9,16) * np.cos(theta)
-    pz = np.random.randint(9,16) * np.sin(theta)
+    px = np.random.randint(10.5,20) * np.cos(theta)
+    pz = np.random.randint(10.5,20) * np.sin(theta)
     ry = 180.0
     rz = 90.0 - np.degrees(np.arctan2(pz, px))
     return px, pz, ry, rz
@@ -45,7 +45,7 @@ class Env:
         self.done = False
         self.state_size  = 20
         self.action_size = 3
-        self.max_step    = 1300
+        self.max_step    = 255
         self.step_count  = 0
         self.episode_id  = 0
         self.prev_distance  = None
@@ -158,7 +158,7 @@ class Env:
         ang_vel_mag = float(np.sqrt(av[0]**2 + av[1]**2 + av[2]**2))
 
         # --- Sabitler ---
-        STEP_PENALTY         = -0.022
+        STEP_PENALTY         = -0.03
         DISTANCE_GAIN        =  0.17   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
         DISTANCE_DELTA_CLIP  = 10.0
         ANGLE_GAIN            = 0.4
@@ -174,12 +174,12 @@ class Env:
         SUCCESS_REWARD       =  250.0
         COLLISION_PENALTY    = -100.0
         LOW_ALTITUDE_PENALTY =  -75.0
-        HIGH_ALTITUDE_PENALTY = -85.0
-        TIMEOUT_PENALTY      =  -60.0
+        HIGH_ALTITUDE_PENALTY = -90.0
+        TIMEOUT_PENALTY      =  -90.0
         ESCAPE_MULTIPLIER    =  1.4    
         ESCAPE_PENALTY       = -70.0
         ESCAPE_GRACE_STEPS   =  55
-        HEIGHT_ALIGN_GAIN    =  0.02
+        HEIGHT_ALIGN_GAIN    =  0.025
         SOFT_FLOOR           =  5.0
         SOFT_FLOOR_GAIN      =  0.040
 
@@ -233,13 +233,16 @@ class Env:
             reward += TIMEOUT_PENALTY
             done = True
             done_reason = "timeout"
-        elif (self.step_count > ESCAPE_GRACE_STEPS
-              and self.reset_distance is not None
-              and distance > self.reset_distance * ESCAPE_MULTIPLIER):
-            # [YENİ] Kaçış tespiti: başlangıç mesafesinin 1.5 katına çıktı
-            reward += ESCAPE_PENALTY
-            done = True
-            done_reason = "escaped"
+        # elif (self.step_count > ESCAPE_GRACE_STEPS
+        #     and self.reset_distance is not None
+        #     and distance > self.reset_distance * ESCAPE_MULTIPLIER):
+
+        #     escape_threshold = self.reset_distance * ESCAPE_MULTIPLIER
+        #     escape_excess = max(0.0, distance - escape_threshold)
+
+        #     reward += ESCAPE_PENALTY - 2.0 * escape_excess
+        #     done = True
+        #     done_reason = "escaped"
 
         self.prev_distance = distance
 

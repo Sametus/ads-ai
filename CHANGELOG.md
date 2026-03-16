@@ -249,3 +249,16 @@
 > >     - `ANG_VEL_PENALTY = 0.004 → 0.005`
 > >     - `ESCAPE_PENALTY = -60.0 → -70.0`, `ESCAPE_GRACE_STEPS = 50 → 55`
 > >     - `HEIGHT_ALIGN_GAIN = 0.015 → 0.020`
+
+> > ### Faz 10 - Başarısız (Tamamlandı)
+> > - Faz 10 eğitimi **tamamlandı ancak hedeflenen başarı seviyesine ulaşamadı**.
+> > - **env.py değişiklikleri** (Faz 9 → Faz 10):
+> >   - Başlangıç mesafe çarpanı: `np.random.randint(9,16)` → `np.random.randint(10.5,20)` (yaklaşık 11–19 birim; çok uzak başlangıç menzili)
+> >   - Maksimum adım sayısı: `max_step = 1300` → `max_step = 255` (epizot süresi ciddi biçimde kısaltıldı)
+> >   - Ödül/ceza parametreleri:
+> >     - `STEP_PENALTY = -0.022 → -0.030` (her adım için daha sert ceza)
+> >     - `HIGH_ALTITUDE_PENALTY = -85.0 → -90.0`
+> >     - `TIMEOUT_PENALTY = -60.0 → -90.0`
+> >     - `HEIGHT_ALIGN_GAIN = 0.020 → 0.025`
+> >   - Kaçış (escape) mantığı: ESCAPE terminal bloğu yoruma alınarak devre dışı bırakıldı (kaçış durumları artık terminal olmuyor).
+> > - **Başarı oranı (success rate)**: **%54.34** — önceki fazlara kıyasla belirgin düşüş; bu nedenle Faz 10 **başarısız** olarak işaretlendi ve bir önceki faz (Faz 9) kalıcı referans olarak korunuyor.
