@@ -30,7 +30,7 @@ def gaussian_entropy(log_std):
 
 class PPOAgent:
     def __init__(self):
-        self.state_size = 20
+        self.state_size = 18
         self.action_size = 3
         self.lr = 1e-4
         self.gamma = 0.99

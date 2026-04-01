@@ -2,29 +2,27 @@ using System;
 using UnityEngine;
 
 // =============================================================================
-// PYTHON STATE VEKTÖRİ SÖZLEŞMESİ  (env.py – parse_state + normalize_state)
+// PYTHON STATE VEKTORI SOZLESMESI  (env.py - parse_state + normalize_state)
 // =============================================================================
-// Bu C# tarafının göndereceği JSON alanları ve Python'un oluşturduğu
-// 20 boyutlu state vektörü arasındaki tam eşleme:
+// Unity tarafinin gonderecegi alanlar ile Python'da kurulan 18 boyutlu state:
 //
-//  Index  | Python state adı    | JSON alanı (bu dosyadan gönderilir)
-//  -------|---------------------|-------------------------------------
-//   0-2   | target_dir_x/y/z   | states.target_dir[0..2]
-//   3-5   | rel_vel_x/y/z      | states.rel_vel[0..2]
-//   6-8   | roc_vel_x/y/z      | states.roc_vel[0..2]
-//   9-11  | roc_ang_vel_x/y/z  | states.roc_ang_vel[0..2]
-//   12    | roc_h              | states.roc_h   (AGL, raycast)
-//   13    | height_error       | states.height_error  (hedef_h – agl)
-//   14-16 | gx/gy/gz           | states.g[0..2]
-//   17    | distance           | states.distance
-//   18    | look_angle_rad     | states.look_angle_rad
-//   19    | time_remaining     | ** Python'da hesaplanır **
-//          |                   | (max_step - step_count) / max_step
-//          |                   | Unity'den GELMEZ; JSON'da karşılığı yok.
+//  Index  | Python state adi | JSON alani
+//  -------|------------------|--------------------------------------
+//   0     | los_yaw_sin      | states.los_yaw_sin
+//   1     | los_yaw_cos      | states.los_yaw_cos
+//   2     | los_pitch_sin    | states.los_pitch_sin
+//   3     | los_pitch_cos    | states.los_pitch_cos
+//   4     | distance         | states.distance
+//   5     | closing_speed    | states.closing_speed
+//   6-8   | rel_vel_x/y/z    | states.rel_vel[0..2]
+//   9-11  | roc_ang_vel_x/y/z| states.roc_ang_vel[0..2]
+//   12-14 | gx/gy/gz         | states.g[0..2]
+//   15    | agl              | states.agl
+//   16    | alt_error        | states.alt_error
+//   17    | time_remaining   | Python'da hesaplanir
 //
-// NOT: states.blend_w alanı artık state vektörünün 19. indisi DEĞİLDİR.
-//      Python reward hesabında grounded tespiti için okunmaya devam eder,
-//      dolayısıyla JSON paketinde gönderilmesi GEREKİR.
+// NOT: grounded_flag state vektorune dahil DEGILDIR.
+//      Reward ve terminal logic icin ham JSON icinde gonderilir.
 // =============================================================================
 
 [Serializable]
@@ -39,19 +37,21 @@ public class IncomingPacket
 [Serializable]
 public class OutgoingStateData
 {
-    public float[] target_dir = new float[3];
-    public float[] rel_vel = new float[3];
-    public float[] roc_vel = new float[3];
-    public float[] roc_ang_vel = new float[3];
-
-    public float roc_h;      // artık AGL (yerden yükseklik)
-    public float height_error;
-
-    public float[] g = new float[3];
+    public float los_yaw_sin;
+    public float los_yaw_cos;
+    public float los_pitch_sin;
+    public float los_pitch_cos;
 
     public float distance;
-    public float look_angle_rad;
-    public float blend_w;
+    public float closing_speed;
+
+    public float[] rel_vel = new float[3];
+    public float[] roc_ang_vel = new float[3];
+    public float[] g = new float[3];
+
+    public float agl;
+    public float alt_error;
+    public float grounded_flag;
 }
 
 [Serializable]
@@ -68,13 +68,13 @@ public class Env : MonoBehaviour
     public string ip = "127.0.0.1";
     public int port = 5005;
 
-    [Header("Scene References (Sürükle-Bırak)")]
+    [Header("Scene References (Surukle-Birak)")]
     public Transform rocket;
     public Transform rocketPoint;
     public Transform target;
     public Transform targetPoint;
 
-    [Header("Rigidbodies (Sürükle-Bırak, boşsa otomatik aranır)")]
+    [Header("Rigidbodies (Surukle-Birak, bossa otomatik aranir)")]
     public Rigidbody rocketRb;
     public Rigidbody targetRb;
 
@@ -141,13 +141,11 @@ public class Env : MonoBehaviour
         connector = new Connector();
         connector.StartServer(ip, port);
 
-        Debug.Log($"[Env] Başladı | fixedTargetY={fixedTargetY:F2} | fixedTargetRotX={fixedTargetRotX:F2} | manual physics step aktif");
+        Debug.Log($"[Env] Basladi | fixedTargetY={fixedTargetY:F2} | fixedTargetRotX={fixedTargetRotX:F2} | manual physics step aktif");
     }
 
     private void Update()
     {
-
-
         if (connector == null || !connector.IsConnected || !connector.HasData)
             return;
 
@@ -160,15 +158,14 @@ public class Env : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // Boş bırakıldı.
-        // Fizik yalnızca Python'dan action geldiğinde StepOnce() içinde ilerletilir.
+        // Fizik yalnizca Python'dan action geldiginde StepOnce() icinde ilerletilir.
     }
 
     private void ValidateAndBindReferences()
     {
         if (rocket == null || rocketPoint == null || target == null || targetPoint == null)
         {
-            Debug.LogError("[Env] Transform referansları eksik.");
+            Debug.LogError("[Env] Transform referanslari eksik.");
             enabled = false;
             return;
         }
@@ -181,7 +178,7 @@ public class Env : MonoBehaviour
 
         if (rocketRb == null)
         {
-            Debug.LogError("[Env] Rocket Rigidbody bulunamadı.");
+            Debug.LogError("[Env] Rocket Rigidbody bulunamadi.");
             enabled = false;
         }
     }
@@ -196,7 +193,7 @@ public class Env : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError("[Env] JSON parse hatası: " + e.Message);
+            Debug.LogError("[Env] JSON parse hatasi: " + e.Message);
             return;
         }
 
@@ -213,7 +210,7 @@ public class Env : MonoBehaviour
         {
             if (packet.values == null || packet.values.Length < 5)
             {
-                Debug.LogError("[Env] Reset paketi geçersiz.");
+                Debug.LogError("[Env] Reset paketi gecersiz.");
                 return;
             }
 
@@ -226,7 +223,7 @@ public class Env : MonoBehaviour
         {
             if (packet.values == null || packet.values.Length < 3)
             {
-                Debug.LogError("[Env] Action paketi geçersiz.");
+                Debug.LogError("[Env] Action paketi gecersiz.");
                 return;
             }
 
@@ -301,7 +298,6 @@ public class Env : MonoBehaviour
 
         localStepCount = 0;
 
-        // Target reset
         target.position = new Vector3(targetPosX, targetPosY, targetPosZ);
         target.eulerAngles = new Vector3(targetRotX, targetRotY, targetRotZ);
 
@@ -312,7 +308,6 @@ public class Env : MonoBehaviour
             targetRb.isKinematic = true;
         }
 
-        // Rocket reset: önce kinematic, sonra transform set, sonra sync, sonra dynamic
         rocketRb.isKinematic = true;
         rocket.position = rocketResetPosition;
         rocket.rotation = Quaternion.Euler(rocketResetEuler);
@@ -327,7 +322,6 @@ public class Env : MonoBehaviour
         currentPitch = 0f;
         currentYaw = 0f;
 
-        // HEADING PYTHON'DA RZ İLE TAŞINIYOR
         float headingRad = targetRotZ * Mathf.Deg2Rad;
         targetMoveDir = new Vector3(-Mathf.Sin(headingRad), 0f, -Mathf.Cos(headingRad)).normalized;
 
@@ -359,9 +353,8 @@ public class Env : MonoBehaviour
     private float ComputeAGL(out bool grounded)
     {
         Vector3 origin = rocketRb.worldCenterOfMass;
-        Vector3 down = Vector3.down;
 
-        if (Physics.Raycast(origin, down, out RaycastHit hit, groundRayMax, groundMask, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, groundRayMax, groundMask, QueryTriggerInteraction.Ignore))
         {
             grounded = (localStepCount > lowAltitudeGraceSteps) && (hit.distance <= groundedRayThreshold);
             return hit.distance;
@@ -375,66 +368,59 @@ public class Env : MonoBehaviour
     {
         OutgoingStateData s = new OutgoingStateData();
 
-        Vector3 toTarget = targetPoint.position - rocketPoint.position;
-        float distance = toTarget.magnitude;
-        Vector3 targetDirWorld = distance > 1e-6f ? toTarget / distance : Vector3.zero;
+        Vector3 toTargetWorld = targetPoint.position - rocketPoint.position;
+        float distance = toTargetWorld.magnitude;
+        Vector3 relDirWorld = distance > 1e-6f ? toTargetWorld / distance : Vector3.zero;
 
         Vector3 targetVelWorld = (targetMoveDir.sqrMagnitude > 1e-6f)
             ? targetMoveDir * targetSpeed
             : Vector3.zero;
 
         Vector3 relVelWorld = targetVelWorld - rocketRb.linearVelocity;
-        Vector3 rocVelWorld = rocketRb.linearVelocity;
         Vector3 rocAngVelWorld = rocketRb.angularVelocity;
         Vector3 gravityWorld = Physics.gravity;
 
-        Vector3 targetDirUsed = targetDirWorld;
+        Vector3 relDirUsed = relDirWorld;
         Vector3 relVelUsed = relVelWorld;
-        Vector3 rocVelUsed = rocVelWorld;
         Vector3 rocAngVelUsed = rocAngVelWorld;
         Vector3 gravityUsed = gravityWorld;
 
         if (useLocalFrame)
         {
-            targetDirUsed = rocketPoint.InverseTransformDirection(targetDirWorld);
+            relDirUsed = rocketPoint.InverseTransformDirection(relDirWorld);
             relVelUsed = rocketPoint.InverseTransformDirection(relVelWorld);
-            rocVelUsed = rocketPoint.InverseTransformDirection(rocVelWorld);
             rocAngVelUsed = rocketPoint.InverseTransformDirection(rocAngVelWorld);
             gravityUsed = rocketPoint.InverseTransformDirection(gravityWorld);
         }
 
-        s.target_dir[0] = targetDirUsed.x;
-        s.target_dir[1] = targetDirUsed.y;
-        s.target_dir[2] = targetDirUsed.z;
+        float planarMag = Mathf.Sqrt(relDirUsed.x * relDirUsed.x + relDirUsed.z * relDirUsed.z);
+        float losYaw = Mathf.Atan2(relDirUsed.x, relDirUsed.z);
+        float losPitch = Mathf.Atan2(relDirUsed.y, Mathf.Max(planarMag, 1e-6f));
+
+        s.los_yaw_sin = Mathf.Sin(losYaw);
+        s.los_yaw_cos = Mathf.Cos(losYaw);
+        s.los_pitch_sin = Mathf.Sin(losPitch);
+        s.los_pitch_cos = Mathf.Cos(losPitch);
+
+        s.distance = distance;
+        s.closing_speed = distance > 1e-6f ? -Vector3.Dot(relVelUsed, relDirUsed) : 0f;
 
         s.rel_vel[0] = relVelUsed.x;
         s.rel_vel[1] = relVelUsed.y;
         s.rel_vel[2] = relVelUsed.z;
 
-        s.roc_vel[0] = rocVelUsed.x;
-        s.roc_vel[1] = rocVelUsed.y;
-        s.roc_vel[2] = rocVelUsed.z;
-
         s.roc_ang_vel[0] = rocAngVelUsed.x;
         s.roc_ang_vel[1] = rocAngVelUsed.y;
         s.roc_ang_vel[2] = rocAngVelUsed.z;
-
-        bool grounded;
-        float agl = ComputeAGL(out grounded);
-        s.roc_h = agl;
-        float targetH = targetPoint.position.y;
-        s.height_error = targetH - agl;
 
         s.g[0] = gravityUsed.x;
         s.g[1] = gravityUsed.y;
         s.g[2] = gravityUsed.z;
 
-        s.distance = distance;
-
-        float zClamped = Mathf.Clamp(targetDirUsed.z, -1f, 1f);
-        s.look_angle_rad = Mathf.Acos(zClamped);
-
-        s.blend_w = grounded ? 1f : 0f;
+        bool grounded;
+        s.agl = ComputeAGL(out grounded);
+        s.alt_error = targetPoint.position.y - rocketPoint.position.y;
+        s.grounded_flag = grounded ? 1f : 0f;
 
         return s;
     }
@@ -469,10 +455,9 @@ public class Env : MonoBehaviour
             }
         }
 
-        if (targetExhaustFx != null)
+        if (targetExhaustFx != null && !targetExhaustFx.isPlaying)
         {
-            if (!targetExhaustFx.isPlaying)
-                targetExhaustFx.Play();
+            targetExhaustFx.Play();
         }
     }
 

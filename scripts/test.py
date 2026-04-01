@@ -145,9 +145,11 @@ if __name__ == "__main__":
                     print(
                         f"[EP {episode_id:<4} | ST {info['step_id']:<4}] "
                         f"Dst={info['distance']:.2f} | "
-                        f"CR={info['closing_rate']:.2f} | "
-                        f"RocH={info['roc_h']:.2f} | "
-                        f"ErrH={info['height_error']:.2f} | "
+                        f"Cls={info['closing_speed']:.2f} | "
+                        f"Yaw={info['los_yaw_deg']:.2f}deg | "
+                        f"Pit={info['los_pitch_deg']:.2f}deg | "
+                        f"AGL={info['agl']:.2f} | "
+                        f"AltE={info['alt_error']:.2f} | "
                         f"R={reward:.3f} | "
                         f"V={value:.3f} | "
                         f"Act=[{info['thrust']:.2f}, {info['pitch_f']:.2f}, {info['yaw_f']:.2f}]"
@@ -171,7 +173,8 @@ if __name__ == "__main__":
                 f"return={ep_return:.3f} | "
                 f"len={ep_len} | "
                 f"final_distance={final_info['distance']:.2f} | "
-                f"final_roc_h={final_info['roc_h']:.2f}"
+                f"final_agl={final_info['agl']:.2f} | "
+                f"final_alignment={final_info.get('alignment', 0.0):.2f}"
             )
 
         print("=" * 80)
