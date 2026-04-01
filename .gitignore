@@ -14,5 +14,9 @@ ads_ai/[Aa]ssets/StreamingAssets/aa.meta
 # Ignore IDE specific files (keep workspace settings if needed)
 ads_ai/.vs/
 
-# Project-specific: logs/ ve models/ Faz tamamlandığında commit edilir (faz-yonetimi kuralı)
+# Runtime artifacts and local tooling
+/logs/
+/models/
+/.cursor/
+scripts/__pycache__/
 **/__pycache__/
