@@ -153,20 +153,19 @@ class Env:
         look_angle_deg = np.degrees(look_angle_rad)
         target_dir_z   = float(states["target_dir"][2])
 
-        # [DEĞİŞİKLİK 3] Açısal hız büyüklüğü (takla cezası için)
         av = states["roc_ang_vel"]
         ang_vel_mag = float(np.sqrt(av[0]**2 + av[1]**2 + av[2]**2))
 
         # --- Sabitler ---
         STEP_PENALTY         = -0.03
-        DISTANCE_GAIN        =  0.17   # [DEĞİŞİKLİK 4] 0.35 → 0.30 (yeni ödüllerle denge)
+        DISTANCE_GAIN        =  0.17   
         DISTANCE_DELTA_CLIP  = 10.0
         ANGLE_GAIN            = 0.4
         BAD_ANGLE_DEG         = 135.0
         BAD_ANGLE_RAD         = np.deg2rad(BAD_ANGLE_DEG)
         BAD_ANGLE_PENALTY     = -60.0
-        ANG_VEL_PENALTY      =  0.005  # [YENİ] açısal hız cezası katsayısı
-        ANG_VEL_CLIP         = 10.0    # [YENİ] rad/s üst sınırı
+        ANG_VEL_PENALTY      =  0.005  
+        ANG_VEL_CLIP         = 10.0    
         SUCCESS_DISTANCE     = 12.0
         MIN_AGL              =  0.35
         LOW_AGL_GRACE_STEPS  = 15
@@ -188,26 +187,19 @@ class Env:
         done_reason = None
         success = False
 
-        # Mesafe delta ödülü
         delta_distance = self.prev_distance - distance
         delta_distance = np.clip(delta_distance, -DISTANCE_DELTA_CLIP, DISTANCE_DELTA_CLIP)
         reward += DISTANCE_GAIN * delta_distance
 
         angle_norm = np.clip(look_angle_rad / np.pi, 0.0, 1.0)
 
-        # 0 deg -> +ANGLE_GAIN
-        # 90 deg -> 0
-        # 180 deg -> -ANGLE_GAIN
         reward += ANGLE_GAIN * (1.0 - 2.0 * angle_norm)
 
-        # [YENİ] Açısal hız cezası: takla atan roketi caydır
         reward -= ANG_VEL_PENALTY * min(ang_vel_mag, ANG_VEL_CLIP)
 
-        # [YENİ] İrtifa hizalama ödülü: hedef irtifasına yaklaşmayı teşvik eder
         height_error = np.abs(float(states["height_error"]))
         reward += HEIGHT_ALIGN_GAIN * np.clip(1.0 - height_error / 50.0, 0.0, 1.0)
 
-        # [YENİ] Zemin yumuşak cezası: terminale ulaşmadan önce sürekli uyarı sinyali
         if agl < SOFT_FLOOR:
             reward -= SOFT_FLOOR_GAIN * (SOFT_FLOOR - agl)
 
