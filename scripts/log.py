@@ -2,6 +2,8 @@ import csv
 import os
 from datetime import datetime
 
+from env import PYTHON_STEP_LOG_KEYS, REWARD_BREAKDOWN_KEYS, TELEMETRY_FLAT_KEYS
+
 LOG_DIR = "logs"
 STEP_LOG_FILE = os.path.join(LOG_DIR, "step_log.csv")
 EPISODE_LOG_FILE = os.path.join(LOG_DIR, "episode_log.csv")
@@ -16,178 +18,197 @@ MAGENTA = "\033[95m"
 CYAN = "\033[96m"
 RESET = "\033[0m"
 
+STEP_HEADER = [
+    "timestamp",
+    "update_id",
+    "episode_id",
+    "step_id",
+    "phase_id",
+    "phase_name",
+    "max_step",
+    "reward",
+    "reward_total",
+    "done",
+    "done_reason",
+    "success",
+    "distance",
+    "delta_distance",
+    "look_angle_rad",
+    "look_angle_deg",
+    "alignment",
+    "closing_speed",
+    "agl",
+    "alt_error",
+    "grounded_flag",
+    "ang_vel_mag",
+    "rel_vel_x",
+    "rel_vel_y",
+    "rel_vel_z",
+    "roc_ang_vel_x",
+    "roc_ang_vel_y",
+    "roc_ang_vel_z",
+    "g_x",
+    "g_y",
+    "g_z",
+    "thrust",
+    "pitch_f",
+    "yaw_f",
+] + PYTHON_STEP_LOG_KEYS + REWARD_BREAKDOWN_KEYS + TELEMETRY_FLAT_KEYS
+
+EPISODE_HEADER = [
+    "timestamp",
+    "update_id",
+    "episode_id",
+    "phase_id",
+    "phase_name",
+    "max_step",
+    "episode_return",
+    "episode_len",
+    "done_reason",
+    "start_distance",
+    "final_distance",
+    "start_agl",
+    "final_agl",
+    "start_alt_error",
+    "final_alt_error",
+    "final_closing_speed",
+    "final_look_angle_deg",
+    "final_alignment",
+    "final_grounded_flag",
+    "final_ang_vel_mag",
+]
+
+UPDATE_HEADER = [
+    "timestamp",
+    "update_id",
+    "loss",
+    "policy_loss",
+    "value_loss",
+    "entropy",
+    "kl",
+    "clip_frac",
+    "gamma",
+    "lam",
+    "lr",
+]
+
+
+def _rotate_if_header_mismatch(path, header):
+    if not os.path.exists(path):
+        return
+
+    with open(path, "r", newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        existing_header = next(reader, None)
+
+    if existing_header == header:
+        return
+
+    stem, ext = os.path.splitext(path)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"{stem}.bak_{timestamp}{ext}"
+    os.replace(path, backup_path)
+
+
+def _ensure_csv(path, header):
+    _rotate_if_header_mismatch(path, header)
+
+    if os.path.exists(path):
+        return
+
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+
+
+def _normalize_row(header, values):
+    row = []
+
+    for key in header:
+        value = values.get(key, "")
+
+        if value is None:
+            row.append("")
+        elif isinstance(value, bool):
+            row.append(int(value))
+        else:
+            row.append(value)
+
+    return row
+
 
 def ensure_log_files():
     os.makedirs(LOG_DIR, exist_ok=True)
-
-    if not os.path.exists(STEP_LOG_FILE):
-        with open(STEP_LOG_FILE, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "timestamp",
-                "update_id",
-                "episode_id",
-                "step_id",
-                "reward",
-                "done",
-                "done_reason",
-                "distance",
-                "closing_speed",
-                "los_yaw_deg",
-                "los_pitch_deg",
-                "alignment",
-                "agl",
-                "alt_error",
-                "grounded_flag",
-                "ang_vel_mag",
-                "rel_vel_x",
-                "rel_vel_y",
-                "rel_vel_z",
-                "roc_ang_vel_x",
-                "roc_ang_vel_y",
-                "roc_ang_vel_z",
-                "g_x",
-                "g_y",
-                "g_z",
-                "time_remaining",
-                "thrust",
-                "pitch_f",
-                "yaw_f",
-            ])
-
-    if not os.path.exists(EPISODE_LOG_FILE):
-        with open(EPISODE_LOG_FILE, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "timestamp",
-                "update_id",
-                "episode_id",
-                "episode_return",
-                "episode_len",
-                "done_reason",
-                "start_distance",
-                "final_distance",
-                "start_agl",
-                "final_agl",
-                "start_alt_error",
-                "final_alt_error",
-                "final_closing_speed",
-                "final_los_yaw_deg",
-                "final_los_pitch_deg",
-                "final_alignment",
-                "final_grounded_flag",
-                "final_ang_vel_mag",
-            ])
-
-    if not os.path.exists(UPDATE_LOG_FILE):
-        with open(UPDATE_LOG_FILE, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "timestamp",
-                "update_id",
-                "loss",
-                "policy_loss",
-                "value_loss",
-                "entropy",
-                "kl",
-                "clip_frac",
-                "gamma",
-                "lam",
-                "lr",
-            ])
+    _ensure_csv(STEP_LOG_FILE, STEP_HEADER)
+    _ensure_csv(EPISODE_LOG_FILE, EPISODE_HEADER)
+    _ensure_csv(UPDATE_LOG_FILE, UPDATE_HEADER)
 
 
 def append_step_csv(update_id, info):
+    record = dict(info)
+    record["update_id"] = update_id
+
     with open(STEP_LOG_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            info["timestamp"],
-            update_id,
-            info["episode_id"],
-            info["step_id"],
-            info["reward"],
-            int(info["done"]) if info["done"] is not None else "",
-            info["done_reason"],
-            info["distance"],
-            info["closing_speed"],
-            info["los_yaw_deg"],
-            info["los_pitch_deg"],
-            info.get("alignment", ""),
-            info["agl"],
-            info["alt_error"],
-            info.get("grounded_flag", ""),
-            info.get("ang_vel_mag", ""),
-            info["rel_vel_x"],
-            info["rel_vel_y"],
-            info["rel_vel_z"],
-            info["roc_ang_vel_x"],
-            info["roc_ang_vel_y"],
-            info["roc_ang_vel_z"],
-            info["g_x"],
-            info["g_y"],
-            info["g_z"],
-            info["time_remaining"],
-            info["thrust"],
-            info["pitch_f"],
-            info["yaw_f"],
-        ])
+        writer.writerow(_normalize_row(STEP_HEADER, record))
 
 
 def append_episode_csv(update_id, episode_id, episode_return, episode_len,
                        done_reason, start_info, final_info):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    record = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "update_id": update_id,
+        "episode_id": episode_id,
+        "phase_id": final_info.get("phase_id", start_info.get("phase_id", "")),
+        "phase_name": final_info.get("phase_name", start_info.get("phase_name", "")),
+        "max_step": final_info.get("max_step", start_info.get("max_step", "")),
+        "episode_return": episode_return,
+        "episode_len": episode_len,
+        "done_reason": done_reason,
+        "start_distance": start_info["distance"],
+        "final_distance": final_info["distance"],
+        "start_agl": start_info["agl"],
+        "final_agl": final_info["agl"],
+        "start_alt_error": start_info["alt_error"],
+        "final_alt_error": final_info["alt_error"],
+        "final_closing_speed": final_info.get("closing_speed", ""),
+        "final_look_angle_deg": final_info.get("look_angle_deg", ""),
+        "final_alignment": final_info.get("alignment", ""),
+        "final_grounded_flag": final_info.get("grounded_flag", ""),
+        "final_ang_vel_mag": final_info.get("ang_vel_mag", ""),
+    }
 
     with open(EPISODE_LOG_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            timestamp,
-            update_id,
-            episode_id,
-            episode_return,
-            episode_len,
-            done_reason,
-            start_info["distance"],
-            final_info["distance"],
-            start_info["agl"],
-            final_info["agl"],
-            start_info["alt_error"],
-            final_info["alt_error"],
-            final_info.get("closing_speed", ""),
-            final_info.get("los_yaw_deg", ""),
-            final_info.get("los_pitch_deg", ""),
-            final_info.get("alignment", ""),
-            final_info.get("grounded_flag", ""),
-            final_info.get("ang_vel_mag", ""),
-        ])
+        writer.writerow(_normalize_row(EPISODE_HEADER, record))
 
 
 def append_update_csv(update_id, logs, gamma, lam, lr):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    record = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "update_id": update_id,
+        "loss": logs.get("loss"),
+        "policy_loss": logs.get("policy_loss"),
+        "value_loss": logs.get("value_loss"),
+        "entropy": logs.get("entropy"),
+        "kl": logs.get("kl"),
+        "clip_frac": logs.get("clip_frac"),
+        "gamma": gamma,
+        "lam": lam,
+        "lr": lr,
+    }
 
     with open(UPDATE_LOG_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            timestamp,
-            update_id,
-            logs.get("loss"),
-            logs.get("policy_loss"),
-            logs.get("value_loss"),
-            logs.get("entropy"),
-            logs.get("kl"),
-            logs.get("clip_frac"),
-            gamma,
-            lam,
-            lr,
-        ])
+        writer.writerow(_normalize_row(UPDATE_HEADER, record))
 
 
 def print_step_console(update_id, info):
     msg = (
         f"[UP {update_id:<4} | EP {info['episode_id']:<4} | ST {info['step_id']:<4}] "
         f"Dst: {info['distance']:>7.2f} | "
+        f"Look: {info['look_angle_deg']:>7.2f} deg | "
         f"Cls: {info['closing_speed']:>6.2f} | "
-        f"Yaw: {info['los_yaw_deg']:>7.2f} deg | "
-        f"Pit: {info['los_pitch_deg']:>7.2f} deg | "
         f"AGL: {info['agl']:>6.2f} | "
         f"AltE: {info['alt_error']:>6.2f} | "
         f"Aln: {info.get('alignment', 0.0):>5.2f} | "
@@ -209,6 +230,7 @@ def print_episode_console(episode_id, episode_return, episode_len,
         f"Len: {episode_len:>4} | "
         f"Start D/AGL: {start_info['distance']:>6.1f} / {start_info['agl']:>6.1f} | "
         f"End D/AGL: {final_info['distance']:>6.1f} / {final_info['agl']:>6.1f} | "
+        f"Look: {final_info.get('look_angle_deg', 0.0):>6.2f} | "
         f"Cls: {final_info.get('closing_speed', 0.0):>6.2f} | "
         f"Aln: {final_info.get('alignment', 0.0):>5.2f} | "
         f"Succ: {success_count}/{total_episode_count} ({success_rate:>6.2f}%) | "
@@ -250,6 +272,7 @@ def print_update_console(update_id, logs):
 def print_reset_console(episode_id, start_info):
     msg = (
         f"[EP {episode_id:<5}] RESET | "
+        f"Phase: {start_info.get('phase_id', '')} {start_info.get('phase_name', '')} | "
         f"Target Pos: ({start_info['reset_px']:.2f}, {start_info['reset_py']:.2f}, {start_info['reset_pz']:.2f}) | "
         f"Rot: ({start_info['reset_ry']:.2f}, {start_info['reset_rz']:.2f})"
     )

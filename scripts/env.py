@@ -1,13 +1,12 @@
-import connector
-import numpy as np
+import os
 from datetime import datetime
 
+import connector
+import numpy as np
+
 STATE_KEYS = [
-    "los_yaw_sin",
-    "los_yaw_cos",
-    "los_pitch_sin",
-    "los_pitch_cos",
     "distance",
+    "look_angle_rad",
     "closing_speed",
     "rel_vel_x",
     "rel_vel_y",
@@ -20,10 +19,70 @@ STATE_KEYS = [
     "g_z",
     "agl",
     "alt_error",
-    "time_remaining",
 ]
 
 ACTION_KEYS = ["thrust", "pitch_f", "yaw_f"]
+
+PYTHON_STEP_LOG_KEYS = [
+    "episode_return_so_far",
+    "action_logp",
+    "value_pred",
+    "action_norm_0",
+    "action_norm_1",
+    "action_norm_2",
+]
+
+REWARD_BREAKDOWN_KEYS = [
+    "reward_step_penalty",
+    "reward_distance",
+    "reward_alignment",
+    "reward_closing",
+    "reward_angular_penalty",
+    "reward_altitude",
+    "reward_soft_floor_penalty",
+    "reward_terminal",
+]
+
+TELEMETRY_VECTOR_SPECS = [
+    ("rocket_pos_world", ("x", "y", "z")),
+    ("rocket_euler_world", ("x", "y", "z")),
+    ("rocket_rot_world", ("x", "y", "z", "w")),
+    ("rocket_point_pos_world", ("x", "y", "z")),
+    ("rocket_point_forward_world", ("x", "y", "z")),
+    ("rocket_point_up_world", ("x", "y", "z")),
+    ("rocket_vel_world", ("x", "y", "z")),
+    ("rocket_vel_local", ("x", "y", "z")),
+    ("rocket_ang_vel_world", ("x", "y", "z")),
+    ("rocket_ang_vel_local", ("x", "y", "z")),
+    ("target_pos_world", ("x", "y", "z")),
+    ("target_euler_world", ("x", "y", "z")),
+    ("target_rot_world", ("x", "y", "z", "w")),
+    ("target_point_pos_world", ("x", "y", "z")),
+    ("target_point_forward_world", ("x", "y", "z")),
+    ("target_point_up_world", ("x", "y", "z")),
+    ("target_vel_world", ("x", "y", "z")),
+    ("target_vel_in_rocket_local", ("x", "y", "z")),
+    ("target_ang_vel_world", ("x", "y", "z")),
+    ("target_ang_vel_in_rocket_local", ("x", "y", "z")),
+    ("rel_pos_world", ("x", "y", "z")),
+    ("rel_pos_local", ("x", "y", "z")),
+    ("rel_dir_world", ("x", "y", "z")),
+    ("rel_dir_local", ("x", "y", "z")),
+    ("rel_vel_world", ("x", "y", "z")),
+    ("rel_vel_local", ("x", "y", "z")),
+    ("gravity_world", ("x", "y", "z")),
+    ("gravity_local", ("x", "y", "z")),
+]
+
+TELEMETRY_SCALAR_KEYS = [
+    "target_speed",
+]
+
+TELEMETRY_FLAT_KEYS = [
+    f"{name}_{suffix}"
+    for name, suffixes in TELEMETRY_VECTOR_SPECS
+    for suffix in suffixes
+] + TELEMETRY_SCALAR_KEYS
 
 DISTANCE_TANH_SCALE = 100.0
 CLOSING_TANH_SCALE = 50.0
@@ -37,12 +96,101 @@ MIN_THRUST = 600.0
 MAX_THRUST = 1050.0
 MAX_PITCH_FORCE = 1.7
 MAX_YAW_FORCE = 1.7
-TARGET_VELOCITY = 0.0
+TARGET_VELOCITY = 25.0
+
+REWARD_CONFIG = {
+    "step_penalty": -0.08,
+    "distance_gain": 0.12,
+    "distance_delta_clip": 6.0,
+    "alignment_gain": 0.16,
+    "closing_gain": 0.10,
+    "closing_speed_clip": 30.0,
+    "ang_vel_penalty": 0.02,
+    "ang_vel_clip": 10.0,
+    "height_align_gain": 0.012,
+    "soft_floor": 8.0,
+    "soft_floor_gain": 0.12,
+    "min_agl": 0.40,
+    "low_agl_grace_steps": 15,
+    "collision_grace_steps": 8,
+    "max_altitude": 100.0,
+    "success_reward": 180.0,
+    "collision_penalty": -130.0,
+    "low_altitude_penalty": -110.0,
+    "high_altitude_penalty": -85.0,
+}
+
+CURRICULUM_PHASES = {
+    1: {
+        "name": "phase_1_guided_close_range",
+        "spawn_radius_min": 50.0,
+        "spawn_radius_max": 75.0,
+        "heading_offset_min": -5,
+        "heading_offset_max": 5,
+        "max_step": 500,
+        "step_penalty": -0.12,
+        "distance_gain": 0.28,
+        "alignment_gain": 0.48,
+        "closing_gain": 0.20,
+        "ang_vel_penalty": 0.02,
+        "height_align_gain": 0.012,
+        "soft_floor_gain": 0.12,
+        "low_altitude_penalty": -110.0,
+        "success_distance": 14.0,
+        "success_alignment": 0.80,
+        "success_min_closing": 0.0,
+        "timeout_penalty": -80.0,
+    },
+    2: {
+        "name": "phase_2_longer_horizon",
+        "spawn_radius_min": 75.0,
+        "spawn_radius_max": 120.0,
+        "heading_offset_min": -10,
+        "heading_offset_max": 10,
+        "max_step": 700,
+        "success_distance": 12.0,
+        "success_alignment": 0.88,
+        "success_min_closing": 1.0,
+        "timeout_penalty": -55.0,
+    },
+    3: {
+        "name": "phase_3_strict_intercept",
+        "spawn_radius_min": 120.0,
+        "spawn_radius_max": 200.0,
+        "heading_offset_min": -15,
+        "heading_offset_max": 15,
+        "max_step": 900,
+        "success_distance": 10.0,
+        "success_alignment": 0.92,
+        "success_min_closing": 2.0,
+        "timeout_penalty": -70.0,
+    },
+}
 
 
-def calculate_new_loc():
+def get_active_phase_id():
+    raw_value = os.getenv("ADS_AI_PHASE", "1").strip()
+
+    try:
+        phase_id = int(raw_value)
+    except ValueError:
+        phase_id = 1
+
+    if phase_id not in CURRICULUM_PHASES:
+        phase_id = 1
+
+    return phase_id
+
+
+def get_phase_config(phase_id):
+    config = dict(REWARD_CONFIG)
+    config.update(CURRICULUM_PHASES[phase_id])
+    return config
+
+
+def calculate_new_loc(radius_min, radius_max):
     theta = np.random.uniform(0, 2 * np.pi)
-    radius = np.random.uniform(10.5, 20.0)
+    radius = np.random.uniform(radius_min, radius_max)
     px = radius * np.cos(theta)
     pz = radius * np.sin(theta)
     ry = 180.0
@@ -50,13 +198,37 @@ def calculate_new_loc():
     return px, pz, ry, rz
 
 
+def flatten_telemetry(telemetry):
+    flat = {}
+
+    if not isinstance(telemetry, dict):
+        return flat
+
+    for name, suffixes in TELEMETRY_VECTOR_SPECS:
+        values = telemetry.get(name)
+        if not isinstance(values, (list, tuple)):
+            continue
+
+        for index, suffix in enumerate(suffixes):
+            if index < len(values):
+                flat[f"{name}_{suffix}"] = float(values[index])
+
+    for key in TELEMETRY_SCALAR_KEYS:
+        if key in telemetry:
+            flat[key] = float(telemetry[key])
+
+    return flat
+
+
 class Env:
     def __init__(self, ip, port):
         self.connect = connector.Connector(ip, port)
         self.done = False
-        self.state_size = 18
+        self.state_size = 14
         self.action_size = 3
-        self.max_step = 255
+        self.phase_id = get_active_phase_id()
+        self.phase = get_phase_config(self.phase_id)
+        self.max_step = int(self.phase["max_step"])
         self.step_count = 0
         self.episode_id = 0
         self.prev_distance = None
@@ -71,18 +243,10 @@ class Env:
 
     def parse_state(self, raw_state):
         s = raw_state["states"]
-        time_remaining = np.clip(
-            (self.max_step - self.step_count) / self.max_step,
-            0.0,
-            1.0,
-        )
 
         return np.array([
-            s["los_yaw_sin"],
-            s["los_yaw_cos"],
-            s["los_pitch_sin"],
-            s["los_pitch_cos"],
             s["distance"],
+            s["look_angle_rad"],
             s["closing_speed"],
             s["rel_vel"][0],
             s["rel_vel"][1],
@@ -95,19 +259,18 @@ class Env:
             s["g"][2],
             s["agl"],
             s["alt_error"],
-            time_remaining,
         ], dtype=np.float32)
 
     def normalize_state(self, vector_state):
         s = vector_state.copy()
-        s[4] = np.tanh(s[4] / DISTANCE_TANH_SCALE)
-        s[5] = np.tanh(s[5] / CLOSING_TANH_SCALE)
-        s[6:9] = np.tanh(s[6:9] / REL_VEL_TANH_SCALE)
-        s[9:12] = np.tanh(s[9:12] / ROC_ANG_VEL_TANH_SCALE)
-        s[12:15] = np.clip(s[12:15] / GRAVITY_SCALE, -1.0, 1.0)
-        s[15] = np.tanh(s[15] / AGL_TANH_SCALE)
-        s[16] = np.tanh(s[16] / ALT_ERROR_TANH_SCALE)
-        s[17] = np.clip(s[17], 0.0, 1.0)
+        s[0] = np.tanh(s[0] / DISTANCE_TANH_SCALE)
+        s[1] = np.clip(s[1] / np.pi, 0.0, 1.0)
+        s[2] = np.tanh(s[2] / CLOSING_TANH_SCALE)
+        s[3:6] = np.tanh(s[3:6] / REL_VEL_TANH_SCALE)
+        s[6:9] = np.tanh(s[6:9] / ROC_ANG_VEL_TANH_SCALE)
+        s[9:12] = np.clip(s[9:12] / GRAVITY_SCALE, -1.0, 1.0)
+        s[12] = np.tanh(s[12] / AGL_TANH_SCALE)
+        s[13] = np.tanh(s[13] / ALT_ERROR_TANH_SCALE)
         return s.astype(np.float32)
 
     # ------------------------------------------------------------------
@@ -116,8 +279,14 @@ class Env:
 
     def reset(self):
         self.episode_id += 1
-        px, pz, ry, rz = calculate_new_loc()
-        random_rot_degree = np.random.randint(-5, +5)
+        px, pz, ry, rz = calculate_new_loc(
+            self.phase["spawn_radius_min"],
+            self.phase["spawn_radius_max"],
+        )
+        random_rot_degree = np.random.randint(
+            self.phase["heading_offset_min"],
+            self.phase["heading_offset_max"] + 1,
+        )
         rz += random_rot_degree
         py = 50.0
 
@@ -140,6 +309,8 @@ class Env:
         start_info = self.build_info(raw_state)
 
         start_info.update({
+            "phase_id": self.phase_id,
+            "phase_name": self.phase["name"],
             "reset_px": px,
             "reset_py": py,
             "reset_pz": pz,
@@ -155,6 +326,7 @@ class Env:
     # ------------------------------------------------------------------
 
     def calculate_reward(self, raw_state):
+        phase = self.phase
         states = raw_state["states"]
 
         distance = float(states["distance"])
@@ -162,82 +334,74 @@ class Env:
         alt_error = float(states["alt_error"])
         grounded = float(states["grounded_flag"]) > 0.5
         closing_speed = float(states["closing_speed"])
-
-        los_yaw_sin = float(states["los_yaw_sin"])
-        los_yaw_cos = float(states["los_yaw_cos"])
-        los_pitch_sin = float(states["los_pitch_sin"])
-        los_pitch_cos = float(states["los_pitch_cos"])
-
-        los_yaw_rad = float(np.arctan2(los_yaw_sin, los_yaw_cos))
-        los_pitch_rad = float(np.arctan2(los_pitch_sin, los_pitch_cos))
-        los_yaw_deg = float(np.degrees(los_yaw_rad))
-        los_pitch_deg = float(np.degrees(los_pitch_rad))
-        alignment = float(los_yaw_cos * los_pitch_cos)
+        look_angle_rad = float(states["look_angle_rad"])
+        look_angle_deg = float(np.degrees(look_angle_rad))
+        alignment = float(np.cos(look_angle_rad))
+        alignment_positive = max(alignment, 0.0)
+        positive_closing = np.clip(closing_speed / phase["closing_speed_clip"], 0.0, 1.0)
 
         av = states["roc_ang_vel"]
         ang_vel_mag = float(np.sqrt(av[0] ** 2 + av[1] ** 2 + av[2] ** 2))
 
-        STEP_PENALTY = -0.03
-        DISTANCE_GAIN = 0.17
-        DISTANCE_DELTA_CLIP = 10.0
-        ALIGNMENT_GAIN = 0.4
-        CLOSING_GAIN = 0.08
-        CLOSING_SPEED_CLIP = 30.0
-        ANG_VEL_PENALTY = 0.005
-        ANG_VEL_CLIP = 10.0
-        SUCCESS_DISTANCE = 12.0
-        MIN_AGL = 0.35
-        LOW_AGL_GRACE_STEPS = 15
-        MAX_ALTITUDE = 100.0
-        SUCCESS_REWARD = 250.0
-        COLLISION_PENALTY = -100.0
-        LOW_ALTITUDE_PENALTY = -75.0
-        HIGH_ALTITUDE_PENALTY = -90.0
-        TIMEOUT_PENALTY = -90.0
-        HEIGHT_ALIGN_GAIN = 0.025
-        SOFT_FLOOR = 5.0
-        SOFT_FLOOR_GAIN = 0.040
-
-        reward = STEP_PENALTY
+        reward = phase["step_penalty"]
         done = False
         done_reason = None
         success = False
+        terminal_reward = 0.0
 
         delta_distance = self.prev_distance - distance
-        delta_distance = np.clip(delta_distance, -DISTANCE_DELTA_CLIP, DISTANCE_DELTA_CLIP)
-        reward += DISTANCE_GAIN * delta_distance
+        delta_distance = np.clip(
+            delta_distance,
+            -phase["distance_delta_clip"],
+            phase["distance_delta_clip"],
+        )
 
-        reward += ALIGNMENT_GAIN * alignment
+        progress_factor = 0.20 + 0.80 * alignment_positive
+        distance_reward = phase["distance_gain"] * delta_distance * progress_factor
+        alignment_reward = phase["alignment_gain"] * alignment * (0.30 + 0.70 * positive_closing)
+        closing_reward = phase["closing_gain"] * positive_closing * (0.20 + 0.80 * alignment_positive)
+        angular_penalty = phase["ang_vel_penalty"] * min(ang_vel_mag, phase["ang_vel_clip"])
+        altitude_reward = phase["height_align_gain"] * np.clip(1.0 - np.abs(alt_error) / 50.0, 0.0, 1.0)
+        soft_floor_penalty = 0.0
 
-        closing_term = np.clip(closing_speed, -CLOSING_SPEED_CLIP, CLOSING_SPEED_CLIP) / CLOSING_SPEED_CLIP
-        reward += CLOSING_GAIN * closing_term
+        if agl < phase["soft_floor"]:
+            soft_floor_penalty = phase["soft_floor_gain"] * (phase["soft_floor"] - agl)
 
-        reward -= ANG_VEL_PENALTY * min(ang_vel_mag, ANG_VEL_CLIP)
+        reward += distance_reward
+        reward += alignment_reward
+        reward += closing_reward
+        reward -= angular_penalty
+        reward += altitude_reward
+        reward -= soft_floor_penalty
 
-        reward += HEIGHT_ALIGN_GAIN * np.clip(1.0 - np.abs(alt_error) / 50.0, 0.0, 1.0)
-
-        if agl < SOFT_FLOOR:
-            reward -= SOFT_FLOOR_GAIN * (SOFT_FLOOR - agl)
-
-        if distance <= SUCCESS_DISTANCE:
-            reward += SUCCESS_REWARD
+        if (
+            distance <= phase["success_distance"]
+            and alignment >= phase["success_alignment"]
+            and closing_speed >= phase["success_min_closing"]
+        ):
+            terminal_reward = phase["success_reward"]
+            reward += terminal_reward
             done = True
             done_reason = "success"
             success = True
-        elif grounded and self.step_count > 8:
-            reward += COLLISION_PENALTY
+        elif grounded and self.step_count > phase["collision_grace_steps"]:
+            terminal_reward = phase["collision_penalty"]
+            reward += terminal_reward
             done = True
             done_reason = "collision"
-        elif agl <= MIN_AGL and self.step_count > LOW_AGL_GRACE_STEPS:
-            reward += LOW_ALTITUDE_PENALTY
+        elif agl <= phase["min_agl"] and self.step_count > phase["low_agl_grace_steps"]:
+            terminal_reward = phase["low_altitude_penalty"]
+            reward += terminal_reward
             done = True
             done_reason = "low_agl"
-        elif agl >= MAX_ALTITUDE:
-            reward += HIGH_ALTITUDE_PENALTY
+        elif agl >= phase["max_altitude"]:
+            terminal_reward = phase["high_altitude_penalty"]
+            reward += terminal_reward
             done = True
             done_reason = "high_altitude"
         elif self.step_count >= self.max_step:
-            reward += TIMEOUT_PENALTY
+            terminal_reward = phase["timeout_penalty"]
+            reward += terminal_reward
             done = True
             done_reason = "timeout"
 
@@ -251,11 +415,17 @@ class Env:
             "alt_error": float(alt_error),
             "closing_speed": float(closing_speed),
             "alignment": float(alignment),
-            "los_yaw_rad": float(los_yaw_rad),
-            "los_yaw_deg": float(los_yaw_deg),
-            "los_pitch_rad": float(los_pitch_rad),
-            "los_pitch_deg": float(los_pitch_deg),
+            "look_angle_rad": float(look_angle_rad),
+            "look_angle_deg": float(look_angle_deg),
             "ang_vel_mag": float(ang_vel_mag),
+            "reward_step_penalty": float(phase["step_penalty"]),
+            "reward_distance": float(distance_reward),
+            "reward_alignment": float(alignment_reward),
+            "reward_closing": float(closing_reward),
+            "reward_angular_penalty": float(angular_penalty),
+            "reward_altitude": float(altitude_reward),
+            "reward_soft_floor_penalty": float(soft_floor_penalty),
+            "reward_terminal": float(terminal_reward),
             "grounded_flag": 1.0 if grounded else 0.0,
             "done_reason": done_reason,
             "success": success,
@@ -296,10 +466,14 @@ class Env:
         info["alignment"] = reward_info["alignment"]
         info["ang_vel_mag"] = reward_info["ang_vel_mag"]
         info["closing_speed"] = reward_info["closing_speed"]
-        info["los_yaw_rad"] = reward_info["los_yaw_rad"]
-        info["los_yaw_deg"] = reward_info["los_yaw_deg"]
-        info["los_pitch_rad"] = reward_info["los_pitch_rad"]
-        info["los_pitch_deg"] = reward_info["los_pitch_deg"]
+        info["delta_distance"] = reward_info["delta_distance"]
+        info["look_angle_rad"] = reward_info["look_angle_rad"]
+        info["look_angle_deg"] = reward_info["look_angle_deg"]
+        info["reward_total"] = reward_info["reward_total"]
+        info["success"] = reward_info["success"]
+
+        for key in REWARD_BREAKDOWN_KEYS:
+            info[key] = reward_info[key]
 
         self.done = done
         return normalized_state, reward, done, info
@@ -320,27 +494,26 @@ class Env:
 
     def build_info(self, raw_state, denorm_action=None, reward=None, done=None, done_reason=None):
         s = raw_state["states"]
+        telemetry = raw_state.get("telemetry", {})
 
-        los_yaw_rad = float(np.arctan2(s["los_yaw_sin"], s["los_yaw_cos"]))
-        los_pitch_rad = float(np.arctan2(s["los_pitch_sin"], s["los_pitch_cos"]))
+        look_angle_rad = float(s["look_angle_rad"])
+        alignment = float(np.cos(look_angle_rad))
 
         info = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "episode_id": raw_state["episode_id"],
             "step_id": raw_state["step_id"],
+            "phase_id": self.phase_id,
+            "phase_name": self.phase["name"],
+            "max_step": self.max_step,
             "reward": reward,
             "done": done,
             "done_reason": done_reason,
             "distance": float(s["distance"]),
             "closing_speed": float(s["closing_speed"]),
-            "los_yaw_sin": float(s["los_yaw_sin"]),
-            "los_yaw_cos": float(s["los_yaw_cos"]),
-            "los_pitch_sin": float(s["los_pitch_sin"]),
-            "los_pitch_cos": float(s["los_pitch_cos"]),
-            "los_yaw_rad": los_yaw_rad,
-            "los_yaw_deg": float(np.degrees(los_yaw_rad)),
-            "los_pitch_rad": los_pitch_rad,
-            "los_pitch_deg": float(np.degrees(los_pitch_rad)),
+            "look_angle_rad": look_angle_rad,
+            "look_angle_deg": float(np.degrees(look_angle_rad)),
+            "alignment": alignment,
             "rel_vel_x": float(s["rel_vel"][0]),
             "rel_vel_y": float(s["rel_vel"][1]),
             "rel_vel_z": float(s["rel_vel"][2]),
@@ -353,8 +526,9 @@ class Env:
             "agl": float(s["agl"]),
             "alt_error": float(s["alt_error"]),
             "grounded_flag": float(s["grounded_flag"]),
-            "time_remaining": float(np.clip((self.max_step - self.step_count) / self.max_step, 0.0, 1.0)),
         }
+
+        info.update(flatten_telemetry(telemetry))
 
         if denorm_action is not None:
             info["thrust"] = denorm_action[0]

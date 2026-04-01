@@ -145,9 +145,8 @@ if __name__ == "__main__":
                     print(
                         f"[EP {episode_id:<4} | ST {info['step_id']:<4}] "
                         f"Dst={info['distance']:.2f} | "
+                        f"Look={info['look_angle_deg']:.2f}deg | "
                         f"Cls={info['closing_speed']:.2f} | "
-                        f"Yaw={info['los_yaw_deg']:.2f}deg | "
-                        f"Pit={info['los_pitch_deg']:.2f}deg | "
                         f"AGL={info['agl']:.2f} | "
                         f"AltE={info['alt_error']:.2f} | "
                         f"R={reward:.3f} | "
@@ -174,6 +173,7 @@ if __name__ == "__main__":
                 f"len={ep_len} | "
                 f"final_distance={final_info['distance']:.2f} | "
                 f"final_agl={final_info['agl']:.2f} | "
+                f"final_look_angle={final_info.get('look_angle_deg', 0.0):.2f} | "
                 f"final_alignment={final_info.get('alignment', 0.0):.2f}"
             )
 

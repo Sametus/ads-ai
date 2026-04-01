@@ -4,22 +4,18 @@ using UnityEngine;
 // =============================================================================
 // PYTHON STATE VEKTORI SOZLESMESI  (env.py - parse_state + normalize_state)
 // =============================================================================
-// Unity tarafinin gonderecegi alanlar ile Python'da kurulan 18 boyutlu state:
+// Unity tarafinin gonderecegi alanlar ile Python'da kurulan 14 boyutlu state:
 //
 //  Index  | Python state adi | JSON alani
 //  -------|------------------|--------------------------------------
-//   0     | los_yaw_sin      | states.los_yaw_sin
-//   1     | los_yaw_cos      | states.los_yaw_cos
-//   2     | los_pitch_sin    | states.los_pitch_sin
-//   3     | los_pitch_cos    | states.los_pitch_cos
-//   4     | distance         | states.distance
-//   5     | closing_speed    | states.closing_speed
-//   6-8   | rel_vel_x/y/z    | states.rel_vel[0..2]
-//   9-11  | roc_ang_vel_x/y/z| states.roc_ang_vel[0..2]
-//   12-14 | gx/gy/gz         | states.g[0..2]
-//   15    | agl              | states.agl
-//   16    | alt_error        | states.alt_error
-//   17    | time_remaining   | Python'da hesaplanir
+//   0     | distance         | states.distance
+//   1     | look_angle_rad   | states.look_angle_rad
+//   2     | closing_speed    | states.closing_speed
+//   3-5   | rel_vel_x/y/z    | states.rel_vel[0..2]
+//   6-8   | roc_ang_vel_x/y/z| states.roc_ang_vel[0..2]
+//   9-11  | gx/gy/gz         | states.g[0..2]
+//   12    | agl              | states.agl
+//   13    | alt_error        | states.alt_error
 //
 // NOT: grounded_flag state vektorune dahil DEGILDIR.
 //      Reward ve terminal logic icin ham JSON icinde gonderilir.
@@ -37,12 +33,8 @@ public class IncomingPacket
 [Serializable]
 public class OutgoingStateData
 {
-    public float los_yaw_sin;
-    public float los_yaw_cos;
-    public float los_pitch_sin;
-    public float los_pitch_cos;
-
     public float distance;
+    public float look_angle_rad;
     public float closing_speed;
 
     public float[] rel_vel = new float[3];
@@ -55,11 +47,49 @@ public class OutgoingStateData
 }
 
 [Serializable]
+public class OutgoingTelemetryData
+{
+    public float[] rocket_pos_world = new float[3];
+    public float[] rocket_euler_world = new float[3];
+    public float[] rocket_rot_world = new float[4];
+    public float[] rocket_point_pos_world = new float[3];
+    public float[] rocket_point_forward_world = new float[3];
+    public float[] rocket_point_up_world = new float[3];
+    public float[] rocket_vel_world = new float[3];
+    public float[] rocket_vel_local = new float[3];
+    public float[] rocket_ang_vel_world = new float[3];
+    public float[] rocket_ang_vel_local = new float[3];
+
+    public float[] target_pos_world = new float[3];
+    public float[] target_euler_world = new float[3];
+    public float[] target_rot_world = new float[4];
+    public float[] target_point_pos_world = new float[3];
+    public float[] target_point_forward_world = new float[3];
+    public float[] target_point_up_world = new float[3];
+    public float[] target_vel_world = new float[3];
+    public float[] target_vel_in_rocket_local = new float[3];
+    public float[] target_ang_vel_world = new float[3];
+    public float[] target_ang_vel_in_rocket_local = new float[3];
+
+    public float[] rel_pos_world = new float[3];
+    public float[] rel_pos_local = new float[3];
+    public float[] rel_dir_world = new float[3];
+    public float[] rel_dir_local = new float[3];
+    public float[] rel_vel_world = new float[3];
+    public float[] rel_vel_local = new float[3];
+    public float[] gravity_world = new float[3];
+    public float[] gravity_local = new float[3];
+
+    public float target_speed;
+}
+
+[Serializable]
 public class OutgoingPacket
 {
     public int episode_id;
     public int step_id;
     public OutgoingStateData states;
+    public OutgoingTelemetryData telemetry;
 }
 
 public class Env : MonoBehaviour
@@ -99,7 +129,7 @@ public class Env : MonoBehaviour
     public bool keepTargetRotXFixed = true;
 
     [Header("Target Motion")]
-    public float targetSpeed = 0f;
+    public float targetSpeed = 25f;
 
     [Header("Ground / Collision")]
     public LayerMask groundMask = ~0;
@@ -340,12 +370,9 @@ public class Env : MonoBehaviour
         if (connector == null || !connector.IsConnected)
             return;
 
-        OutgoingPacket packet = new OutgoingPacket
-        {
-            episode_id = currentEpisodeId,
-            step_id = currentStepId,
-            states = CollectState()
-        };
+        OutgoingPacket packet = CollectPacket();
+        packet.episode_id = currentEpisodeId;
+        packet.step_id = currentStepId;
 
         connector.SendPacket(JsonUtility.ToJson(packet));
     }
@@ -364,46 +391,61 @@ public class Env : MonoBehaviour
         return groundRayMax;
     }
 
-    private OutgoingStateData CollectState()
+    private static float[] ToFloatArray(Vector3 value)
+    {
+        return new float[] { value.x, value.y, value.z };
+    }
+
+    private static float[] ToFloatArray(Quaternion value)
+    {
+        return new float[] { value.x, value.y, value.z, value.w };
+    }
+
+    private OutgoingPacket CollectPacket()
     {
         OutgoingStateData s = new OutgoingStateData();
+        OutgoingTelemetryData telemetry = new OutgoingTelemetryData();
 
-        Vector3 toTargetWorld = targetPoint.position - rocketPoint.position;
-        float distance = toTargetWorld.magnitude;
-        Vector3 relDirWorld = distance > 1e-6f ? toTargetWorld / distance : Vector3.zero;
+        Vector3 relPosWorld = targetPoint.position - rocketPoint.position;
+        float distance = relPosWorld.magnitude;
+        Vector3 relDirWorld = distance > 1e-6f ? relPosWorld / distance : Vector3.zero;
+        Vector3 rocketForwardWorld = rocketPoint.forward.normalized;
 
         Vector3 targetVelWorld = (targetMoveDir.sqrMagnitude > 1e-6f)
             ? targetMoveDir * targetSpeed
             : Vector3.zero;
 
-        Vector3 relVelWorld = targetVelWorld - rocketRb.linearVelocity;
-        Vector3 rocAngVelWorld = rocketRb.angularVelocity;
+        Vector3 rocketVelWorld = rocketRb.linearVelocity;
+        Vector3 relVelWorld = targetVelWorld - rocketVelWorld;
+        Vector3 rocketAngVelWorld = rocketRb.angularVelocity;
+        Vector3 targetAngVelWorld = targetRb != null ? targetRb.angularVelocity : Vector3.zero;
         Vector3 gravityWorld = Physics.gravity;
 
-        Vector3 relDirUsed = relDirWorld;
+        Vector3 relPosLocal = rocketPoint.InverseTransformDirection(relPosWorld);
+        Vector3 relDirLocal = distance > 1e-6f ? rocketPoint.InverseTransformDirection(relDirWorld) : Vector3.zero;
+        Vector3 rocketVelLocal = rocketPoint.InverseTransformDirection(rocketVelWorld);
+        Vector3 targetVelLocal = rocketPoint.InverseTransformDirection(targetVelWorld);
+        Vector3 relVelLocal = rocketPoint.InverseTransformDirection(relVelWorld);
+        Vector3 rocketAngVelLocal = rocketPoint.InverseTransformDirection(rocketAngVelWorld);
+        Vector3 targetAngVelLocal = rocketPoint.InverseTransformDirection(targetAngVelWorld);
+        Vector3 gravityLocal = rocketPoint.InverseTransformDirection(gravityWorld);
+
         Vector3 relVelUsed = relVelWorld;
-        Vector3 rocAngVelUsed = rocAngVelWorld;
+        Vector3 rocAngVelUsed = rocketAngVelWorld;
         Vector3 gravityUsed = gravityWorld;
 
         if (useLocalFrame)
         {
-            relDirUsed = rocketPoint.InverseTransformDirection(relDirWorld);
-            relVelUsed = rocketPoint.InverseTransformDirection(relVelWorld);
-            rocAngVelUsed = rocketPoint.InverseTransformDirection(rocAngVelWorld);
-            gravityUsed = rocketPoint.InverseTransformDirection(gravityWorld);
+            relVelUsed = relVelLocal;
+            rocAngVelUsed = rocketAngVelLocal;
+            gravityUsed = gravityLocal;
         }
 
-        float planarMag = Mathf.Sqrt(relDirUsed.x * relDirUsed.x + relDirUsed.z * relDirUsed.z);
-        float losYaw = Mathf.Atan2(relDirUsed.x, relDirUsed.z);
-        float losPitch = Mathf.Atan2(relDirUsed.y, Mathf.Max(planarMag, 1e-6f));
-
-        s.los_yaw_sin = Mathf.Sin(losYaw);
-        s.los_yaw_cos = Mathf.Cos(losYaw);
-        s.los_pitch_sin = Mathf.Sin(losPitch);
-        s.los_pitch_cos = Mathf.Cos(losPitch);
-
         s.distance = distance;
-        s.closing_speed = distance > 1e-6f ? -Vector3.Dot(relVelUsed, relDirUsed) : 0f;
+        s.look_angle_rad = distance > 1e-6f
+            ? Mathf.Acos(Mathf.Clamp(Vector3.Dot(rocketForwardWorld, relDirWorld), -1f, 1f))
+            : 0f;
+        s.closing_speed = distance > 1e-6f ? -Vector3.Dot(relVelWorld, relDirWorld) : 0f;
 
         s.rel_vel[0] = relVelUsed.x;
         s.rel_vel[1] = relVelUsed.y;
@@ -422,7 +464,43 @@ public class Env : MonoBehaviour
         s.alt_error = targetPoint.position.y - rocketPoint.position.y;
         s.grounded_flag = grounded ? 1f : 0f;
 
-        return s;
+        telemetry.rocket_pos_world = ToFloatArray(rocket.position);
+        telemetry.rocket_euler_world = ToFloatArray(rocket.eulerAngles);
+        telemetry.rocket_rot_world = ToFloatArray(rocket.rotation);
+        telemetry.rocket_point_pos_world = ToFloatArray(rocketPoint.position);
+        telemetry.rocket_point_forward_world = ToFloatArray(rocketPoint.forward);
+        telemetry.rocket_point_up_world = ToFloatArray(rocketPoint.up);
+        telemetry.rocket_vel_world = ToFloatArray(rocketVelWorld);
+        telemetry.rocket_vel_local = ToFloatArray(rocketVelLocal);
+        telemetry.rocket_ang_vel_world = ToFloatArray(rocketAngVelWorld);
+        telemetry.rocket_ang_vel_local = ToFloatArray(rocketAngVelLocal);
+
+        telemetry.target_pos_world = ToFloatArray(target.position);
+        telemetry.target_euler_world = ToFloatArray(target.eulerAngles);
+        telemetry.target_rot_world = ToFloatArray(target.rotation);
+        telemetry.target_point_pos_world = ToFloatArray(targetPoint.position);
+        telemetry.target_point_forward_world = ToFloatArray(targetPoint.forward);
+        telemetry.target_point_up_world = ToFloatArray(targetPoint.up);
+        telemetry.target_vel_world = ToFloatArray(targetVelWorld);
+        telemetry.target_vel_in_rocket_local = ToFloatArray(targetVelLocal);
+        telemetry.target_ang_vel_world = ToFloatArray(targetAngVelWorld);
+        telemetry.target_ang_vel_in_rocket_local = ToFloatArray(targetAngVelLocal);
+
+        telemetry.rel_pos_world = ToFloatArray(relPosWorld);
+        telemetry.rel_pos_local = ToFloatArray(relPosLocal);
+        telemetry.rel_dir_world = ToFloatArray(relDirWorld);
+        telemetry.rel_dir_local = ToFloatArray(relDirLocal);
+        telemetry.rel_vel_world = ToFloatArray(relVelWorld);
+        telemetry.rel_vel_local = ToFloatArray(relVelLocal);
+        telemetry.gravity_world = ToFloatArray(gravityWorld);
+        telemetry.gravity_local = ToFloatArray(gravityLocal);
+        telemetry.target_speed = targetSpeed;
+
+        return new OutgoingPacket
+        {
+            states = s,
+            telemetry = telemetry
+        };
     }
 
     private void UpdateDebugLines()

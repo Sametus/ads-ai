@@ -79,6 +79,13 @@ if __name__ == "__main__":
             episode_return += reward
             episode_len += 1
 
+            info["episode_return_so_far"] = float(episode_return)
+            info["action_logp"] = float(logp)
+            info["value_pred"] = float(value)
+            info["action_norm_0"] = float(action[0])
+            info["action_norm_1"] = float(action[1])
+            info["action_norm_2"] = float(action[2])
+
             log.append_step_csv(update_id+1, info)
 
             if info["step_id"] % log.STEP_PRINT_EVERY == 0:

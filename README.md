@@ -1,22 +1,23 @@
 # ADS-AI Hava Savunma Sistemi
 
-ADS-AI, Unity tabanli fizik simulasyonu ile Python tabanli PPO ajani arasinda TCP uzerinden calisan hibrit bir RL projesidir. Sistem, roketin hedefe gore geometrik durumu Unity tarafinda olcup Python tarafinda normalize ederek karar verir.
+ADS-AI, Unity tabanli fizik simulasyonu ile Python tabanli PPO ajani arasinda TCP uzerinden calisan hibrit bir RL projesidir. Unity sahnedeki geometri ve fizik verisini olcer, Python bu veriyi state'e cevirir, reward hesaplar ve aksiyon uretir.
 
-Guncel surum: `v6.0.0`
+Guncel surum: `v7.1.0`
 
-## Proje Ozeti
+## Ozet
 
 - Unity tarafinda manuel fizik adimlama (`Physics.Simulate`) kullanilir.
-- Python tarafinda PPO ajanı egitilir ve test edilir.
-- Egitim, curriculum learning mantigiyla giderek zorlasan reset senaryolari uzerinden ilerler.
-- V6 ile observation yapisi guidance-first tasarima gecmistir; tekrar eden feature'lar yerine LOS acilari, kapanma hizi, acisal hiz ve irtifa farki gibi daha dogrudan guidance sinyalleri kullanilir.
+- Python tarafinda PPO ajan egitilir ve test edilir.
+- Curriculum fazlari `ADS_AI_PHASE` ile secilir.
+- RL state 14 boyutlu sade bir guidance observation olarak tutulur.
+- V7 ile birlikte Unity'den gelen genis telemetry paketi, Python reward/action verileriyle birlestirilerek tek bir step CSV dosyasina yazilir.
 
 ## Hizli Baslangic
 
-1. Unity Hub ile `ads_ai/` klasorunu acin.
+1. Unity Hub ile [ads_ai](/C:/Users/husey/Desktop/ads_ai/ads_ai) klasorunu acin.
 2. `SampleScene` sahnesini acin.
 3. Unity Editor icinde `Play`e basin.
-4. Ayrı bir terminalde Python ortamini aktif edin.
+4. Ayri bir terminalde Python ortamini aktif edin.
 5. Egitim icin:
 
 ```bash
@@ -27,6 +28,13 @@ python scripts/train.py
 
 ```bash
 python scripts/test.py
+```
+
+Faz secmek icin:
+
+```powershell
+$env:ADS_AI_PHASE="1"
+python scripts/train.py
 ```
 
 ## Python Ortami
@@ -41,76 +49,114 @@ pip install tensorflow==2.10.0 numpy==1.21.6 pandas==1.3.5 pydantic==1.10.8 plot
 
 ## Mimari
 
-### Python Katmani (`scripts/`)
+### Python Katmani
 
-- `agent.py`: PPO actor-critic modeli.
-- `env.py`: Unity ile Python arasindaki RL koprusu, state parse/normalize ve reward hesaplari.
-- `train.py`: egitim dongusu.
-- `test.py`: kayitli model ile deterministik/stokastik test.
-- `log.py`: CSV ve konsol loglama.
-- `reward_test.py`: reward mantigini TCP olmadan test eden senaryo dosyasi.
+- [scripts/agent.py](/C:/Users/husey/Desktop/ads_ai/scripts/agent.py): PPO actor-critic modeli
+- [scripts/env.py](/C:/Users/husey/Desktop/ads_ai/scripts/env.py): Unity ile Python arasindaki RL koprusu, state parse/normalize ve reward hesabi
+- [scripts/train.py](/C:/Users/husey/Desktop/ads_ai/scripts/train.py): egitim dongusu
+- [scripts/test.py](/C:/Users/husey/Desktop/ads_ai/scripts/test.py): kayitli model ile test kosusu
+- [scripts/log.py](/C:/Users/husey/Desktop/ads_ai/scripts/log.py): CSV ve konsol loglama
+- [scripts/reward_test.py](/C:/Users/husey/Desktop/ads_ai/scripts/reward_test.py): reward mantigini TCP olmadan test eden arac
 
-### Unity Katmani (`ads_ai/Assets/Scripts/`)
+### Unity Katmani
 
-- `Env.cs`: sahne state'ini toplar, action uygular, fizik simule eder ve Python'a observation yollar.
-- `Connector.cs`: TCP framing ve JSON iletimi.
-- `CameraFollow.cs`: roket takip kamerası.
+- [env.cs](/C:/Users/husey/Desktop/ads_ai/ads_ai/Assets/Scripts/env.cs): action uygular, fizik simule eder, state ve telemetry yollar
+- [Connector.cs](/C:/Users/husey/Desktop/ads_ai/ads_ai/Assets/Scripts/Connector.cs): TCP framing ve JSON iletimi
+- [CameraFollow.cs](/C:/Users/husey/Desktop/ads_ai/ads_ai/Assets/Scripts/CameraFollow.cs): roket takip kamerasi
 
-## Teknik Parametreler
+## Observation Space
 
-### Durum Uzayi (Observation Space - 18 Parametre)
+Guncel RL state 14 parametreden olusur:
 
-V6 observation yapisi guidance-first mantigina gore tasarlanmistir. State vektoru:
-
-| Indis | Parametre | Aciklama |
+| Indis | Parametre | Anlam |
 | :--- | :--- | :--- |
-| **0-1** | `los_yaw_sin`, `los_yaw_cos` | Hedefin roket burun eksenine gore yatay LOS hatasi. |
-| **2-3** | `los_pitch_sin`, `los_pitch_cos` | Hedefin dikey LOS hatasi. |
-| **4** | `distance` | Hedefe kalan mutlak mesafe. |
-| **5** | `closing_speed` | Roketin hedefe yaklasma/uzaklasma hizi. Pozitif deger kapanmayi ifade eder. |
-| **6-8** | `rel_vel_x, y, z` | Hedefin rokete gore bagil hizi. |
-| **9-11** | `roc_ang_vel_x, y, z` | Roketin acisal hizi. |
-| **12-14** | `g_x, g_y, g_z` | Yercekim vektorunun local frame izdüsümü. |
-| **15** | `agl` | Yerden yukseklik (raycast tabanli). |
-| **16** | `alt_error` | Hedef ile roket arasindaki dunya-Y irtifa farki. |
-| **17** | `time_remaining` | Episode icinde kalan sure orani. |
+| 0 | `distance` | Roket ile hedef arasindaki mesafe |
+| 1 | `look_angle_rad` | Roketin ileri bakis yonu ile hedef dogrultusu arasindaki aci |
+| 2 | `closing_speed` | Hedefe yaklasma hizi. Pozitif deger kapanmayi gosterir |
+| 3-5 | `rel_vel_x/y/z` | Hedefin rokete gore bagil hizi |
+| 6-8 | `roc_ang_vel_x/y/z` | Roketin acisal hizlari |
+| 9-11 | `g_x/y/z` | Yercekim vektorunun secili frame'deki bilesenleri |
+| 12 | `agl` | Yerden yukseklik |
+| 13 | `alt_error` | Hedef ile roket arasindaki dunya-Y irtifa farki |
 
-### Aksiyon Uzayi
+`grounded_flag` state vektorune dahil degildir. Reward ve terminal mantigi icin ham sinyal olarak tasinir.
 
-- `thrust`: surekli itki kuvveti.
-- `pitch_f`: pitch torku.
-- `yaw_f`: yaw torku.
+## Reward Yapisi
 
-### Reward Yapisi
+Reward ailesi su sinyalleri birlikte kullanir:
 
-Reward ailesi V6'da korunmus, ancak yeni guidance feature'lari ile tekrar kurulmustur:
-
-- LOS alignment odulu: `alignment = los_yaw_cos * los_pitch_cos`
-- Mesafe ilerleme odulu: `prev_distance - distance`
-- Pozitif kapanma hizi odulu: `closing_speed`
+- Mesafe ilerlemesi: `prev_distance - distance`
+- Bakis hizalamasi: `alignment = cos(look_angle_rad)`
+- Pozitif kapanma hizi: `closing_speed`
 - Acisal hiz cezasi: `roc_ang_vel`
-- Irtifa hizalama odulu: `abs(alt_error)`
-- Terminal kosullar: `success`, `collision`, `low_agl`, `high_altitude`, `timeout`
+- Irtifa hizalama: `alt_error`
+- Terminal katkilar: `success`, `collision`, `low_agl`, `high_altitude`, `timeout`
 
-## Curriculum Learning Notu
+Reward breakdown alanlari step CSV icinde ayri kolonlar olarak saklanir. Boylece toplam reward sonradan offline olarak yeniden analiz edilebilir.
 
-Bu surumde curriculum faz mesafeleri ve `TARGET_VELOCITY = 0.0` davranisi korunmustur. V6'nin amaci moving-target final senaryosuna gecmeden once observation/reward tabanini yeniden kurmaktir.
+## Faz Yapisi
 
-Bir sonraki buyuk adimda hedefin:
+Faz secimi `ADS_AI_PHASE` environment variable ile yapilir.
 
-- merkezden cok daha uzakta baslamasi,
-- merkeze gore belli bir sapma ile yonlenmesi,
-- sabit hizla hareket etmesi
+- Faz 1: yakin menzil, dar heading sapmasi, `max_step=500`
+- Faz 2: orta menzil, daha genis heading sapmasi, `max_step=700`
+- Faz 3: daha zor intercept kosullari, `max_step=900`
 
-gibi zorlayici final senaryolar icin ayni kod tabani uzerinden daha guvenilir egitim kurulmasi hedeflenmektedir.
+## Phase 1.1 Snapshot
+
+Phase 1.1 kosusu `up340` modelinde donduruldu ve repo icinde arsivlendi:
+
+- [phase_1_1 archive](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_1)
+- warm-start modeli: [ppo_model_up340.keras](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_1/models/ppo_model_up340.keras)
+- grafik: [success_rate_phase1_latest.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_1/logs/success_rate_phase1_latest.png)
+
+Phase 1.1 sonuc ozeti:
+
+- episode: `1640`
+- success: `161`
+- success rate: `%9.817`
+- baskin failure modu: `high_altitude`
+
+Phase 1.2, bu warm-start noktasi uzerinden devam edecek ve aktif `logs/` klasoru sifirdan yeniden yazilacaktir.
+
+## V7 Telemetry Loglama
+
+V7 ile birlikte Unity paketi iki parca halinde gelir:
+
+- `states`: ajanin gordugu 14 boyutlu RL observation
+- `telemetry`: world/local frame geometri ve fizik debug verileri
+
+Step CSV dosyasi artik tek satirda su gruplari birlestirir:
+
+- RL state alanlari
+- Python aksiyonlari ve normalize aksiyonlari
+- `value_pred` ve `action_logp`
+- reward breakdown alanlari
+- episode icindeki kume reward (`episode_return_so_far`)
+- Unity world/local telemetry alanlari
+
+Telemetry tarafinda roket, hedef ve roket-hedef ciftine ait su veriler saklanir:
+
+- world konumlari
+- Euler ve quaternion rotasyonlari
+- forward / up yonleri
+- world ve roket-local hizlar
+- world ve roket-local acisal hizlar
+- relative position / direction / velocity
+- gravity world/local
+- `target_speed`
+
+Bu sayede mevcut reward yapisi veya yeni reward adaylari, sadece CSV uzerinden offline olarak tekrar analiz edilebilir.
 
 ## Log ve Model Politikasi
 
-V6 ile repo kokundeki `logs/` ve `models/` ciktilari varsayilan olarak git disina alinmistir. Egitim ve test scriptleri bu klasorleri ihtiyac halinde yeniden olusturur.
+Repo kokundeki `logs/` ve `models/` ciktilari varsayilan olarak git disindadir.
+
+Log semasi degistiginde [scripts/log.py](/C:/Users/husey/Desktop/ads_ai/scripts/log.py), mevcut CSV dosyalarini `.bak_YYYYMMDD_HHMMSS.csv` adi ile yedekler ve yeni basliklarla temiz log olusturur.
 
 ## Analiz
 
-Episode log uzerinden kümülatif basari orani grafigi icin:
+Episode log uzerinden kumulatif basari orani grafigi icin:
 
 ```bash
 python docs/analiz.py
@@ -118,4 +164,4 @@ python docs/analiz.py
 
 ## Durum
 
-Proje halen aktif gelisim asamasindadir. V6, observation kontratini kirdigi icin onceki modeller ile geriye donuk uyum hedeflemez; yeni egitimler `v6.0.0` state yapisi ile yeniden alinmalidir.
+V7, telemetry agirlikli gozlemlenebilirlik surumudur. Ana hedef, egitim sirasinda ortaya cikan guidance ve reward sorunlarini step bazinda offline inceleyebilmek ve sonraki reward retune islerini veri temelli hale getirmektir.
