@@ -2,7 +2,7 @@
 
 ADS-AI, Unity tabanli fizik simulasyonu ile Python tabanli PPO ajani arasinda TCP uzerinden calisan hibrit bir RL projesidir. Unity sahnedeki geometri ve fizik verisini olcer, Python bu veriyi state'e cevirir, reward hesaplar ve aksiyon uretir.
 
-Guncel surum: `v7.1.0`
+Guncel surum: `v7.2.0`
 
 ## Ozet
 
@@ -102,6 +102,29 @@ Faz secimi `ADS_AI_PHASE` environment variable ile yapilir.
 - Faz 2: orta menzil, daha genis heading sapmasi, `max_step=700`
 - Faz 3: daha zor intercept kosullari, `max_step=900`
 
+## Phase 1.2 Snapshot
+
+Phase 1.2 kosusu `up520` modelinde donduruldu ve repo icinde arsivlendi:
+
+- [phase_1_2 archive](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_2)
+- secilen devam modeli: [ppo_model_up520.keras](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_2/models/ppo_model_up520.keras)
+- grafik: [success_rate_phase1_2.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_2/logs/success_rate_phase1_2.png)
+
+Phase 1.2 sonuc ozeti:
+
+- episode: `1621`
+- success: `308`
+- genel success rate: `%19.001`
+- en iyi kümülatif success rate: `%27.957` (`episode 930`, `update 529`)
+- en iyi rolling 200 success rate: `%35.500`
+- baskin failure modu: `high_altitude`
+
+Phase 1.3 icin yon:
+
+- warm-start `up520` uzerinden devam edilmeli
+- once peak koridor stabilize edilmeli, sonra zorluk buyutulmeli
+- fiili baslangic mesafesi `80-90` bandini koruyacak ufak menzil kaydirma ve daha korumaci optimizer ayarlari planlanmali
+
 ## Phase 1.1 Snapshot
 
 Phase 1.1 kosusu `up340` modelinde donduruldu ve repo icinde arsivlendi:
@@ -117,7 +140,7 @@ Phase 1.1 sonuc ozeti:
 - success rate: `%9.817`
 - baskin failure modu: `high_altitude`
 
-Phase 1.2, bu warm-start noktasi uzerinden devam edecek ve aktif `logs/` klasoru sifirdan yeniden yazilacaktir.
+Phase 1.1, sonraki Phase 1.2 calismasi icin warm-start tabani olarak korunmustur.
 
 ## V7 Telemetry Loglama
 

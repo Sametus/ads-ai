@@ -1,3 +1,12 @@
+# v7.2 surum ailesi
+
+> ## v7.2.0 - Phase 1.2 Archive Snapshot
+>
+> - **Phase 1.2 Freeze Point**: Faz 1.2 egitimi `up520` modelinde donduruldu. Bu nokta, en iyi kümülatif success rate'in `%27.957` ile `episode 930 / update 529` civarinda goruldugu koridora en yakin kayitli checkpoint olarak secildi.
+> - **Artifact Archiving**: `archives/phase_1_2/` altina `ppo_model_up520`, agent state, `episode_log.csv`, `update_log.csv`, success-rate grafigi ve buyuk `step_log.csv` dosyasinin sikistirilmis / 7 parcaya bolunmus arsivi eklendi.
+> - **Observed Outcome**: Phase 1.2 genelinde `1621` episode icinde `308` success (%19.001) goruldu. En iyi rolling 200 success rate `%35.500` olarak `episode 724-923` koridorunda toplandi.
+> - **Phase 1.3 Direction**: Bir sonraki adim zorlugu sertlestirmek degil, `up520` uzerinden peak davranisi stabilize etmek olarak belirlendi. Bu nedenle menzil bandinin `80-90` fiili mesafe cevresinde korunmasi ve optimizer tarafinda daha korumaci ayarlara gecilmesi not edildi.
+
 # v7.1 surum ailesi
 
 > ## v7.1.0 - Phase 1.1 Archive Snapshot
