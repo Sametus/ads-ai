@@ -32,15 +32,16 @@ class PPOAgent:
     def __init__(self):
         self.state_size = 14
         self.action_size = 3
-        self.lr = 1e-4
+        self.lr = 7e-5
         self.gamma = 0.997
         self.gae_lambda = 0.97
         self.clip_eps = 0.1
         self.vf_coef = 0.5
-        self.ent_coef = 0.02
-        self.epochs = 4
+        self.ent_coef = 0.01
+        self.epochs = 3
         self.batch_size = 256
         self.max_grad_norm = 0.5
+        self.target_kl = 0.006
 
         self.model = self.buildModel()
 
@@ -149,6 +150,8 @@ class PPOAgent:
 
         for _ in range(self.epochs):
             np.random.shuffle(idx)
+            epoch_kl = 0.0
+            epoch_steps = 0
             for start in range(0,n,self.batch_size):
                 mb = idx[start:start+self.batch_size]
                 loss, pl, vl, ent, kl, cf = self.train_step(
@@ -165,6 +168,13 @@ class PPOAgent:
                 logs["kl"] += float(kl.numpy())
                 logs["clip_frac"] += float(cf.numpy())
                 steps += 1
+                epoch_kl += float(kl.numpy())
+                epoch_steps += 1
+
+            if self.target_kl and epoch_steps > 0:
+                mean_epoch_kl = epoch_kl / epoch_steps
+                if mean_epoch_kl > self.target_kl:
+                    break
         
         for k in logs:
             logs[k] /= max(1,steps)

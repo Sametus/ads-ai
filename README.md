@@ -2,7 +2,7 @@
 
 ADS-AI, Unity tabanli fizik simulasyonu ile Python tabanli PPO ajani arasinda TCP uzerinden calisan hibrit bir RL projesidir. Unity sahnedeki geometri ve fizik verisini olcer, Python bu veriyi state'e cevirir, reward hesaplar ve aksiyon uretir.
 
-Guncel surum: `v7.2.0`
+Guncel surum: `v7.3.0`
 
 ## Ozet
 
@@ -101,6 +101,29 @@ Faz secimi `ADS_AI_PHASE` environment variable ile yapilir.
 - Faz 1: yakin menzil, dar heading sapmasi, `max_step=500`
 - Faz 2: orta menzil, daha genis heading sapmasi, `max_step=700`
 - Faz 3: daha zor intercept kosullari, `max_step=900`
+
+## Phase 1.3 Snapshot
+
+Phase 1.3 kosusu `up800` modelinde donduruldu ve repo icinde arsivlendi:
+
+- [phase_1_3 archive](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_3)
+- secilen devam modeli: [ppo_model_up800.keras](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_3/models/ppo_model_up800.keras)
+- grafik: [success_rate_phase1_3.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_3/logs/success_rate_phase1_3.png)
+
+Phase 1.3 sonuc ozeti:
+
+- episode: `1817`
+- success: `855`
+- genel success rate: `%47.056`
+- en iyi rolling 100 success rate: `%67.000`
+- en iyi rolling 200 success rate: `%61.000`
+- secilen handoff checkpoint: `up800`
+
+Phase 2.1 icin yon:
+
+- warm-start `up800` uzerinden devam edilmeli
+- ayni fazi uzatmak yerine daha yumusak bir faz 2 gecisi uygulanmali
+- fiili baslangic mesafesi `82-87.5` cekirdegi korunup heading sapmasi ve episode ufku kontrollu buyutulmeli
 
 ## Phase 1.2 Snapshot
 

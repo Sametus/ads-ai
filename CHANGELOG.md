@@ -1,3 +1,12 @@
+# v7.3 surum ailesi
+
+> ## v7.3.0 - Phase 1.3 Archive Snapshot
+>
+> - **Phase 1.3 Freeze Point**: Faz 1.3 egitimi `up800` modelinde donduruldu. `up700` penceresi biraz daha yuksek ham pencere success rate gormesine ragmen, `up800` gec ve halen guclu bir checkpoint oldugu icin handoff noktasi olarak secildi.
+> - **Artifact Archiving**: `archives/phase_1_3/` altina `ppo_model_up800`, agent state, `episode_log.csv`, `update_log.csv`, success-rate grafigi ve buyuk `step_log.csv` dosyasinin sikistirilmis / 6 parcaya bolunmus arsivi eklendi.
+> - **Observed Outcome**: Phase 1.3 genelinde `1817` episode icinde `855` success (%47.056) goruldu. En iyi rolling 100 success rate `%67.000`, en iyi rolling 200 success rate `%61.000` olarak kaydedildi.
+> - **Phase 2.1 Direction**: Bir sonraki adim ayni fazi tekrar uzatmak degil, `up800` uzerinden yumusak bir `Phase 2.1` gecisi yapmak olarak belirlendi. Bu nedenle fiili baslangic mesafesi cekirdegi korunup heading sapmasi ve horizon dikkatli sekilde artirilacak.
+
 # v7.2 surum ailesi
 
 > ## v7.2.0 - Phase 1.2 Archive Snapshot

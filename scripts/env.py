@@ -40,6 +40,7 @@ REWARD_BREAKDOWN_KEYS = [
     "reward_angular_penalty",
     "reward_altitude",
     "reward_soft_floor_penalty",
+    "reward_soft_ceiling_penalty",
     "reward_terminal",
 ]
 
@@ -110,6 +111,8 @@ REWARD_CONFIG = {
     "height_align_gain": 0.012,
     "soft_floor": 8.0,
     "soft_floor_gain": 0.12,
+    "soft_ceiling_start": 1000.0,
+    "soft_ceiling_gain": 0.0,
     "min_agl": 0.40,
     "low_agl_grace_steps": 15,
     "collision_grace_steps": 8,
@@ -122,9 +125,10 @@ REWARD_CONFIG = {
 
 CURRICULUM_PHASES = {
     1: {
-        "name": "phase_1_2_guided_close_range_refine",
-        "spawn_radius_min": 50.0,
-        "spawn_radius_max": 75.0,
+        "name": "phase_1_3_peak_stabilize",
+        # Roughly targets the empirically best 80-90 start-distance corridor.
+        "spawn_radius_min": 62.0,
+        "spawn_radius_max": 76.0,
         "heading_offset_min": -5,
         "heading_offset_max": 5,
         "max_step": 500,
@@ -135,6 +139,8 @@ CURRICULUM_PHASES = {
         "ang_vel_penalty": 0.03,
         "height_align_gain": 0.018,
         "soft_floor_gain": 0.12,
+        "soft_ceiling_start": 58.0,
+        "soft_ceiling_gain": 0.014,
         "low_altitude_penalty": -110.0,
         "high_altitude_penalty": -95.0,
         "success_distance": 14.0,
@@ -364,9 +370,12 @@ class Env:
         angular_penalty = phase["ang_vel_penalty"] * min(ang_vel_mag, phase["ang_vel_clip"])
         altitude_reward = phase["height_align_gain"] * np.clip(1.0 - np.abs(alt_error) / 50.0, 0.0, 1.0)
         soft_floor_penalty = 0.0
+        soft_ceiling_penalty = 0.0
 
         if agl < phase["soft_floor"]:
             soft_floor_penalty = phase["soft_floor_gain"] * (phase["soft_floor"] - agl)
+        if agl > phase["soft_ceiling_start"]:
+            soft_ceiling_penalty = phase["soft_ceiling_gain"] * (agl - phase["soft_ceiling_start"])
 
         reward += distance_reward
         reward += alignment_reward
@@ -374,6 +383,7 @@ class Env:
         reward -= angular_penalty
         reward += altitude_reward
         reward -= soft_floor_penalty
+        reward -= soft_ceiling_penalty
 
         if (
             distance <= phase["success_distance"]
@@ -426,6 +436,7 @@ class Env:
             "reward_angular_penalty": float(angular_penalty),
             "reward_altitude": float(altitude_reward),
             "reward_soft_floor_penalty": float(soft_floor_penalty),
+            "reward_soft_ceiling_penalty": float(soft_ceiling_penalty),
             "reward_terminal": float(terminal_reward),
             "grounded_flag": 1.0 if grounded else 0.0,
             "done_reason": done_reason,
