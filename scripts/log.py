@@ -33,26 +33,28 @@ STEP_HEADER = [
     "success",
     "distance",
     "delta_distance",
-    "look_angle_rad",
-    "look_angle_deg",
+    "theta_rad",
+    "theta_deg",
+    "alpha_rad",
+    "alpha_deg",
+    "beta_rad",
+    "beta_deg",
     "alignment",
     "closing_speed",
+    "forward_up_dot",
     "agl",
     "alt_error",
     "grounded_flag",
     "ang_vel_mag",
-    "rel_vel_x",
-    "rel_vel_y",
-    "rel_vel_z",
-    "roc_ang_vel_x",
-    "roc_ang_vel_y",
-    "roc_ang_vel_z",
-    "g_x",
-    "g_y",
-    "g_z",
+    "rel_vel_right",
+    "rel_vel_up",
+    "rel_vel_forward",
+    "turn_rate_vertical",
+    "turn_rate_horizontal",
+    "turn_rate_roll",
     "thrust",
-    "pitch_f",
-    "yaw_f",
+    "vertical_cmd",
+    "horizontal_cmd",
 ] + PYTHON_STEP_LOG_KEYS + REWARD_BREAKDOWN_KEYS + TELEMETRY_FLAT_KEYS
 
 EPISODE_HEADER = [
@@ -72,8 +74,11 @@ EPISODE_HEADER = [
     "start_alt_error",
     "final_alt_error",
     "final_closing_speed",
-    "final_look_angle_deg",
+    "final_theta_deg",
+    "final_alpha_deg",
+    "final_beta_deg",
     "final_alignment",
+    "final_forward_up_dot",
     "final_grounded_flag",
     "final_ang_vel_mag",
 ]
@@ -172,8 +177,11 @@ def append_episode_csv(update_id, episode_id, episode_return, episode_len,
         "start_alt_error": start_info["alt_error"],
         "final_alt_error": final_info["alt_error"],
         "final_closing_speed": final_info.get("closing_speed", ""),
-        "final_look_angle_deg": final_info.get("look_angle_deg", ""),
+        "final_theta_deg": final_info.get("theta_deg", ""),
+        "final_alpha_deg": final_info.get("alpha_deg", ""),
+        "final_beta_deg": final_info.get("beta_deg", ""),
         "final_alignment": final_info.get("alignment", ""),
+        "final_forward_up_dot": final_info.get("forward_up_dot", ""),
         "final_grounded_flag": final_info.get("grounded_flag", ""),
         "final_ang_vel_mag": final_info.get("ang_vel_mag", ""),
     }
@@ -207,13 +215,14 @@ def print_step_console(update_id, info):
     msg = (
         f"[UP {update_id:<4} | EP {info['episode_id']:<4} | ST {info['step_id']:<4}] "
         f"Dst: {info['distance']:>7.2f} | "
-        f"Look: {info['look_angle_deg']:>7.2f} deg | "
+        f"Theta: {info['theta_deg']:>7.2f} | "
+        f"Alpha/Beta: {info['alpha_deg']:>6.2f} / {info['beta_deg']:>6.2f} | "
         f"Cls: {info['closing_speed']:>6.2f} | "
         f"AGL: {info['agl']:>6.2f} | "
         f"AltE: {info['alt_error']:>6.2f} | "
         f"Aln: {info.get('alignment', 0.0):>5.2f} | "
         f"R: {info['reward']:>7.3f} | "
-        f"Act: [{info['thrust']:.2f}, {info['pitch_f']:.2f}, {info['yaw_f']:.2f}]"
+        f"Act: [{info['thrust']:.2f}, {info['vertical_cmd']:.2f}, {info['horizontal_cmd']:.2f}]"
     )
     print(msg, flush=True)
 
@@ -230,7 +239,8 @@ def print_episode_console(episode_id, episode_return, episode_len,
         f"Len: {episode_len:>4} | "
         f"Start D/AGL: {start_info['distance']:>6.1f} / {start_info['agl']:>6.1f} | "
         f"End D/AGL: {final_info['distance']:>6.1f} / {final_info['agl']:>6.1f} | "
-        f"Look: {final_info.get('look_angle_deg', 0.0):>6.2f} | "
+        f"Theta: {final_info.get('theta_deg', 0.0):>6.2f} | "
+        f"A/B: {final_info.get('alpha_deg', 0.0):>6.2f}/{final_info.get('beta_deg', 0.0):>6.2f} | "
         f"Cls: {final_info.get('closing_speed', 0.0):>6.2f} | "
         f"Aln: {final_info.get('alignment', 0.0):>5.2f} | "
         f"Succ: {success_count}/{total_episode_count} ({success_rate:>6.2f}%) | "
@@ -243,6 +253,8 @@ def print_episode_console(episode_id, episode_return, episode_len,
         color = YELLOW
     elif done_reason == "high_altitude":
         color = MAGENTA
+    elif done_reason == "wrong_way":
+        color = RED
     elif done_reason == "timeout":
         color = RED
     elif done_reason == "escaped":

@@ -2,15 +2,15 @@
 
 ADS-AI, Unity tabanli fizik simulasyonu ile Python tabanli PPO ajani arasinda TCP uzerinden calisan hibrit bir RL projesidir. Unity sahnedeki geometri ve fizik verisini olcer, Python bu veriyi state'e cevirir, reward hesaplar ve aksiyon uretir.
 
-Guncel surum: `v7.3.0`
+Guncel surum: `v8.1.0`
 
 ## Ozet
 
 - Unity tarafinda manuel fizik adimlama (`Physics.Simulate`) kullanilir.
 - Python tarafinda PPO ajan egitilir ve test edilir.
-- Curriculum fazlari `ADS_AI_PHASE` ile secilir.
-- RL state 14 boyutlu sade bir guidance observation olarak tutulur.
-- V7 ile birlikte Unity'den gelen genis telemetry paketi, Python reward/action verileriyle birlestirilerek tek bir step CSV dosyasina yazilir.
+- Egitim kosullari [env.py](/C:/Users/husey/Desktop/ads_ai/scripts/env.py) icindeki tek `ACTIVE_PHASE_CONFIG` blogu elle duzenlenerek yonetilir.
+- RL state 14 boyutlu gravity-based guidance observation olarak tutulur.
+- V7 telemetry hattina ek olarak V8 ile gravity-based guidance frame ve semantic action semantigi eklendi.
 
 ## Hizli Baslangic
 
@@ -30,11 +30,10 @@ python scripts/train.py
 python scripts/test.py
 ```
 
-Faz secmek icin:
+Yeni bir faz denemek icin:
 
 ```powershell
-$env:ADS_AI_PHASE="1"
-python scripts/train.py
+scripts/env.py icindeki ACTIVE_PHASE_CONFIG degerlerini degistir
 ```
 
 ## Python Ortami
@@ -71,24 +70,38 @@ Guncel RL state 14 parametreden olusur:
 | Indis | Parametre | Anlam |
 | :--- | :--- | :--- |
 | 0 | `distance` | Roket ile hedef arasindaki mesafe |
-| 1 | `look_angle_rad` | Roketin ileri bakis yonu ile hedef dogrultusu arasindaki aci |
-| 2 | `closing_speed` | Hedefe yaklasma hizi. Pozitif deger kapanmayi gosterir |
-| 3-5 | `rel_vel_x/y/z` | Hedefin rokete gore bagil hizi |
-| 6-8 | `roc_ang_vel_x/y/z` | Roketin acisal hizlari |
-| 9-11 | `g_x/y/z` | Yercekim vektorunun secili frame'deki bilesenleri |
+| 1 | `theta_rad` | Roketin burnu ile hedef dogrultusu arasindaki yon-suz genel hata acisi |
+| 2 | `alpha_rad` | Gravity referansli dikey signed hata. Hedef yukaridaysa `+`, asagidaysa `-` |
+| 3 | `beta_rad` | Gravity referansli yatay signed hata. Hedef sagdaysa `+`, soldaysa `-` |
+| 4 | `closing_speed` | Hedefe yaklasma hizi. Pozitif deger kapanmayi gosterir |
+| 5-7 | `rel_vel_right/up/forward` | Guidance frame icindeki bagil hiz bilesenleri |
+| 8-10 | `turn_rate_vertical/horizontal/roll` | Guidance frame icindeki acisal hiz bilesenleri |
+| 11 | `forward_up_dot` | Roket burnunun gravity-up ile iliskisi. Pozitifse daha yukari bakar |
 | 12 | `agl` | Yerden yukseklik |
 | 13 | `alt_error` | Hedef ile roket arasindaki dunya-Y irtifa farki |
 
 `grounded_flag` state vektorune dahil degildir. Reward ve terminal mantigi icin ham sinyal olarak tasinir.
+
+V8'in ana farki, eski `look_angle + body-frame torque` yapisindan gravity-based guidance representation'a gecmesidir. `theta` toplam hata buyuklugunu, `alpha` dikey yonu, `beta` yatay yonu tasir.
+
+## Action Space
+
+Action boyutu yine 3'tur, fakat anlamlari degisti:
+
+- `thrust`
+- `vertical_cmd`
+- `horizontal_cmd`
+
+Python tarafi artik dogrudan body `pitch/yaw` torque istemez. Bunun yerine semantic guidance komutlari yollar. Unity, o anki roket durusu ile gravity arasindaki iliskiyi kullanip bu komutlari local torque'a cevirir.
 
 ## Reward Yapisi
 
 Reward ailesi su sinyalleri birlikte kullanir:
 
 - Mesafe ilerlemesi: `prev_distance - distance`
-- Bakis hizalamasi: `alignment = cos(look_angle_rad)`
+- Bakis hizalamasi: `alignment = cos(theta_rad)`
 - Pozitif kapanma hizi: `closing_speed`
-- Acisal hiz cezasi: `roc_ang_vel`
+- Guidance-frame acisal hiz cezasi: `turn_rate_ref`
 - Irtifa hizalama: `alt_error`
 - Terminal katkilar: `success`, `collision`, `low_agl`, `high_altitude`, `timeout`
 
@@ -96,11 +109,38 @@ Reward breakdown alanlari step CSV icinde ayri kolonlar olarak saklanir. Boylece
 
 ## Faz Yapisi
 
-Faz secimi `ADS_AI_PHASE` environment variable ile yapilir.
+Repo artik tek aktif faz mantigi ile calisir. Yeni bir curriculum adimi acilacaginda [env.py](/C:/Users/husey/Desktop/ads_ai/scripts/env.py) icindeki `ACTIVE_PHASE_CONFIG` elle guncellenir ve yeni kosu o ayarlarla baslatilir.
 
-- Faz 1: yakin menzil, dar heading sapmasi, `max_step=500`
-- Faz 2: orta menzil, daha genis heading sapmasi, `max_step=700`
-- Faz 3: daha zor intercept kosullari, `max_step=900`
+- aktif menzil, heading ve reward ayarlari tek blokta tutulur
+- onceki fazlar git commit / archive ile korunur
+- yeni faza gecmeden once mevcut pencerenin success koridoru loglardan olculur
+
+## Phase 1.4 Snapshot
+
+Phase 1.4 kosusu `up1200` modelinde donduruldu ve repo icinde arsivlendi:
+
+- [phase_1_4 archive](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_4)
+- secilen devam modeli: [ppo_model_up1200.keras](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_4/models/ppo_model_up1200.keras)
+- grafik: [success_rate_phase_1_4.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_4/logs/success_rate_phase_1_4.png)
+- success yogunlugu: [success_episode_rug.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_4/logs/success_episode_rug.png)
+
+Phase 1.4 sonuc ozeti:
+
+- episode: `5790`
+- success: `1235`
+- genel success rate: `%21.330`
+- guncel rolling 100 success rate: `%67.000`
+- guncel rolling 200 success rate: `%67.000`
+- en iyi rolling 100 success rate: `%72.000`
+- en iyi rolling 200 success rate: `%70.000`
+- secilen handoff checkpoint: `up1200`
+
+Bir sonraki faz icin yon:
+
+- warm-start `up1200` uzerinden devam edilmeli
+- heading sapmasi ayni tutulmali
+- menzil bandi `62-82 radius` araligina kaydirilmali
+- mevcut reward seti ilk denemede aynen korunmali
 
 ## Phase 1.3 Snapshot
 
@@ -165,9 +205,9 @@ Phase 1.1 sonuc ozeti:
 
 Phase 1.1, sonraki Phase 1.2 calismasi icin warm-start tabani olarak korunmustur.
 
-## V7 Telemetry Loglama
+## V7-V8 Telemetry Loglama
 
-V7 ile birlikte Unity paketi iki parca halinde gelir:
+Unity paketi iki parca halinde gelir:
 
 - `states`: ajanin gordugu 14 boyutlu RL observation
 - `telemetry`: world/local frame geometri ve fizik debug verileri
@@ -190,6 +230,9 @@ Telemetry tarafinda roket, hedef ve roket-hedef ciftine ait su veriler saklanir:
 - world ve roket-local acisal hizlar
 - relative position / direction / velocity
 - gravity world/local
+- guidance frame yonleri
+- guidance frame hiz ve turn-rate bilesenleri
+- uygulanan semantic turn komutlarinin world/local izdususleri
 - `target_speed`
 
 Bu sayede mevcut reward yapisi veya yeni reward adaylari, sadece CSV uzerinden offline olarak tekrar analiz edilebilir.
@@ -210,4 +253,4 @@ python docs/analiz.py
 
 ## Durum
 
-V7, telemetry agirlikli gozlemlenebilirlik surumudur. Ana hedef, egitim sirasinda ortaya cikan guidance ve reward sorunlarini step bazinda offline inceleyebilmek ve sonraki reward retune islerini veri temelli hale getirmektir.
+V8, gravity-based state/action redesign surumudur. Ana hedef, roketin hedefe gore yon bilgisini sadece skalar `look_angle` ile degil, gravity referansli signed guidance hatalari ile temsil etmek ve RL ajaninin body torque yerine semantic guidance komutu ogrenmesini saglamaktir.

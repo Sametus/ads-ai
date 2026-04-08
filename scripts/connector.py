@@ -9,11 +9,13 @@ UNITY -> PYTHON packet schema:
         "step_id": int,
         "states": {
             "distance": float,
-            "look_angle_rad": float,
+            "theta_rad": float,
+            "alpha_rad": float,
+            "beta_rad": float,
             "closing_speed": float,
-            "rel_vel": [x, y, z],
-            "roc_ang_vel": [x, y, z],
-            "g": [x, y, z],
+            "rel_vel_ref": [right, up, forward],
+            "turn_rate_ref": [vertical, horizontal, roll],
+            "forward_up_dot": float,
             "agl": float,
             "alt_error": float,
             "grounded_flag": float
@@ -25,6 +27,7 @@ UNITY -> PYTHON packet schema:
             "rocket_point_pos_world": [x, y, z],
             "rocket_point_forward_world": [x, y, z],
             "rocket_point_up_world": [x, y, z],
+            "rocket_point_right_world": [x, y, z],
             "rocket_vel_world": [x, y, z],
             "rocket_vel_local": [x, y, z],
             "rocket_ang_vel_world": [x, y, z],
@@ -47,7 +50,19 @@ UNITY -> PYTHON packet schema:
             "rel_vel_local": [x, y, z],
             "gravity_world": [x, y, z],
             "gravity_local": [x, y, z],
-            "target_speed": float
+            "guidance_up_world": [x, y, z],
+            "guidance_right_world": [x, y, z],
+            "guidance_forward_world": [x, y, z],
+            "guidance_up_local": [x, y, z],
+            "guidance_right_local": [x, y, z],
+            "guidance_forward_local": [x, y, z],
+            "rel_vel_guidance": [x, y, z],
+            "rocket_ang_vel_guidance": [x, y, z],
+            "applied_turn_world": [x, y, z],
+            "applied_turn_local": [x, y, z],
+            "target_speed": float,
+            "roll_error_deg": float,
+            "beta_validity": float
         }
     }
 """

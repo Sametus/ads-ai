@@ -145,13 +145,15 @@ if __name__ == "__main__":
                     print(
                         f"[EP {episode_id:<4} | ST {info['step_id']:<4}] "
                         f"Dst={info['distance']:.2f} | "
-                        f"Look={info['look_angle_deg']:.2f}deg | "
+                        f"Theta={info['theta_deg']:.2f}deg | "
+                        f"Alpha={info['alpha_deg']:.2f}deg | "
+                        f"Beta={info['beta_deg']:.2f}deg | "
                         f"Cls={info['closing_speed']:.2f} | "
                         f"AGL={info['agl']:.2f} | "
                         f"AltE={info['alt_error']:.2f} | "
                         f"R={reward:.3f} | "
                         f"V={value:.3f} | "
-                        f"Act=[{info['thrust']:.2f}, {info['pitch_f']:.2f}, {info['yaw_f']:.2f}]"
+                        f"Act=[{info['thrust']:.2f}, {info['vertical_cmd']:.2f}, {info['horizontal_cmd']:.2f}]"
                     )
 
                 state = next_state
@@ -173,7 +175,9 @@ if __name__ == "__main__":
                 f"len={ep_len} | "
                 f"final_distance={final_info['distance']:.2f} | "
                 f"final_agl={final_info['agl']:.2f} | "
-                f"final_look_angle={final_info.get('look_angle_deg', 0.0):.2f} | "
+                f"final_theta={final_info.get('theta_deg', 0.0):.2f} | "
+                f"final_alpha={final_info.get('alpha_deg', 0.0):.2f} | "
+                f"final_beta={final_info.get('beta_deg', 0.0):.2f} | "
                 f"final_alignment={final_info.get('alignment', 0.0):.2f}"
             )
 

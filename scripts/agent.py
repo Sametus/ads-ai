@@ -6,6 +6,7 @@ from tensorflow.keras.layers import Dense, Input # type: ignore
 from tensorflow.keras.optimizers import Adam # type: ignore
 from tensorflow.keras import Model # type: ignore
 import tensorflow as tf
+from env import ACTION_KEYS, STATE_KEYS
 # Yapılandırma ve Sabitler
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
@@ -30,18 +31,18 @@ def gaussian_entropy(log_std):
 
 class PPOAgent:
     def __init__(self):
-        self.state_size = 14
-        self.action_size = 3
-        self.lr = 7e-5
+        self.state_size = len(STATE_KEYS)
+        self.action_size = len(ACTION_KEYS)
+        self.lr = 5e-5
         self.gamma = 0.997
         self.gae_lambda = 0.97
         self.clip_eps = 0.1
         self.vf_coef = 0.5
-        self.ent_coef = 0.01
+        self.ent_coef = 0.008
         self.epochs = 3
         self.batch_size = 256
         self.max_grad_norm = 0.5
-        self.target_kl = 0.006
+        self.target_kl = 0.004
 
         self.model = self.buildModel()
 
@@ -54,9 +55,9 @@ class PPOAgent:
 
     def buildModel(self):
         inp = Input(shape=(self.state_size,), dtype = tf.float32)
-        x = Dense(256, activation = "tanh")(inp)
+        x = Dense(512, activation = "tanh")(inp)
         x = Dense(512, activation="tanh")(x)
-        x = Dense(256, activation="tanh")(x)
+        x = Dense(512, activation="tanh")(x)
 
         mu = Dense(self.action_size, activation=None, name = "mu")(x)
         v = Dense(1, activation=None, name = "v")(x)

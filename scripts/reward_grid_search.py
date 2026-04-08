@@ -47,6 +47,14 @@ def safe_float(row, key, default=0.0):
     return float(value)
 
 
+def safe_float_any(row, keys, default=0.0):
+    for key in keys:
+        value = row.get(key, "")
+        if value not in ("", None):
+            return float(value)
+    return float(default)
+
+
 def rankdata(values):
     values = np.asarray(values, dtype=np.float64)
     order = np.argsort(values, kind="mergesort")
@@ -152,7 +160,7 @@ def load_phase_dataset(phase_id):
 
         dists = np.array([safe_float(s, "distance") for s in steps], dtype=np.float64)
         closes = np.array([safe_float(s, "closing_speed") for s in steps], dtype=np.float64)
-        looks = np.array([safe_float(s, "look_angle_deg") for s in steps], dtype=np.float64)
+        looks = np.array([safe_float_any(s, ("theta_deg", "look_angle_deg")) for s in steps], dtype=np.float64)
         agls = np.array([safe_float(s, "agl") for s in steps], dtype=np.float64)
         aligns = np.array([safe_float(s, "alignment") for s in steps], dtype=np.float64)
 
@@ -200,7 +208,7 @@ def load_phase_dataset(phase_id):
         for step in steps:
             distance.append(safe_float(step, "distance"))
             delta_distance.append(safe_float(step, "delta_distance"))
-            look_angle_rad.append(safe_float(step, "look_angle_rad"))
+            look_angle_rad.append(safe_float_any(step, ("theta_rad", "look_angle_rad")))
             alignment.append(safe_float(step, "alignment"))
             closing_speed.append(safe_float(step, "closing_speed"))
             agl.append(safe_float(step, "agl"))

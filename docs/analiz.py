@@ -30,7 +30,7 @@ def main():
         df,
         x="episode",
         y="success_rate",
-        title="V7 Cumulative Success Rate",
+        title="V8 Cumulative Success Rate",
         labels={"episode": "Episode", "success_rate": "Success Rate (%)"},
     )
     fig.show()
