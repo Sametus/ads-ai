@@ -165,9 +165,9 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "manual_active_config",
-    "spawn_radius_min": 71.0,
-    "spawn_radius_max": 81.0,
+    "name": "v8_1_phase_1_7",
+    "spawn_radius_min": 75.0,
+    "spawn_radius_max": 85.0,
     "heading_offset_min": -2.5,
     "heading_offset_max": 2.5,
     "max_step": 475,

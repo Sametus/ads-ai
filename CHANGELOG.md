@@ -349,3 +349,12 @@
 > - **Artifact Archiving**: `archives/phase_1_6/` altina `ppo_model_up1460`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/radius analiz grafikleri ve buyuk `step_log.csv` dosyasinin sikistirilmis / 2 parcaya bolunmus arsivi eklendi.
 > - **Observed Outcome**: Phase 1.6 genelinde `637` episode satiri icinde `600` success (%94.192) goruldu. En iyi rolling 100 success rate `%100.000`, en iyi rolling 200 success rate `%98.500`, en iyi rolling 300 success rate `%97.333` olarak kaydedildi.
 > - **Phase Transition Decision**: Yari-cap bazli analiz `70-75` bandinin neredeyse tamamen cozuldugunu (`%99.6`), `75-80` bandinin de cok guclu oldugunu (`%93.4`) gosterdi. Bu nedenle bir sonraki faz icin menzil bandi `75-85 radius` olarak secildi; heading ve reward ailesi ilk geciste korunacak.
+
+# v8.4 sürüm ailesi
+
+> ## v8.4.0 - Phase 1.7 Archive Snapshot
+>
+> - **Phase 1.7 Freeze Point**: `75-85 radius` bandinda kosulan egitim uzun sure devam ettirildiginde gec kuyrukta ciddi policy drift urettigi icin son checkpoint yerine orta koridordaki en iyi pencereye yakin olan `up1740` modelinde donduruldu. En iyi 20-update koridoru `update 1728-1747` araliginda `%98.734` success verdi.
+> - **Artifact Archiving**: `archives/phase_1_7/` altina `ppo_model_up1740`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/radius analiz grafikleri ve buyuk `step_log.csv` dosyasinin sikistirilmis / 19 parcaya bolunmus arsivi eklendi.
+> - **Observed Outcome**: Phase 1.7 genelinde `3948` episode icinde `2614` success (%66.211) goruldu. Ancak son `100-300` episode pencerelerinde success rate `%5-%5.7` bandina dustu; buna karsin en iyi rolling 100 success rate `%100.000`, en iyi rolling 200 success rate `%98.000`, en iyi rolling 300 success rate `%95.000` olarak kaydedildi.
+> - **Phase Transition Decision**: Gec kuyruktaki bozulmaya ragmen orta koridor analizi `75-85 radius` bandinin ogrenildigini gosterdi. Bu nedenle bir sonraki faz icin menzil bandi `80-90 radius`, `max_step=480` olarak secildi; heading ve reward ailesi ilk geciste korunacak.
