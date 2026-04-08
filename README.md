@@ -2,7 +2,7 @@
 
 ADS-AI, Unity tabanli fizik simulasyonu ile Python tabanli PPO ajani arasinda TCP uzerinden calisan hibrit bir RL projesidir. Unity sahnedeki geometri ve fizik verisini olcer, Python bu veriyi state'e cevirir, reward hesaplar ve aksiyon uretir.
 
-Guncel surum: `v8.2.0`
+Guncel surum: `v8.3.0`
 
 ## Ozet
 
@@ -114,6 +114,37 @@ Repo artik tek aktif faz mantigi ile calisir. Yeni bir curriculum adimi acilacag
 - aktif menzil, heading ve reward ayarlari tek blokta tutulur
 - onceki fazlar git commit / archive ile korunur
 - yeni faza gecmeden once mevcut pencerenin success koridoru loglardan olculur
+
+## Phase 1.6 Snapshot
+
+Phase 1.6 kosusu `up1460` modelinde donduruldu ve repo icinde arsivlendi:
+
+- [phase_1_6 archive](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_6)
+- secilen devam modeli: [ppo_model_up1460.keras](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_6/models/ppo_model_up1460.keras)
+- success rate grafigi: [phase_1_6_success_rate.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_6/logs/phase_1_6_success_rate.png)
+- success yogunlugu: [phase_1_6_success_rug.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_6/logs/phase_1_6_success_rug.png)
+- reset polar grafigi: [phase_1_6_reset_outcome_polar.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_6/logs/phase_1_6_reset_outcome_polar.png)
+- radius dagilim grafigi: [phase_1_6_reset_radius_distribution.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_6/logs/phase_1_6_reset_radius_distribution.png)
+- faz bantli radius plani: [phase_1_6_reset_radius_phase_plan.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_6/logs/phase_1_6_reset_radius_phase_plan.png)
+
+Phase 1.6 sonuc ozeti:
+
+- episode: `637`
+- success: `600`
+- genel success rate: `%94.192`
+- guncel rolling 100 success rate: `%94.000`
+- guncel rolling 200 success rate: `%95.000`
+- guncel rolling 300 success rate: `%94.000`
+- en iyi rolling 100 success rate: `%100.000`
+- en iyi rolling 200 success rate: `%98.500`
+- secilen handoff checkpoint: `up1460`
+
+Bir sonraki faz icin yon:
+
+- warm-start `up1460` uzerinden devam edilmeli
+- heading sapmasi ayni tutulmali
+- menzil bandi `75-85 radius` araligina kaydirilmali
+- mevcut reward seti ilk denemede aynen korunmali
 
 ## Phase 1.5 Snapshot
 
