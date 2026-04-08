@@ -115,6 +115,37 @@ Repo artik tek aktif faz mantigi ile calisir. Yeni bir curriculum adimi acilacag
 - onceki fazlar git commit / archive ile korunur
 - yeni faza gecmeden once mevcut pencerenin success koridoru loglardan olculur
 
+## Phase 1.8 Snapshot
+
+Phase 1.8 kosusu `up1840` modelinde donduruldu ve repo icinde arsivlendi:
+
+- [phase_1_8 archive](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_8)
+- secilen devam modeli: [ppo_model_up1840.keras](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_8/models/ppo_model_up1840.keras)
+- success rate grafigi: [phase_1_8_success_rate.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_8/logs/phase_1_8_success_rate.png)
+- success yogunlugu: [phase_1_8_success_rug.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_8/logs/phase_1_8_success_rug.png)
+- reset polar grafigi: [phase_1_8_reset_outcome_polar.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_8/logs/phase_1_8_reset_outcome_polar.png)
+- radius dagilim grafigi: [phase_1_8_reset_radius_distribution.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_8/logs/phase_1_8_reset_radius_distribution.png)
+- faz bantli radius plani: [phase_1_8_reset_radius_phase_plan.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_8/logs/phase_1_8_reset_radius_phase_plan.png)
+
+Phase 1.8 sonuc ozeti:
+
+- episode: `687`
+- success: `623`
+- genel success rate: `%90.684`
+- guncel rolling 100 success rate: `%93.000`
+- guncel rolling 200 success rate: `%92.500`
+- en iyi rolling 100 success rate: `%99.000`
+- en iyi rolling 200 success rate: `%95.500`
+- secilen handoff checkpoint: `up1840`
+
+Bir sonraki faz icin yon:
+
+- warm-start `up1840` uzerinden devam edilmeli
+- heading sapmasi ayni tutulmali
+- menzil bandi `85-95 radius` araligina kaydirilmali
+- `max_step` degeri `480` olarak korunmali
+- mevcut reward seti ilk denemede aynen korunmali
+
 ## Phase 1.7 Snapshot
 
 Phase 1.7 kosusu `up1740` modelinde donduruldu ve repo icinde arsivlendi:

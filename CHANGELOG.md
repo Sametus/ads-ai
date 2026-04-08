@@ -358,3 +358,12 @@
 > - **Artifact Archiving**: `archives/phase_1_7/` altina `ppo_model_up1740`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/radius analiz grafikleri ve buyuk `step_log.csv` dosyasinin sikistirilmis / 19 parcaya bolunmus arsivi eklendi.
 > - **Observed Outcome**: Phase 1.7 genelinde `3948` episode icinde `2614` success (%66.211) goruldu. Ancak son `100-300` episode pencerelerinde success rate `%5-%5.7` bandina dustu; buna karsin en iyi rolling 100 success rate `%100.000`, en iyi rolling 200 success rate `%98.000`, en iyi rolling 300 success rate `%95.000` olarak kaydedildi.
 > - **Phase Transition Decision**: Gec kuyruktaki bozulmaya ragmen orta koridor analizi `75-85 radius` bandinin ogrenildigini gosterdi. Bu nedenle bir sonraki faz icin menzil bandi `80-90 radius`, `max_step=480` olarak secildi; heading ve reward ailesi ilk geciste korunacak.
+
+# v8.5 sürüm ailesi
+
+> ## v8.5.0 - Phase 1.8 Archive Snapshot
+>
+> - **Phase 1.8 Freeze Point**: `80-90 radius` bandinda kosulan egitim `up1840` modelinde donduruldu. Bu noktada son `100-200` episode pencerelerinde success rate `%92-%92.5` bandinda kaldigi ve son update bloklari da guclu seyrini korudugu icin handoff modeli olarak son checkpoint kullanildi.
+> - **Artifact Archiving**: `archives/phase_1_8/` altina `ppo_model_up1840`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/radius analiz grafikleri ve `step_log.csv` dosyasinin sikistirilmis / 3 parcaya bolunmus arsivi eklendi.
+> - **Observed Outcome**: Phase 1.8 genelinde `687` episode icinde `623` success (%90.684) goruldu. En iyi rolling 100 success rate `%99.000`, en iyi rolling 200 success rate `%95.500`; en iyi 20-update koridoru ise `update 1800-1819` araliginda `%97.297` success olarak kaydedildi.
+> - **Phase Transition Decision**: Yari-cap bazli analiz `80-85` bandinin `%96.9`, `85-90` bandinin `%86.6` success verdigini gosterdi. Bu nedenle bir sonraki faz icin menzil bandi `85-95 radius` olarak secildi; heading ve reward ailesi korunurken `max_step=480` sabit tutulacak.

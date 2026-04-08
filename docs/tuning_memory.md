@@ -97,4 +97,17 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 
 - Bir grafikte kisa etiket kullaniliyorsa, ayni grafikte o etiketlerin anlami da aciklanmali.
 - Sadece gorsel trend degil, karar vermeyi saglayan sayisal ozet de grafikte bulunmali.
-- Kullanici ozellikle istemedikce eksik/yalin surum gonderilmemeli; varsayilan ciktı dolu ve aciklayici olmali.
+- Kullanici ozellikle istemedikce eksik veya yalin surum gonderilmemeli; varsayilan cikti dolu ve aciklayici olmali.
+
+## Phase Transition Checklist
+
+- 1. Mevcut fazi sadece aktif `phase_name` filtresi ile analiz et.
+- 2. Rolling success oranlari ve en iyi update koridorunu hesapla.
+- 3. Reset radius / done reason grafiklerini uret.
+- 4. Handoff checkpoint `upXXXX` sec.
+- 5. `env.py`yi once biten faz state'ine geri alip snapshot arsivini cikar.
+- 6. README / CHANGELOG / VERSION guncelle.
+- 7. Snapshot commit ve push tamamla.
+- 8. Ancak bundan sonra yeni faz ayarini `env.py` icinde uygula.
+- 9. Gerekirse secilen `upXXXX` sonrasi modelleri sil.
+- 10. Canli loglari temizleyip yeni run'a hazir birak.
