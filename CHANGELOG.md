@@ -332,3 +332,11 @@
 > > - **Başarı oranı (success rate)**: **%54.34** — önceki fazlara kıyasla belirgin düşüş; bu nedenle Faz 10 **başarısız** olarak işaretlendi ve bir önceki faz (Faz 9) kalıcı referans olarak korunuyor.
 
 
+# v8.2 sürüm ailesi
+
+> ## v8.2.0 - Phase 1.5 Archive Snapshot
+>
+> - **Phase 1.5 Freeze Point**: V8 guidance/action kosusu `up1380` modelinde donduruldu. Bu nokta, son `200-300` episode koridorunda success rate'in `%91` bandina oturdugu ve `up1384`e kadar performansin yuksek kaldigi pencerenin icinde yer aldigi icin handoff modeli olarak secildi.
+> - **Artifact Archiving**: `archives/phase_1_5/` altina `ppo_model_up1380`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/radius analiz grafikleri ve buyuk `step_log.csv` dosyasinin sikistirilmis / 5 parcaya bolunmus arsivi eklendi.
+> - **Observed Outcome**: Phase 1.5 genelinde `1291` episode icinde `1015` success (%78.621) goruldu. En iyi rolling 100 success rate `%95.000`, en iyi rolling 200 success rate `%92.500`, en iyi rolling 300 success rate `%91.667` olarak kaydedildi.
+> - **Phase Transition Decision**: Yari-cap bazli basari analizi `60-75` bandinin artik buyuk olcude ogrenildigini, asil kirilma noktasinin `75+` oldugunu gosterdi. Bu nedenle bir sonraki faz icin menzil bandi `71-81 radius` olarak secildi; heading araligi ve reward ailesi ilk geciste korunacak.
