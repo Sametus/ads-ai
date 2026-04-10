@@ -11,12 +11,13 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 
 ## Current Focus
 
-- Spawn radius: `55 - 90`
-- Heading offset: `-5 .. +5`
-- Max step: `400`
-- Target height offset: `20`
-- Torque scale: `1.85`
-- Vertical / horizontal command limits: `3.2 / 3.2`
+- Last archived phase: `v8.5 - Faz 1.9`
+- Last handoff checkpoint: `up1920`
+- Next phase target: `v8.6 - Faz 2.0`
+- Next spawn radius: `90 - 100`
+- Heading offset: `-2.5 .. +2.5`
+- Max step: `480`
+- Reward: keep unchanged for the first run
 
 ## Recent Intent
 

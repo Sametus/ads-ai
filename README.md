@@ -2,7 +2,7 @@
 
 ADS-AI, Unity tabanli fizik simulasyonu ile Python tabanli PPO ajani arasinda TCP uzerinden calisan hibrit bir RL projesidir. Unity sahnedeki geometri ve fizik verisini olcer, Python bu veriyi state'e cevirir, reward hesaplar ve aksiyon uretir.
 
-Guncel surum: `v8.3.0`
+Guncel surum: `v8.6.0`
 
 ## Ozet
 
@@ -59,7 +59,7 @@ pip install tensorflow==2.10.0 numpy==1.21.6 pandas==1.3.5 pydantic==1.10.8 plot
 
 ### Unity Katmani
 
-- [env.cs](/C:/Users/husey/Desktop/ads_ai/ads_ai/Assets/Scripts/env.cs): action uygular, fizik simule eder, state ve telemetry yollar
+- [Env.cs](/C:/Users/husey/Desktop/ads_ai/ads_ai/Assets/Scripts/Env.cs): action uygular, fizik simule eder, state ve telemetry yollar
 - [Connector.cs](/C:/Users/husey/Desktop/ads_ai/ads_ai/Assets/Scripts/Connector.cs): TCP framing ve JSON iletimi
 - [CameraFollow.cs](/C:/Users/husey/Desktop/ads_ai/ads_ai/Assets/Scripts/CameraFollow.cs): roket takip kamerasi
 
@@ -114,6 +114,38 @@ Repo artik tek aktif faz mantigi ile calisir. Yeni bir curriculum adimi acilacag
 - aktif menzil, heading ve reward ayarlari tek blokta tutulur
 - onceki fazlar git commit / archive ile korunur
 - yeni faza gecmeden once mevcut pencerenin success koridoru loglardan olculur
+
+## Phase 1.9 Snapshot
+
+Phase 1.9 kosusu `up1920` modelinde donduruldu ve repo icinde arsivlendi:
+
+- [phase_1_9 archive](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_9)
+- secilen devam modeli: [ppo_model_up1920.keras](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_9/models/ppo_model_up1920.keras)
+- success rate grafigi: [phase_1_9_success_rate.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_9/logs/phase_1_9_success_rate.png)
+- success yogunlugu: [phase_1_9_success_rug.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_9/logs/phase_1_9_success_rug.png)
+- reset polar grafigi: [phase_1_9_reset_outcome_polar.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_9/logs/phase_1_9_reset_outcome_polar.png)
+- radius dagilim grafigi: [phase_1_9_reset_radius_distribution.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_9/logs/phase_1_9_reset_radius_distribution.png)
+- faz bantli radius plani: [phase_1_9_reset_radius_phase_plan.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_1_9/logs/phase_1_9_reset_radius_phase_plan.png)
+
+Phase 1.9 sonuc ozeti:
+
+- episode: `499`
+- success: `448`
+- genel success rate: `%89.780`
+- guncel rolling 100 success rate: `%98.000`
+- guncel rolling 200 success rate: `%98.000`
+- en iyi rolling 100 success rate: `%99.000`
+- en iyi rolling 200 success rate: `%98.000`
+- en iyi 20-update koridoru: `%99.291`, `update 1897-1916`
+- secilen handoff checkpoint: `up1920`
+
+Bir sonraki faz icin yon:
+
+- warm-start `up1920` uzerinden devam edilmeli
+- heading sapmasi ayni tutulmali
+- menzil bandi `90-100 radius` araligina kaydirilmali
+- `max_step` degeri `480` olarak korunmali
+- mevcut reward seti ilk denemede aynen korunmali
 
 ## Phase 1.8 Snapshot
 

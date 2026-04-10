@@ -367,3 +367,12 @@
 > - **Artifact Archiving**: `archives/phase_1_8/` altina `ppo_model_up1840`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/radius analiz grafikleri ve `step_log.csv` dosyasinin sikistirilmis / 3 parcaya bolunmus arsivi eklendi.
 > - **Observed Outcome**: Phase 1.8 genelinde `687` episode icinde `623` success (%90.684) goruldu. En iyi rolling 100 success rate `%99.000`, en iyi rolling 200 success rate `%95.500`; en iyi 20-update koridoru ise `update 1800-1819` araliginda `%97.297` success olarak kaydedildi.
 > - **Phase Transition Decision**: Yari-cap bazli analiz `80-85` bandinin `%96.9`, `85-90` bandinin `%86.6` success verdigini gosterdi. Bu nedenle bir sonraki faz icin menzil bandi `85-95 radius` olarak secildi; heading ve reward ailesi korunurken `max_step=480` sabit tutulacak.
+
+# v8.6 sürüm ailesi
+
+> ## v8.6.0 - Phase 1.9 Archive Snapshot
+>
+> - **Phase 1.9 Freeze Point**: `85-95 radius` bandinda kosulan egitim `up1920` modelinde donduruldu. Son blok olan `update 1902-1921` araligi `134` episode icinde `%98.507` success verdigi icin son checkpoint handoff modeli olarak secildi.
+> - **Artifact Archiving**: `archives/phase_1_9/` altina `ppo_model_up1920`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/radius analiz grafikleri ve `step_log.csv` dosyasinin sikistirilmis / 2 parcaya bolunmus arsivi eklendi.
+> - **Observed Outcome**: Phase 1.9 genelinde `499` episode icinde `448` success (%89.780) goruldu. En iyi rolling 100 success rate `%99.000`, en iyi rolling 200 success rate `%98.000`; en iyi 20-update koridoru ise `update 1897-1916` araliginda `%99.291` success olarak kaydedildi.
+> - **Phase Transition Decision**: Yari-cap bazli analiz `85-90` bandinin `%97.170`, `90-95` bandinin `%85.263` success verdigini gosterdi. Bu nedenle bir sonraki faz icin menzil bandi `90-100 radius` olarak secildi; heading, reward ailesi ve `max_step=480` ilk geciste korunacak.
