@@ -1,0 +1,254 @@
+{
+  "episode_segments": {
+    "1": {
+      "rows": 1209,
+      "time_start": "2026-04-10 17:24:46",
+      "time_end": "2026-04-10 18:26:37",
+      "updates": [
+        1942,
+        2132
+      ],
+      "episodes": [
+        1,
+        1209
+      ],
+      "success": 1116,
+      "success_rate": 92.3076923076923,
+      "done": {
+        "success": 1116,
+        "high_altitude": 74,
+        "wrong_way": 13,
+        "timeout": 5,
+        "low_agl": 1
+      },
+      "rolling_last": {
+        "20": 85.0,
+        "50": 86.0,
+        "100": 91.0,
+        "200": 92.5
+      },
+      "blocks": [
+        {
+          "block": "1940-1959",
+          "episodes": 104,
+          "success": 88,
+          "success_rate": 84.61538461538461,
+          "done": {
+            "success": 88,
+            "high_altitude": 8,
+            "wrong_way": 6,
+            "timeout": 2
+          },
+          "update_min": 1942,
+          "update_max": 1959
+        },
+        {
+          "block": "1960-1979",
+          "episodes": 131,
+          "success": 125,
+          "success_rate": 95.41984732824427,
+          "done": {
+            "success": 125,
+            "high_altitude": 6
+          },
+          "update_min": 1960,
+          "update_max": 1979
+        },
+        {
+          "block": "1980-1999",
+          "episodes": 127,
+          "success": 117,
+          "success_rate": 92.1259842519685,
+          "done": {
+            "success": 117,
+            "high_altitude": 8,
+            "wrong_way": 2
+          },
+          "update_min": 1980,
+          "update_max": 1999
+        },
+        {
+          "block": "2000-2019",
+          "episodes": 128,
+          "success": 119,
+          "success_rate": 92.96875,
+          "done": {
+            "success": 119,
+            "high_altitude": 9
+          },
+          "update_min": 2000,
+          "update_max": 2019
+        },
+        {
+          "block": "2020-2039",
+          "episodes": 130,
+          "success": 123,
+          "success_rate": 94.61538461538461,
+          "done": {
+            "success": 123,
+            "high_altitude": 6,
+            "timeout": 1
+          },
+          "update_min": 2020,
+          "update_max": 2039
+        },
+        {
+          "block": "2040-2059",
+          "episodes": 125,
+          "success": 114,
+          "success_rate": 91.2,
+          "done": {
+            "success": 114,
+            "high_altitude": 11
+          },
+          "update_min": 2040,
+          "update_max": 2059
+        },
+        {
+          "block": "2060-2079",
+          "episodes": 128,
+          "success": 119,
+          "success_rate": 92.96875,
+          "done": {
+            "success": 119,
+            "high_altitude": 8,
+            "wrong_way": 1
+          },
+          "update_min": 2060,
+          "update_max": 2079
+        },
+        {
+          "block": "2080-2099",
+          "episodes": 128,
+          "success": 119,
+          "success_rate": 92.96875,
+          "done": {
+            "success": 119,
+            "high_altitude": 8,
+            "wrong_way": 1
+          },
+          "update_min": 2080,
+          "update_max": 2099
+        },
+        {
+          "block": "2100-2119",
+          "episodes": 129,
+          "success": 121,
+          "success_rate": 93.7984496124031,
+          "done": {
+            "success": 121,
+            "high_altitude": 6,
+            "timeout": 1,
+            "wrong_way": 1
+          },
+          "update_min": 2100,
+          "update_max": 2119
+        },
+        {
+          "block": "2120-2139",
+          "episodes": 79,
+          "success": 71,
+          "success_rate": 89.87341772151899,
+          "done": {
+            "success": 71,
+            "high_altitude": 4,
+            "wrong_way": 2,
+            "low_agl": 1,
+            "timeout": 1
+          },
+          "update_min": 2120,
+          "update_max": 2132
+        }
+      ],
+      "last_20_done": {
+        "success": 17,
+        "high_altitude": 2,
+        "timeout": 1
+      },
+      "last_50_done": {
+        "success": 43,
+        "high_altitude": 3,
+        "wrong_way": 2,
+        "low_agl": 1,
+        "timeout": 1
+      },
+      "last_100_done": {
+        "success": 91,
+        "high_altitude": 5,
+        "wrong_way": 2,
+        "low_agl": 1,
+        "timeout": 1
+      }
+    },
+    "2": {
+      "rows": 66,
+      "time_start": "2026-04-11 13:54:09",
+      "time_end": "2026-04-11 13:59:40",
+      "updates": [
+        2122,
+        2134
+      ],
+      "episodes": [
+        1,
+        66
+      ],
+      "success": 45,
+      "success_rate": 68.18181818181817,
+      "done": {
+        "success": 45,
+        "high_altitude": 13,
+        "wrong_way": 5,
+        "timeout": 2,
+        "low_agl": 1
+      },
+      "rolling_last": {
+        "20": 50.0,
+        "50": 66.0,
+        "100": 68.18181818181817,
+        "200": 68.18181818181817
+      },
+      "blocks": [
+        {
+          "block": "2120-2139",
+          "episodes": 66,
+          "success": 45,
+          "success_rate": 68.18181818181817,
+          "done": {
+            "success": 45,
+            "high_altitude": 13,
+            "wrong_way": 5,
+            "timeout": 2,
+            "low_agl": 1
+          },
+          "update_min": 2122,
+          "update_max": 2134
+        }
+      ],
+      "last_20_done": {
+        "success": 10,
+        "high_altitude": 5,
+        "wrong_way": 3,
+        "timeout": 1,
+        "low_agl": 1
+      },
+      "last_50_done": {
+        "success": 33,
+        "high_altitude": 10,
+        "wrong_way": 4,
+        "timeout": 2,
+        "low_agl": 1
+      },
+      "last_100_done": {
+        "success": 45,
+        "high_altitude": 13,
+        "wrong_way": 5,
+        "timeout": 2,
+        "low_agl": 1
+      }
+    }
+  },
+  "handoff": {
+    "checkpoint": 2100,
+    "reason": "up2101-up2120 post-window success 94.615%; up2120 resume showed drift"
+  }
+}

@@ -6329,6 +6329,7 @@ MonoBehaviour:
   maxRollCorrection: 4.5
   betaFadeStartAbsForwardUp: 0.8
   betaFadeEndAbsForwardUp: 0.95
+  betaValidityFloor: 0.25
   useLocalFrame: 1
   keepTargetYFixed: 1
   keepTargetRotXFixed: 1

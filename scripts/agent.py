@@ -33,16 +33,16 @@ class PPOAgent:
     def __init__(self):
         self.state_size = len(STATE_KEYS)
         self.action_size = len(ACTION_KEYS)
-        self.lr = 5e-5
+        self.lr = 2e-5
         self.gamma = 0.997
         self.gae_lambda = 0.97
-        self.clip_eps = 0.1
+        self.clip_eps = 0.08
         self.vf_coef = 0.5
-        self.ent_coef = 0.008
+        self.ent_coef = 0.004
         self.epochs = 3
         self.batch_size = 256
         self.max_grad_norm = 0.5
-        self.target_kl = 0.004
+        self.target_kl = 0.0025
 
         self.model = self.buildModel()
 

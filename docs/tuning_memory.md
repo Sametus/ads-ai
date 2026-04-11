@@ -11,19 +11,27 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 
 ## Current Focus
 
-- Last archived phase: `v8.5 - Faz 1.9`
-- Last handoff checkpoint: `up1920`
-- Next phase target: `v8.6 - Faz 2.0`
-- Next spawn radius: `90 - 100`
+- Last archived phase: `v8.6 - Faz 2.0 retry`
+- Current handoff checkpoint: `up2100`
+- Current phase target: `v8.6 - Faz 2.0 retry`
+- Planned next phase: `v8.7 - Faz 2.1`
+- Planned next spawn radius: `95 - 105`
 - Heading offset: `-2.5 .. +2.5`
 - Max step: `480`
-- Reward: keep unchanged for the first run
+- Planned next max step: `500`
+- Reward: `turn_toward` shaping now rewards angular velocity that closes signed `alpha/beta`.
+- Reward: `action_alignment` gives a small direct signal when vertical/horizontal action signs match signed `alpha/beta`.
+- Reward: high-altitude escape is stricter (`soft_ceiling_start=90`, nonlinear ceiling penalty, `max_altitude=135`, `high_altitude_penalty=-130`).
+- PPO: gentler fine-tune from `up2100` (`lr=2e-5`, `clip_eps=0.08`, `ent_coef=0.004`, `target_kl=0.0025`).
+- Action: vertical / horizontal command limits are symmetric at `2.5 / 2.5`.
+- Action: `beta_validity` now has a `0.25` floor so horizontal guidance is not fully disabled when the rocket is near vertical.
 
 ## Recent Intent
 
-- `wrong_way` terminali erken tetiklenmeyecek kadar yumusatildi.
-- `near_success_bonus` eklendi; success olmasa bile success'e en yakin hatalar daha yuksek shaping almali.
-- Kod karmasasi azaltmak icin coklu faz secimi env runtime'dan kaldirildi.
+- Phase 2.0 retry ana oturumu basariliydi; `up2100` handoff secildi.
+- `up2120` resume oturumu drift gosterdigi icin handoff olarak kullanilmadi.
+- `up2100` sonrasi model/state dosyalari silindi.
+- Faz 2.1 kontrollu genisletme: `95-105 radius`, `max_step=500`, reward/action seti korunacak.
 
 ## Graph Output Standard
 

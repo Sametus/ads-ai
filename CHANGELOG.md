@@ -376,3 +376,11 @@
 > - **Artifact Archiving**: `archives/phase_1_9/` altina `ppo_model_up1920`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/radius analiz grafikleri ve `step_log.csv` dosyasinin sikistirilmis / 2 parcaya bolunmus arsivi eklendi.
 > - **Observed Outcome**: Phase 1.9 genelinde `499` episode icinde `448` success (%89.780) goruldu. En iyi rolling 100 success rate `%99.000`, en iyi rolling 200 success rate `%98.000`; en iyi 20-update koridoru ise `update 1897-1916` araliginda `%99.291` success olarak kaydedildi.
 > - **Phase Transition Decision**: Yari-cap bazli analiz `85-90` bandinin `%97.170`, `90-95` bandinin `%85.263` success verdigini gosterdi. Bu nedenle bir sonraki faz icin menzil bandi `90-100 radius` olarak secildi; heading, reward ailesi ve `max_step=480` ilk geciste korunacak.
+
+> ## v8.6.1 - Phase 2.0 Retry Archive Snapshot
+>
+> - **Phase 2.0 Retry Freeze Point**: `90-100 radius` bandinda kosulan Faz 2.0 retry egitimi `up2100` modelinde donduruldu. `up2101-up2120` post-window penceresi `%94.615` success ve `195.82` ortalama return verdigi icin handoff modeli olarak `up2100` secildi.
+> - **Artifact Archiving**: `archives/phase_2_0/` altina `ppo_model_up2100`, agent state, `episode_log.csv`, `update_log.csv`, secilmis success/start-distance/checkpoint/reward/turn-action analiz grafikleri ve buyuk `step_log.csv` dosyasinin sikistirilmis / 6 parcaya bolunmus arsivi eklendi.
+> - **Observed Outcome**: Ana oturumda `1209` episode icinde `1116` success (%92.308) goruldu. Ikinci oturum ayni faza ait `up2122` resume denemesidir; log temizlenmeden basladigi icin ayri analiz edildi ve `%68.182` success ile drift riski gosterdigi icin handoff olarak kullanilmadi.
+> - **Reward/Action Decision**: `turn_toward` ve `action_alignment` reward sinyalleri korundu; PPO fine-tune ayarlari `lr=2e-5`, `clip_eps=0.08`, `ent_coef=0.004`, `target_kl=0.0025` olarak birakildi.
+> - **Phase Transition Decision**: Gozlenen start-distance bantlari `100-105=%97.167`, `105-110=%92.603`, `110-115=%79.739` verdi. Ust band tam stabil olmadigi icin bir sonraki faz kontrollu genisletme olarak `95-105 radius`, `max_step=500`, heading `±2.5` ile baslatilacak.

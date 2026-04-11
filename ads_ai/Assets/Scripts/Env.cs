@@ -148,6 +148,7 @@ public class Env : MonoBehaviour
     public float maxRollCorrection = 4.5f;
     public float betaFadeStartAbsForwardUp = 0.80f;
     public float betaFadeEndAbsForwardUp = 0.95f;
+    public float betaValidityFloor = 0.25f;
 
     [Header("State Options")]
     public bool useLocalFrame = true;
@@ -534,11 +535,12 @@ public class Env : MonoBehaviour
             return 1f;
 
         if (absForwardUpDot >= betaFadeEndAbsForwardUp)
-            return 0f;
+            return betaValidityFloor;
 
         float t = Mathf.InverseLerp(betaFadeStartAbsForwardUp, betaFadeEndAbsForwardUp, absForwardUpDot);
         t = Mathf.Clamp01(t);
-        return 1f - (t * t * (3f - 2f * t));
+        float smooth = t * t * (3f - 2f * t);
+        return betaValidityFloor + ((1f - betaValidityFloor) * (1f - smooth));
     }
 
     private OutgoingPacket CollectPacket()

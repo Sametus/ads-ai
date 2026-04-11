@@ -2,7 +2,7 @@
 
 ADS-AI, Unity tabanli fizik simulasyonu ile Python tabanli PPO ajani arasinda TCP uzerinden calisan hibrit bir RL projesidir. Unity sahnedeki geometri ve fizik verisini olcer, Python bu veriyi state'e cevirir, reward hesaplar ve aksiyon uretir.
 
-Guncel surum: `v8.6.0`
+Guncel surum: `v8.6.1`
 
 ## Ozet
 
@@ -114,6 +114,35 @@ Repo artik tek aktif faz mantigi ile calisir. Yeni bir curriculum adimi acilacag
 - aktif menzil, heading ve reward ayarlari tek blokta tutulur
 - onceki fazlar git commit / archive ile korunur
 - yeni faza gecmeden once mevcut pencerenin success koridoru loglardan olculur
+
+## Phase 2.0 Snapshot
+
+Phase 2.0 retry kosusu `up2100` modelinde donduruldu ve repo icinde arsivlendi:
+
+- [phase_2_0 archive](/C:/Users/husey/Desktop/ads_ai/archives/phase_2_0)
+- secilen devam modeli: [ppo_model_up2100.keras](/C:/Users/husey/Desktop/ads_ai/archives/phase_2_0/models/ppo_model_up2100.keras)
+- success rate grafigi: [phase_2_0_success_rate.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_2_0/logs/phase_2_0_success_rate.png)
+- start distance dagilim grafigi: [phase_2_0_start_distance_distribution.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_2_0/logs/phase_2_0_start_distance_distribution.png)
+- checkpoint aday grafigi: [phase_2_0_checkpoint_candidates.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_2_0/logs/phase_2_0_checkpoint_candidates.png)
+- reward bilesen grafigi: [phase_2_0_reward_components.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_2_0/logs/phase_2_0_reward_components.png)
+- turn/action grafigi: [phase_2_0_turn_action_alignment.png](/C:/Users/husey/Desktop/ads_ai/archives/phase_2_0/logs/phase_2_0_turn_action_alignment.png)
+
+Phase 2.0 sonuc ozeti:
+
+- ana oturum episode: `1209`
+- ana oturum success: `1116`
+- ana oturum genel success rate: `%92.308`
+- secilen handoff checkpoint: `up2100`
+- `up2101-up2120` post-window success rate: `%94.615`
+- `up2120` sonrasi resume oturumunda drift goruldu; bu nedenle `up2120` ve sonrasi aktif modellerden temizlendi
+
+Bir sonraki faz icin yon:
+
+- warm-start `up2100` uzerinden devam edilmeli
+- heading sapmasi ayni tutulmali
+- spawn radius bandi `95-105` araligina kaydirilmali
+- `max_step` degeri `500` olarak kullanilmali
+- Faz 2.0 retry reward/action duzeltmeleri korunmali
 
 ## Phase 1.9 Snapshot
 

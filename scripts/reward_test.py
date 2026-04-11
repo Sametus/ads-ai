@@ -68,6 +68,7 @@ def run_case(
     prev_theta_deg=None,
     prev_alpha_abs=None,
     prev_beta_abs=None,
+    denorm_action=None,
 ):
     env.prev_distance = prev_distance
     env.reset_distance = prev_distance
@@ -79,7 +80,7 @@ def run_case(
     env.prev_alpha_abs = current_alpha_abs + 6.0 if prev_alpha_abs is None else prev_alpha_abs
     env.prev_beta_abs = current_beta_abs + 6.0 if prev_beta_abs is None else prev_beta_abs
 
-    reward, done, info = env.calculate_reward(raw_state)
+    reward, done, info = env.calculate_reward(raw_state, denorm_action=denorm_action)
 
     print("=" * 80)
     print(f"CASE: {name}")
@@ -109,6 +110,9 @@ def run_case(
         f"theta_prog={info['reward_theta_progress']:.4f} | "
         f"alpha_beta={info['reward_alpha_beta']:.4f} | "
         f"dir_bonus={info['reward_direction_bonus']:.4f} | "
+        f"angle_focus={info['reward_angle_focus']:.4f} | "
+        f"turn_toward={info['reward_turn_toward']:.4f} | "
+        f"action_align={info['reward_action_alignment']:.4f} | "
         f"near_bonus={info['reward_near_success_bonus']:.4f} | "
         f"reverse_pen={info['reward_reverse_penalty']:.4f} | "
         f"roll_pen={info['reward_roll_penalty']:.4f} | "
@@ -200,6 +204,36 @@ def main():
             "prev_theta_deg": 118.9,
             "prev_alpha_abs": 30.0,
             "prev_beta_abs": 75.0,
+        }),
+        (DummyEnv(), "turning_toward_axis_error", 210.0, 80, build_raw_state(
+            distance=205.0,
+            theta_deg=70.0,
+            alpha_deg=45.0,
+            beta_deg=-35.0,
+            closing_speed=4.0,
+            agl=55.0,
+            alt_error=5.0,
+            turn_rate_ref=(1.2, -1.0, 0.1),
+        ), {
+            "prev_theta_deg": 72.0,
+            "prev_alpha_abs": 48.0,
+            "prev_beta_abs": 38.0,
+            "denorm_action": [850.0, 1.5, -1.2],
+        }),
+        (DummyEnv(), "turning_away_from_axis_error", 210.0, 80, build_raw_state(
+            distance=205.0,
+            theta_deg=70.0,
+            alpha_deg=45.0,
+            beta_deg=-35.0,
+            closing_speed=4.0,
+            agl=55.0,
+            alt_error=5.0,
+            turn_rate_ref=(-1.2, 1.0, 0.1),
+        ), {
+            "prev_theta_deg": 72.0,
+            "prev_alpha_abs": 48.0,
+            "prev_beta_abs": 38.0,
+            "denorm_action": [850.0, -1.5, 1.2],
         }),
         (DummyEnv(), "perfect_but_no_progress", 300.0, 100, build_raw_state(
             distance=300.0,
