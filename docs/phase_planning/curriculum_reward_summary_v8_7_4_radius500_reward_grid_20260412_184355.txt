@@ -1,0 +1,44 @@
+# Curriculum Reward Grid Search
+
+generated_at: 2026-04-12T20:44:19
+phase_name_source_logs: v8_7_phase_2_1_thrust_guard_v2
+device: cuda
+elapsed_seconds: 7217.0
+total_candidates: 213843968
+
+## Source Log Snapshot
+episodes: 242
+done_counts: {'success': 207, 'near_miss': 27, 'low_agl': 5, 'wrong_way': 3}
+success_rate: 85.537%
+
+## Important Limitation
+Future radius bands do not have real Unity logs yet. These reward values are an offline extrapolation from the current log distribution plus radius-conditioned weighting. They must be validated phase-by-phase after each run.
+
+## Phase Radius Plan
+ planned_phase  radius_min  radius_max  radius_mid  max_step
+             1       105.0       120.0       112.5     520.0
+             2       120.0       140.0       130.0     540.0
+             3       140.0       165.0       152.5     560.0
+             4       165.0       195.0       180.0     580.0
+             5       195.0       230.0       212.5     600.0
+             6       230.0       270.0       250.0     640.0
+             7       270.0       315.0       292.5     660.0
+             8       315.0       365.0       340.0     700.0
+             9       365.0       425.0       395.0     760.0
+            10       425.0       500.0       462.5     820.0
+
+## Best Reward Per Phase
+ planned_phase  radius_min  radius_max  max_step     score  theta_progress_gain  alpha_beta_gain  axis_error_penalty_gain  angle_focus_gain  turn_toward_gain  action_alignment_gain  reverse_penalty_gain  near_success_gain  min_thrust  max_thrust  thrust_gate_gain  thrust_gate_target_norm  thrust_gate_theta_start_deg  thrust_gate_theta_span_deg  thrust_gate_distance_scale  thrust_gate_distance_floor
+             1       105.0       120.0     520.0 55.757847                1.665            0.465                     0.28              1.87             0.384                  0.060                 0.405             0.2500       690.0       850.0              1.65                    -0.45                         55.0                        15.0                        30.0                        0.65
+             2       120.0       140.0     540.0 56.440201                1.665            0.465                     0.28              1.87             0.240                  0.060                 0.405             0.1500       690.0       820.0              1.65                    -0.45                         55.0                        12.0                        35.0                        0.80
+             3       140.0       165.0     560.0 57.467793                1.665            0.465                     0.28              1.87             0.276                  0.060                 0.405             0.2875       720.0       840.0              1.65                    -0.45                         55.0                        12.0                        40.0                        0.80
+             4       165.0       195.0     580.0 58.639729                1.665            0.465                     0.28              1.87             0.384                  0.060                 0.405             0.3375       720.0       870.0              1.65                    -0.45                         55.0                        12.0                        40.0                        0.65
+             5       195.0       230.0     600.0 60.045509                1.665            0.465                     0.28              1.87             0.276                  0.040                 0.405             0.2500       730.0       840.0              1.65                    -0.45                         55.0                        12.0                        30.0                        0.65
+             6       230.0       270.0     640.0 61.582317                1.665            0.405                     0.28              1.87             0.324                  0.024                 0.405             0.3375       710.0       840.0              1.65                    -0.45                         55.0                        12.0                        50.0                        0.80
+             7       270.0       315.0     660.0 63.558609                1.665            0.465                     0.28              1.87             0.324                  0.048                 0.405             0.2875       700.0       840.0              1.65                    -0.45                         55.0                        15.0                        40.0                        0.80
+             8       315.0       365.0     700.0 65.554733                1.665            0.465                     0.28              1.87             0.204                  0.048                 0.405             0.3375       700.0       840.0              1.65                    -0.40                         55.0                        15.0                        30.0                        0.80
+             9       365.0       425.0     760.0 68.310005                1.890            0.465                     0.28              1.87             0.324                  0.060                 0.405             0.2500       710.0       840.0              1.65                    -0.35                         55.0                        12.0                        35.0                        0.65
+            10       425.0       500.0     820.0 71.236954                1.890            0.405                     0.28              1.87             0.384                  0.032                 0.405             0.3375       720.0       870.0              1.65                    -0.45                         55.0                        12.0                        35.0                        0.80
+
+## Usage Rule
+Use only the next phase row first. Do not jump directly to later rows without fresh logs from the previous phase.

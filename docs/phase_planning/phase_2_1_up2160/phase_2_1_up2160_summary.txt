@@ -1,0 +1,67 @@
+# Phase 2.1 up2160 Analysis
+
+phase_name: v8_7_phase_2_1_thrust_guard_v2
+filter: update_id 2142-2160; partial update 2161 excluded
+episodes: 117
+done_counts: {'success': 109, 'near_miss': 7, 'wrong_way': 1}
+success_rate: 93.162%
+rolling_20_tail: 95.000%
+rolling_20_best: 100.000%
+rolling_30_tail: 96.667%
+rolling_30_best: 100.000%
+rolling_50_tail: 96.000%
+rolling_50_best: 100.000%
+rolling_100_tail: 96.000%
+rolling_100_best: 96.000%
+
+[success] n=109
+mean_a0: -0.5884
+high_a0_frac: 14.131%
+theta_at_min_distance: 19.782
+min_distance: 14.695
+final_theta: 19.782
+mean_return: 157.991
+mean_thrust: 730.869
+mean_gate_sum: 4.432
+
+[near_miss] n=7
+mean_a0: -0.2890
+high_a0_frac: 32.528%
+theta_at_min_distance: 72.041
+min_distance: 9.846
+final_theta: 76.807
+mean_return: -158.378
+mean_thrust: 753.328
+mean_gate_sum: 21.412
+
+[fail] n=8
+mean_a0: -0.2630
+high_a0_frac: 34.250%
+theta_at_min_distance: 74.003
+min_distance: 11.130
+final_theta: 83.275
+mean_return: -184.686
+mean_thrust: 755.276
+mean_gate_sum: 27.976
+
+[tail30] n=30
+mean_a0: -0.6335
+high_a0_frac: 11.996%
+theta_at_min_distance: 21.328
+min_distance: 14.514
+final_theta: 21.785
+mean_return: 144.895
+mean_thrust: 727.488
+mean_gate_sum: 4.522
+
+[tail30_fail] n=1
+mean_a0: -0.3133
+high_a0_frac: 31.273%
+theta_at_min_distance: 61.585
+min_distance: 8.787
+final_theta: 75.281
+mean_return: -224.463
+mean_thrust: 751.506
+mean_gate_sum: 28.927
+
+decision: phase_2_1_up2160 is transition-ready; use current live logs before applying curriculum row 1.

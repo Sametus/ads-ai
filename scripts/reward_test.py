@@ -120,6 +120,7 @@ def run_case(
         f"alt={info['reward_altitude']:.4f} | "
         f"soft_floor={info['reward_soft_floor_penalty']:.4f} | "
         f"soft_ceiling={info['reward_soft_ceiling_penalty']:.4f} | "
+        f"thrust_gate={info['reward_thrust_gate_penalty']:.4f} | "
         f"terminal={info['reward_terminal']:.4f}"
     )
     print("-" * 80)
@@ -257,6 +258,30 @@ def main():
             rel_vel_ref=(12.0, 4.0, 15.0),
             turn_rate_ref=(0.2, 0.3, 0.4),
         )),
+        (DummyEnv(), "high_altitude_bad_angle_guardrail", 110.0, 260, build_raw_state(
+            distance=96.0,
+            theta_deg=124.0,
+            alpha_deg=115.0,
+            beta_deg=-45.0,
+            closing_speed=-42.0,
+            agl=133.0,
+            alt_error=-83.0,
+            turn_rate_ref=(0.7, -0.2, 0.3),
+            forward_up_dot=0.35,
+        )),
+        (DummyEnv(), "low_agl_wrong_turn_terminal", 115.0, 410, build_raw_state(
+            distance=125.0,
+            theta_deg=108.0,
+            alpha_deg=85.0,
+            beta_deg=35.0,
+            closing_speed=-24.0,
+            agl=0.25,
+            alt_error=49.0,
+            turn_rate_ref=(-1.4, -0.8, 0.6),
+            forward_up_dot=-0.55,
+        ), {
+            "denorm_action": [850.0, -1.6, -1.2],
+        }),
         (DummyEnv(), "success_blocked_by_bad_alignment", 13.0, 120, build_raw_state(
             distance=11.5,
             theta_deg=82.4,

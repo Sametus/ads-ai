@@ -384,3 +384,49 @@
 > - **Observed Outcome**: Ana oturumda `1209` episode icinde `1116` success (%92.308) goruldu. Ikinci oturum ayni faza ait `up2122` resume denemesidir; log temizlenmeden basladigi icin ayri analiz edildi ve `%68.182` success ile drift riski gosterdigi icin handoff olarak kullanilmadi.
 > - **Reward/Action Decision**: `turn_toward` ve `action_alignment` reward sinyalleri korundu; PPO fine-tune ayarlari `lr=2e-5`, `clip_eps=0.08`, `ent_coef=0.004`, `target_kl=0.0025` olarak birakildi.
 > - **Phase Transition Decision**: Gozlenen start-distance bantlari `100-105=%97.167`, `105-110=%92.603`, `110-115=%79.739` verdi. Ust band tam stabil olmadigi icin bir sonraki faz kontrollu genisletme olarak `95-105 radius`, `max_step=500`, heading `±2.5` ile baslatilacak.
+
+# v8.7 sürüm ailesi
+
+> ## v8.7.0 - Phase 2.1 Training Prep
+>
+> - **Runtime Phase Activation**: Aktif manuel config `v8_7_phase_2_1` olarak ayarlandi.
+> - **Curriculum Window**: `up2100` handoff modeli uzerinden `95-105 radius`, heading `±2.5`, `max_step=500` ile kontrollu genisletme baslatilacak.
+> - **Reward/Action Policy**: Faz 2.0 retry'da kullanilan reward/action ailesi korunacak; yeni fazda sadece radius/max-step penceresi genisletildi.
+
+> ## v8.7.1 - Phase 2.1 Collapse Analysis
+>
+> - **Collapse Observation**: Ilk Faz 2.1 retry denemesinde `up2102-up2129` araliginda toplam success `%64.179` goruldu, ancak son pencere hizla dustu (`R20=%15`, `R50=%40`, `R100=%56`).
+> - **Failure Geometry**: Basarisiz episode'larin buyuk bolumu hedefe yaklasabildi ama burun acisi kapanmadi; `high_altitude` hatalarinda ortalama min-distance `7.43m`, theta `110.3°`, alignment `-0.335` bulundu.
+> - **Decision**: Terminal cezalari buyutmek tek basina secilmedi. `agent.py` uzerindeki PPO denemeleri geri alindi; yeni deneme sadece `env.py` reward tasarimini aci-kapatma odakli yapacak.
+
+> ## v8.7.2 - Phase 2.1 Angle Reward Prep
+>
+> - **Runtime Phase Activation**: Aktif manuel config `v8_7_phase_2_1_angle_reward` olarak ayarlandi; handoff checkpoint `up2100` olarak korunacak.
+> - **Curriculum Window**: `95-105 radius`, heading `±2.5`, `max_step=500` ile ayni spawn kosulu korunacak.
+> - **Reward Retune**: Distance/closing odulu iyi burun acisi ve pozitif alignment ile gate edildi; theta progress `0.90`, alpha/beta progress `0.30`, angle-focus `1.10` olarak aci kapatma sinyali belirginlestirildi.
+> - **Near-Miss Guardrail**: `distance<=18m` ve `theta>=75°` durumunda `near_miss=-90` eklendi; hedefin uzerinden aci kapatmadan gecen episode success gibi odullenmeyecek.
+> - **Terminal Scale**: Terminal cezalari hafif tutuldu (`high_altitude=-105`, `wrong_way=-115`, `low_agl=-110`, `timeout=-80`, `success=180`); hedef, terminal buyutmek yerine ara reward ile burnu hedefe cevirmek.
+> - **Altitude Guardrail**: `max_altitude=145`, `soft_ceiling_start=105`, `soft_ceiling_gain=0.018`; iyi aciyla yuksek irtifa ilerlemesi pozitif kalirken kotu aciyla yuksekten kacis negatiflesir.
+
+> ## v8.7.3 - Phase 2.1 Thrust Guard Prep
+>
+> - **Collapse Observation**: `v8_7_phase_2_1_angle_reward` run'inda `192` episode icinde `%54.167` success goruldu. Ilk `120` episode `%78.333` success iken `121+` penceresi `%13.889` success'e dustu; start-distance ortalamasi neredeyse degismedi (`111.34` -> `110.80`).
+> - **Root Cause Candidate**: Cokus 20 PPO update civarina denk geliyor (`ROLLOUT_LEN=1200`, yaklasik `5-7` episode/update). Basarili episode'larda ortalama `action_norm_0=-0.325` (`~759 thrust`), post-collapse failure episode'larda `action_norm_0=+0.243` (`~892 thrust`) oldu.
+> - **Reward/Action Decision**: Ana duzeltme terminal buyutmek degil; aci kapanmadan gaz artisini engellemek. Thrust mapping `650-950` bandina daraltildi ve `theta>35°` iken `action_norm_0>-0.20` icin `thrust_gate_penalty` eklendi.
+> - **Checkpoint Decision**: Bu run'dan olusan `up2120` handoff olarak kullanilmamali. Yeni retry `up2100` uzerinden baslatilmali; run oncesi `up2120` silinmeli ya da `ADS_AI_CHECKPOINT_UPDATE=2100` set edilmeli.
+
+> ## v8.7.4 - Phase 2.1 Deep Reward Grid Search
+>
+> - **Deep Search**: `20` dakika CUDA grid-search calistirildi (`35,815,424` aday, `35,380` step satiri). Raporlar `docs/reward_research/summary_20260411_171943.txt` ve ilgili CSV dosyalarina yazildi.
+> - **Measured Collapse**: `v8_7_phase_2_1_thrust_guard` run'i `183` episode icinde `%53.005` success verdi. Ilk `120` episode `%71.667`, `121+` penceresi `%17.460` success'e dustu.
+> - **Root Cause Confirmation**: Success rate ile `mean_a0` korelasyonu `-0.8992`, `high_a0_frac` korelasyonu `-0.8979`; post-collapse failure mean `action_norm_0=+0.4449`, success mean `action_norm_0=-0.2318`.
+> - **Action Sign Check**: Action/turn sign mevcut konvansiyonda dogru gorundu; lag-10 korelasyonlari `score_pos theta_corr=0.21141`, `turn_pos theta_corr=0.47170` ve ters isaret negatif.
+> - **Reward/Action Decision**: Thrust mapping `700-850` bandina daraltildi. Grid'in sectigi thrust gate kullanildi: `gain=0.75`, `target=-0.25`, `theta_start=45`, `theta_span=20`, `dist_scale=40`, `dist_floor=0.50`.
+
+> ## v8.7.5 - Phase 2.1 up2160 Archive Snapshot
+>
+> - **Phase 2.1 Freeze Point**: `v8_7_phase_2_1_thrust_guard_v2` kosusu `up2160` checkpoint'inde donduruldu. Analiz sadece guncel oturum olan `update 2142-2160` araligina uygulandi; eski `2102-2141` oturumu ve parcali `2161` episode'lari karar hesabina katilmadi.
+> - **Observed Outcome**: Guncel oturumda `117` episode icinde `109` success, `7` near_miss ve `1` wrong_way goruldu; success rate `%93.162` oldu. Kuyruk rolling degerleri `R20=%95.000`, `R30=%96.667`, `R50=%96.000`, `R100=%96.000` olarak stabil kaldigi icin faz gecisine uygun bulundu.
+> - **Reward/Action Diagnostics**: Success episode'larda mean `action_norm_0=-0.5884`, fail episode'larda `-0.2630` olculdu; onceki thrust drift belirtisi bu oturumda gorulmedi. Fail episode'lar hedefe yaklasabildi fakat theta kapanmadi (`theta_at_min_distance=74.003`, `final_theta=83.275`), bu nedenle sonraki fazda aci odakli reward ailesi korunacak.
+> - **Artifact Archiving**: `docs/phase_planning/phase_2_1_up2160/` altina summary, episode diagnostics CSV, rolling success grafigi, success rug ve start-distance outcome grafigi eklendi.
+> - **Curriculum Planning**: `docs/phase_planning/curriculum_reward_summary_v8_7_4_radius500_reward_grid_20260412_184355.txt` sonucu referans alindi. Bir sonraki faz icin ilk aday `105-120 radius`, `max_step=520`; ancak yeni faz ayari bu snapshot commitinden sonra ayri olarak uygulanacak.

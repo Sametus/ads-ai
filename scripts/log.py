@@ -255,6 +255,8 @@ def print_episode_console(episode_id, episode_return, episode_len,
         color = MAGENTA
     elif done_reason == "wrong_way":
         color = RED
+    elif done_reason == "near_miss":
+        color = CYAN
     elif done_reason == "timeout":
         color = RED
     elif done_reason == "escaped":

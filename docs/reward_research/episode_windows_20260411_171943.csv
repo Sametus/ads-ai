@@ -1,0 +1,6 @@
+episode_start,episode_end,n,success_rate,mean_return,mean_len,counts
+1,40,40,82.5,105.20153574957234,187.9,"{'success': 33, 'near_miss': 7}"
+41,80,40,82.5,104.48303161959134,190.55,"{'success': 33, 'near_miss': 7}"
+81,120,40,50.0,4.244767137047107,196.175,"{'success': 20, 'near_miss': 18, 'wrong_way': 1, 'low_agl': 1}"
+121,160,40,27.5,-73.23614773365412,190.35,"{'near_miss': 27, 'success': 11, 'low_agl': 2}"
+161,183,23,0.0,-196.21485878039556,212.47826086956522,"{'near_miss': 18, 'low_agl': 4, 'wrong_way': 1}"

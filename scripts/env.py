@@ -50,6 +50,7 @@ REWARD_BREAKDOWN_KEYS = [
     "reward_altitude",
     "reward_soft_floor_penalty",
     "reward_soft_ceiling_penalty",
+    "reward_thrust_gate_penalty",
     "reward_terminal",
 ]
 
@@ -115,8 +116,8 @@ AGL_TANH_SCALE = 50.0
 ALT_ERROR_TANH_SCALE = 50.0
 GRAVITY_SCALE = 9.81
 
-MIN_THRUST = 600.0
-MAX_THRUST = 1070.0
+MIN_THRUST = 700.0
+MAX_THRUST = 850.0
 MAX_VERTICAL_CMD = 2.5
 MAX_HORIZONTAL_CMD = 2.5
 TARGET_VELOCITY = 25.0
@@ -138,10 +139,16 @@ REWARD_CONFIG = {
     "direction_bonus_gain": 0.10,
     "angle_focus_gain": 0.12,
     "angle_focus_theta_deg": 90.0,
+    "angle_bad_start_deg": 90.0,
     "turn_toward_gain": 0.30,
     "turn_toward_theta_deg": 60.0,
     "turn_toward_rate_clip": 4.0,
+    "turn_positive_scale": 1.0,
+    "turn_negative_scale": 1.0,
     "action_alignment_gain": 0.08,
+    "action_positive_scale": 1.0,
+    "action_negative_scale": 1.0,
+    "low_altitude_turn_ready_agl": 18.0,
     "near_success_gain": 0.20,
     "near_success_distance": 40.0,
     "near_success_theta_deg": 35.0,
@@ -156,6 +163,13 @@ REWARD_CONFIG = {
     "soft_floor_gain": 0.12,
     "soft_ceiling_start": 1000.0,
     "soft_ceiling_gain": 0.0,
+    "soft_ceiling_curve_scale": 45.0,
+    "thrust_gate_gain": 0.0,
+    "thrust_gate_target_norm": -0.20,
+    "thrust_gate_theta_start_deg": 35.0,
+    "thrust_gate_theta_span_deg": 45.0,
+    "thrust_gate_distance_scale": 80.0,
+    "thrust_gate_distance_floor": 0.35,
     "min_agl": 0.40,
     "low_agl_grace_steps": 15,
     "collision_grace_steps": 8,
@@ -175,48 +189,65 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v8_6_phase_2_0_retry",
-    "spawn_radius_min": 90.0,
-    "spawn_radius_max": 100.0,
+    "name": "v8_7_phase_2_1_thrust_guard_v2",
+    "spawn_radius_min": 95.0,
+    "spawn_radius_max": 105.0,
     "heading_offset_min": -2.5,
     "heading_offset_max": 2.5,
-    "max_step": 480,
-    "step_penalty": -0.10,
-    "distance_gain": 0.36,
-    "alignment_gain": 0.90,
-    "closing_gain": 0.30,
-    "theta_progress_gain": 0.44,
-    "alpha_beta_gain": 0.22,
-    "axis_error_penalty_gain": 0.12,
+    "max_step": 500,
+    "step_penalty": -0.04,
+    "distance_gain": 0.14,
+    "alignment_gain": 0.12,
+    "closing_gain": 0.04,
+    "theta_progress_gain": 0.90,
+    "theta_progress_clip_deg": 12.0,
+    "alpha_beta_gain": 0.30,
+    "alpha_beta_progress_clip_deg": 18.0,
+    "axis_error_penalty_gain": 0.35,
     "axis_error_soft_deg": 30.0,
-    "direction_bonus_gain": 0.30,
-    "angle_focus_gain": 0.34,
+    "direction_bonus_gain": 0.0,
+    "angle_focus_gain": 1.10,
     "angle_focus_theta_deg": 90.0,
-    "turn_toward_gain": 0.70,
-    "turn_toward_theta_deg": 60.0,
+    "angle_bad_start_deg": 70.0,
+    "near_angle_distance": 70.0,
+    "near_angle_span": 55.0,
+    "turn_toward_gain": 0.24,
+    "turn_toward_theta_deg": 75.0,
     "turn_toward_rate_clip": 4.0,
-    "action_alignment_gain": 0.16,
-    "near_success_gain": 0.52,
+    "action_alignment_gain": 0.04,
+    "near_success_gain": 0.25,
     "near_success_distance": 45.0,
     "near_success_theta_deg": 35.0,
-    "reverse_penalty_gain": 0.48,
-    "ang_vel_penalty": 0.03,
+    "reverse_penalty_gain": 0.45,
+    "ang_vel_penalty": 0.035,
     "height_align_gain": 0.022,
-    "soft_floor_gain": 0.12,
-    "soft_ceiling_start": 90.0,
-    "soft_ceiling_gain": 0.026,
+    "soft_floor_gain": 0.05,
+    "soft_floor_grace_steps": 60,
+    "soft_ceiling_start": 105.0,
+    "soft_ceiling_gain": 0.018,
+    "thrust_gate_gain": 0.75,
+    "thrust_gate_target_norm": -0.25,
+    "thrust_gate_theta_start_deg": 45.0,
+    "thrust_gate_theta_span_deg": 20.0,
+    "thrust_gate_distance_scale": 40.0,
+    "thrust_gate_distance_floor": 0.50,
     "low_altitude_penalty": -110.0,
-    "high_altitude_penalty": -130.0,
-    "max_altitude": 135.0,
+    "high_altitude_penalty": -105.0,
+    "max_altitude": 145.0,
     "wrong_way_theta_deg": 128.0,
-    "wrong_way_closing_speed": -14.0,
-    "wrong_way_distance_ratio": 1.08,
-    "wrong_way_grace_steps": 42,
-    "wrong_way_penalty": -145.0,
+    "wrong_way_closing_speed": -12.0,
+    "wrong_way_distance_ratio": 1.05,
+    "wrong_way_grace_steps": 36,
+    "wrong_way_penalty": -115.0,
+    "near_miss_distance": 18.0,
+    "near_miss_theta_deg": 75.0,
+    "near_miss_grace_steps": 80,
+    "near_miss_penalty": -90.0,
     "success_distance": 15.0,
     "success_alignment": 0.76,
     "success_min_closing": 0.0,
-    "timeout_penalty": -110.0,
+    "success_reward": 180.0,
+    "timeout_penalty": -80.0,
 }
 
 
@@ -425,9 +456,15 @@ class Env:
         ang_vel_mag = float(np.sqrt(av[0] ** 2 + av[1] ** 2 + av[2] ** 2))
         roll_rate_mag = abs(float(av[2]))
         roll_error_deg = abs(float(raw_state.get("telemetry", {}).get("roll_error_deg", 0.0)))
+        thrust_cmd_norm = 0.0
         vertical_cmd_norm = 0.0
         horizontal_cmd_norm = 0.0
         if denorm_action is not None and len(denorm_action) >= 3:
+            thrust_cmd_norm = float(np.clip(
+                ((denorm_action[0] - MIN_THRUST) / max(MAX_THRUST - MIN_THRUST, 1e-6)) * 2.0 - 1.0,
+                -1.0,
+                1.0,
+            ))
             vertical_cmd_norm = float(np.clip(denorm_action[1] / max(MAX_VERTICAL_CMD, 1e-6), -1.0, 1.0))
             horizontal_cmd_norm = float(np.clip(denorm_action[2] / max(MAX_HORIZONTAL_CMD, 1e-6), -1.0, 1.0))
 
@@ -459,27 +496,48 @@ class Env:
             phase["alpha_beta_progress_clip_deg"],
         ))
 
-        distance_heading_window = float(np.clip(1.0 - (theta_deg / 120.0), 0.0, 1.0))
-        distance_axis_window = float(np.clip(1.0 - (combined_axis_error / 160.0), 0.0, 1.0))
-        positive_geometry_gate = 0.10 + 0.90 * (distance_heading_window * distance_axis_window)
+        angle_focus_window = float(np.clip(
+            1.0 - (theta_deg / phase["angle_focus_theta_deg"]),
+            0.0,
+            1.0,
+        ))
+        angle_bad_window = float(np.clip(
+            (theta_deg - phase["angle_bad_start_deg"])
+            / max(1.0, 180.0 - phase["angle_bad_start_deg"]),
+            0.0,
+            1.0,
+        ))
+        good_angle_gate = float(np.clip((90.0 - theta_deg) / 75.0, 0.0, 1.0))
+        near_angle_proximity = float(np.clip(
+            (phase["near_angle_distance"] - distance) / max(phase["near_angle_span"], 1e-6),
+            0.0,
+            1.0,
+        ))
+        progress_urgency = float(np.clip(
+            ((self.reset_distance or distance) - distance) / max((self.reset_distance or distance) - 35.0, 1e-6),
+            0.0,
+            1.0,
+        ))
+        theta_norm = float(np.clip(theta_deg / 120.0, 0.0, 1.5))
+        axis_norm = float(np.clip(combined_axis_error / 180.0, 0.0, 1.5))
 
-        progress_factor = 0.20 + 0.80 * alignment_positive
-        distance_geometry_gate = positive_geometry_gate if delta_distance > 0.0 else 1.0
-        closing_geometry_gate = positive_geometry_gate if signed_closing > 0.0 else 1.0
+        # Distance and closing are allowed to help only when the rocket is target-facing.
+        distance_reward = (
+            phase["distance_gain"]
+            * delta_distance
+            * alignment_positive
+            * (0.20 + 0.80 * good_angle_gate)
+        )
+        alignment_reward = phase["alignment_gain"] * alignment * (0.20 + 0.80 * positive_closing)
+        closing_reward = 0.0
+        if signed_closing > 0.0:
+            closing_reward = phase["closing_gain"] * signed_closing * alignment_positive * good_angle_gate
+        else:
+            closing_reward = phase["closing_gain"] * signed_closing * (0.25 + 0.75 * angle_bad_window)
 
-        distance_reward = phase["distance_gain"] * delta_distance * progress_factor * distance_geometry_gate
-        alignment_reward = phase["alignment_gain"] * alignment * (0.10 + 0.90 * positive_closing)
-        closing_reward = phase["closing_gain"] * signed_closing * (0.25 + 0.75 * alignment_positive) * closing_geometry_gate
-        if distance_reward > 0.0:
-            distance_reward *= altitude_progress_gate
-        if closing_reward > 0.0:
-            closing_reward *= altitude_progress_gate
         theta_progress_reward = phase["theta_progress_gain"] * (delta_theta_deg / phase["theta_progress_clip_deg"])
         alpha_beta_reward = phase["alpha_beta_gain"] * (delta_alpha_beta_deg / phase["alpha_beta_progress_clip_deg"])
-        axis_error_penalty = phase["axis_error_penalty_gain"] * max(
-            (combined_axis_error - phase["axis_error_soft_deg"]) / max(phase["axis_error_soft_deg"], 1e-6),
-            0.0,
-        ) * (0.25 + 0.75 * (1.0 - alignment_positive))
+        axis_error_penalty = phase["axis_error_penalty_gain"] * near_angle_proximity * (axis_norm ** 2)
 
         direction_theta_window = float(np.clip(
             1.0 - (theta_deg / phase["direction_bonus_theta_deg"]),
@@ -499,30 +557,22 @@ class Env:
             * direction_axis_window
             * (0.25 + 0.75 * positive_closing)
         )
-        direction_bonus *= altitude_progress_gate
-        angle_focus_window = float(np.clip(
-            1.0 - (theta_deg / phase["angle_focus_theta_deg"]),
-            0.0,
-            1.0,
-        ))
-        angle_bad_window = float(np.clip(
-            (theta_deg - phase["angle_focus_theta_deg"]) / max(1.0, 180.0 - phase["angle_focus_theta_deg"]),
-            0.0,
-            1.0,
-        ))
-        angle_focus_reward = (
-            phase["angle_focus_gain"]
-            * angle_focus_window
-            * (0.20 + 0.80 * positive_closing)
-        )
+        direction_bonus *= angle_focus_window
+        angle_focus_reward = 0.0
         angle_focus_reward -= (
             phase["angle_focus_gain"]
-            * 0.35
-            * angle_bad_window
-            * max(-signed_closing, 0.0)
+            * near_angle_proximity
+            * (theta_norm ** 2)
+            * (0.35 + 0.65 * (1.0 + max(-signed_closing, 0.0)))
         )
-        if angle_focus_reward > 0.0:
-            angle_focus_reward *= altitude_progress_gate
+        if delta_theta_deg < 0.0:
+            angle_focus_reward -= (
+                phase["theta_progress_gain"]
+                * 0.55
+                * progress_urgency
+                * min(abs(delta_theta_deg) / max(phase["theta_progress_clip_deg"], 1e-6), 1.0)
+                * (0.50 + 0.50 * theta_norm)
+            )
         turn_need_window = float(np.clip(
             theta_deg / max(phase["turn_toward_theta_deg"], 1e-6),
             0.0,
@@ -556,17 +606,8 @@ class Env:
             -1.0,
             1.0,
         ))
-        turn_altitude_gate = float(np.clip(
-            1.0 - (ceiling_excess / 45.0),
-            0.15,
-            1.0,
-        ))
         turn_toward_reward = phase["turn_toward_gain"] * turn_toward_score
         action_alignment_reward = phase["action_alignment_gain"] * action_alignment_score
-        if turn_toward_reward > 0.0:
-            turn_toward_reward *= turn_altitude_gate
-        if action_alignment_reward > 0.0:
-            action_alignment_reward *= turn_altitude_gate
 
         near_success_distance_window = float(np.clip(
             1.0 - (distance / phase["near_success_distance"]),
@@ -596,15 +637,16 @@ class Env:
             0.0,
             1.0,
         ))
-        reverse_penalty = (
-            phase["reverse_penalty_gain"]
-            * max(-signed_closing, 0.0)
-            * (0.35 + 0.65 * wrong_way_theta_factor)
-            * max(wrong_way_distance_factor, 0.35 if theta_deg > phase["wrong_way_theta_deg"] else 0.0)
-        )
-        reverse_penalty += phase["reverse_penalty_gain"] * max(-signed_closing, 0.0) * max((theta_deg - 90.0) / 90.0, 0.0) * 0.35
-        if delta_distance < 0.0 and theta_deg > 90.0:
-            reverse_penalty += phase["reverse_penalty_gain"] * min(abs(delta_distance) / phase["distance_delta_clip"], 1.0) * 0.35
+        reverse_penalty = 0.0
+        if delta_distance < 0.0 or signed_closing < 0.0:
+            reverse_penalty = (
+                phase["reverse_penalty_gain"]
+                * max(0.0, (theta_deg - 70.0) / 80.0)
+                * (
+                    0.50 * min(abs(delta_distance) / max(phase["distance_delta_clip"], 1e-6), 1.0)
+                    + 0.50 * max(-signed_closing, 0.0)
+                )
+            )
 
         roll_penalty_term = 0.08 * min(roll_rate_mag / max(phase["ang_vel_clip"], 1e-6), 1.0)
         roll_error_term = 0.04 * min(roll_error_deg / 45.0, 1.0)
@@ -614,14 +656,35 @@ class Env:
         altitude_reward = phase["height_align_gain"] * np.clip(1.0 - np.abs(alt_error) / 50.0, 0.0, 1.0)
         soft_floor_penalty = 0.0
         soft_ceiling_penalty = 0.0
+        thrust_gate_penalty = 0.0
 
-        if agl < phase["soft_floor"]:
+        if agl < phase["soft_floor"] and self.step_count > phase["soft_floor_grace_steps"]:
             soft_floor_penalty = phase["soft_floor_gain"] * (phase["soft_floor"] - agl)
         if agl > phase["soft_ceiling_start"]:
             soft_ceiling_penalty = (
                 phase["soft_ceiling_gain"]
                 * ceiling_excess
-                * (1.0 + ceiling_excess / 45.0)
+                * (1.0 + max(0.0, theta_deg - 60.0) / 100.0)
+            )
+        if phase["thrust_gate_gain"] > 0.0:
+            thrust_excess = max(0.0, thrust_cmd_norm - phase["thrust_gate_target_norm"])
+            thrust_angle_gate = float(np.clip(
+                (theta_deg - phase["thrust_gate_theta_start_deg"])
+                / max(phase["thrust_gate_theta_span_deg"], 1e-6),
+                0.0,
+                1.0,
+            ))
+            thrust_distance_floor = phase["thrust_gate_distance_floor"]
+            thrust_distance_gate = thrust_distance_floor + (1.0 - thrust_distance_floor) * float(np.clip(
+                distance / max(phase["thrust_gate_distance_scale"], 1e-6),
+                0.0,
+                1.0,
+            ))
+            thrust_gate_penalty = (
+                phase["thrust_gate_gain"]
+                * thrust_excess
+                * thrust_angle_gate
+                * thrust_distance_gate
             )
 
         reward += distance_reward
@@ -640,6 +703,7 @@ class Env:
         reward += altitude_reward
         reward -= soft_floor_penalty
         reward -= soft_ceiling_penalty
+        reward -= thrust_gate_penalty
 
         if (
             distance <= phase["success_distance"]
@@ -661,6 +725,15 @@ class Env:
             reward += terminal_reward
             done = True
             done_reason = "low_agl"
+        elif (
+            self.step_count > phase["near_miss_grace_steps"]
+            and distance <= phase["near_miss_distance"]
+            and theta_deg >= phase["near_miss_theta_deg"]
+        ):
+            terminal_reward = phase["near_miss_penalty"]
+            reward += terminal_reward
+            done = True
+            done_reason = "near_miss"
         elif agl >= phase["max_altitude"]:
             terminal_reward = phase["high_altitude_penalty"]
             reward += terminal_reward
@@ -722,6 +795,7 @@ class Env:
             "reward_altitude": float(altitude_reward),
             "reward_soft_floor_penalty": float(soft_floor_penalty),
             "reward_soft_ceiling_penalty": float(soft_ceiling_penalty),
+            "reward_thrust_gate_penalty": float(thrust_gate_penalty),
             "reward_terminal": float(terminal_reward),
             "grounded_flag": 1.0 if grounded else 0.0,
             "done_reason": done_reason,

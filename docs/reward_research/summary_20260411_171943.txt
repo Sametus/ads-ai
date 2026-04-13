@@ -1,0 +1,89 @@
+# Deep Reward Grid Search Summary
+
+generated_at: 2026-04-11T17:39:44
+device: cuda
+elapsed_seconds: 1200.5
+total_candidates: 35815424
+
+## Run
+episodes: 183 (1-183)
+updates: 2102-2131
+phase: v8_7_phase_2_1_thrust_guard
+done_counts: {'success': 97, 'near_miss': 77, 'low_agl': 7, 'wrong_way': 2}
+success_rate: 53.005%
+pre120_success_rate: 71.667%
+post120_success_rate: 17.460%
+
+## Key Diagnostics
+success_mean_a0: -0.2318
+success_high_a0_frac: 35.466%
+success_theta_at_min_distance: 29.265
+post_fail_mean_a0: 0.4449
+post_fail_high_a0_frac: 75.780%
+post_fail_theta_at_min_distance: 93.971
+pre120_mean_a0: -0.1742
+
+## Update Correlations
+corr(success_rate,mean_theta): -0.7561
+corr(success_rate,mean_a0): -0.8992
+corr(success_rate,high_a0_frac): -0.8979
+corr(success_rate,kl): -0.6672
+corr(success_rate,clip_frac): -0.7561
+corr(success_rate,value_loss): -0.2084
+
+## Action Lag Correlations
+lag=01 score_pos: theta_corr=0.18866, axis_corr=0.11422, n=35379
+lag=01 score_neg: theta_corr=-0.18866, axis_corr=-0.11422, n=35379
+lag=01 turn_pos: theta_corr=0.42252, axis_corr=0.25579, n=35379
+lag=01 turn_neg: theta_corr=-0.42252, axis_corr=-0.25579, n=35379
+lag=05 score_pos: theta_corr=0.19946, axis_corr=0.16899, n=34643
+lag=05 score_neg: theta_corr=-0.19946, axis_corr=-0.16899, n=34643
+lag=05 turn_pos: theta_corr=0.46258, axis_corr=0.42058, n=34643
+lag=05 turn_neg: theta_corr=-0.46258, axis_corr=-0.42058, n=34643
+lag=10 score_pos: theta_corr=0.21141, axis_corr=0.18387, n=33723
+lag=10 score_neg: theta_corr=-0.21141, axis_corr=-0.18387, n=33723
+lag=10 turn_pos: theta_corr=0.47170, axis_corr=0.46542, n=33723
+lag=10 turn_neg: theta_corr=-0.47170, axis_corr=-0.46542, n=33723
+lag=20 score_pos: theta_corr=0.21145, axis_corr=0.19130, n=31883
+lag=20 score_neg: theta_corr=-0.21145, axis_corr=-0.19130, n=31883
+lag=20 turn_pos: theta_corr=0.42885, axis_corr=0.44336, n=31883
+lag=20 turn_neg: theta_corr=-0.42885, axis_corr=-0.44336, n=31883
+
+## Best Thrust-Gate Candidate
+gain: 0.75
+target: -0.25
+theta_start: 45.0
+theta_span: 20.0
+dist_scale: 40.0
+dist_floor: 0.5
+episode_success_penalty: 14.347712683754827
+episode_fail_penalty: 62.340860540637294
+episode_post_fail_penalty: 79.4604386610975
+episode_near_miss_penalty: 54.39647698931046
+exact_score: 103.69403435963066
+
+## Episode Windows
+ episode_start  episode_end  n  success_rate  mean_return   mean_len                                                         counts
+             1           40 40          82.5   105.201536 187.900000                                {'success': 33, 'near_miss': 7}
+            41           80 40          82.5   104.483032 190.550000                                {'success': 33, 'near_miss': 7}
+            81          120 40          50.0     4.244767 196.175000 {'success': 20, 'near_miss': 18, 'wrong_way': 1, 'low_agl': 1}
+           121          160 40          27.5   -73.236148 190.350000                 {'near_miss': 27, 'success': 11, 'low_agl': 2}
+           161          183 23           0.0  -196.214859 212.478261                {'near_miss': 18, 'low_agl': 4, 'wrong_way': 1}
+
+## Update Tail
+ update_id  episodes  success_rate  mean_return  mean_theta   mean_a0  high_a0_frac       kl  clip_frac  value_loss
+      2117         7     85.714286   118.013963   51.356148 -0.175030     38.833333 0.001641   0.049053  930.677063
+      2118         6     16.666667   -75.202001   52.768509 -0.030169     46.583333 0.003403   0.122940 1822.967065
+      2119         6     66.666667    64.374548   52.071224 -0.191827     37.750000 0.007227   0.191868  769.862573
+      2120         7     42.857143    -5.629242   53.326876  0.061560     53.750000 0.005327   0.186222 1444.232861
+      2121         6     66.666667    60.193638   53.242411 -0.129486     41.916667 0.002046   0.058215  848.068486
+      2122         5     40.000000   -61.761308   63.897228  0.065561     53.666667 0.006556   0.145206 1049.692902
+      2123         7     42.857143    -7.293054   53.195256  0.008800     49.583333 0.003294   0.243714 1172.503925
+      2124         7     14.285714  -107.623817   60.238478  0.305833     67.666667 0.004513   0.151776 1443.065820
+      2125         6     16.666667   -93.351088   57.754420  0.372383     71.833333 0.004720   0.286009 1056.599915
+      2126         6      0.000000  -186.406975   69.163776  0.426785     75.833333 0.008145   0.180256  794.159070
+      2127         6      0.000000  -196.006547   73.213117  0.440209     75.500000 0.016053   0.281676  553.605185
+      2128         6      0.000000  -178.571060   67.303418  0.521871     79.583333 0.011095   0.255575  423.188455
+      2129         6      0.000000  -188.145211   68.548944  0.552814     81.333333 0.007231   0.154439  411.288254
+      2130         7      0.000000  -149.110527   62.557622  0.664061     87.750000 0.008047   0.222408  383.866150
+      2131         2      0.000000  -366.036410   84.274964  0.167801     59.370904      NaN        NaN         NaN
