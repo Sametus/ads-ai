@@ -1,0 +1,26 @@
+v8.7.6 - Faz 2.2 live up2580 | up 2162-2580
+
+Generated from completed updates only.
+phase_name: v8_7_phase_2_2_radius_105_120_reward_grid
+update_range: 2162-2580
+episodes: 2271
+success_rate: 77.499%
+rolling_tail: R20=70.000% R50=68.000% R100=62.000%
+done_counts: {'success': 1760, 'near_miss': 419, 'low_agl': 66, 'wrong_way': 20, 'collision': 3, 'timeout': 2, 'high_altitude': 1}
+start_distance_range: 115.248-129.895 m
+
+Radius bins:
+- 115-120m: n=717, success=629, SR=87.73%
+- 120-125m: n=808, success=676, SR=83.66%
+- 125-130m: n=746, success=455, SR=60.99%
+
+Outputs:
+- phase_2_2_live_up2580_success_rate.png
+- phase_2_2_live_up2580_success_rug.png
+- phase_2_2_live_up2580_reset_outcome_polar.png
+- phase_2_2_live_up2580_hit_location_polar.png
+- phase_2_2_live_up2580_reset_radius_distribution.png
+- phase_2_2_live_up2580_reset_radius_phase_plan.png
+- phase_2_2_live_up2580_episode_diagnostics.csv
+- phase_2_2_live_up2580_reset_radius_bins.csv
+- phase_2_2_live_up2580_summary.txt

@@ -11,19 +11,19 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 
 ## Current Focus
 
-- Last archived phase: `v8.7.5 - Faz 2.1 up2160 archive`
-- Current handoff checkpoint: `up2160`
-- Current phase target: `v8.7.5 - Faz 2.1 thrust guard v2 archive`
-- Current spawn radius: `95 - 105`
+- Last archived phase: `v8.7.6 - Faz 2.2 up2520 archive`
+- Current handoff checkpoint: `up2520`
+- Current phase target: `v8.7.6 - Faz 2.2 radius 105-120 reward-grid row 1 archive`
+- Current spawn radius: `105 - 120`
 - Heading offset: `-2.5 .. +2.5`
-- Max step: `500`
-- Reward: angle-first dense shaping is active. `theta_progress_gain=0.90`, `alpha_beta_gain=0.30`, `angle_focus_gain=1.10`.
+- Max step: `520`
+- Reward: angle-first dense shaping is active. `theta_progress_gain=1.665`, `alpha_beta_gain=0.465`, `angle_focus_gain=1.87`.
 - Reward: distance/closing rewards are gated by positive alignment and good theta so target movement alone does not create misleading positive reward.
 - Reward: `near_miss` terminal is active for `distance<=18m` and `theta>=75deg` after the grace window; penalty is `-90`.
 - Reward: terminal scale is intentionally lighter (`success=180`, `high_altitude=-105`, `wrong_way=-115`, `low_agl=-110`, `timeout=-80`) because the correction signal should come from angle progress, not giant terminal values.
 - Reward: altitude guardrail is moderate (`soft_ceiling_start=105`, `soft_ceiling_gain=0.018`, `max_altitude=145`) so good-angle climb can survive but high-altitude bad-angle escape is negative.
-- Reward: thrust guard v2 is active. `MIN_THRUST=700`, `MAX_THRUST=850`; `theta>45deg` iken `action_norm_0>-0.25` icin `thrust_gate_penalty` uygulanir.
-- Reward: CUDA grid-search result: `thrust_gate_gain=0.75`, `theta_span=20`, `dist_scale=40`, `dist_floor=0.50`.
+- Reward: curriculum row 1 thrust guard is active. `MIN_THRUST=690`, `MAX_THRUST=850`; `theta>55deg` iken `action_norm_0>-0.45` icin `thrust_gate_penalty` uygulanir.
+- Reward: curriculum row 1 result: `thrust_gate_gain=1.65`, `theta_span=15`, `dist_scale=30`, `dist_floor=0.65`.
 - PPO: `agent.py` reward-collapse experiments were reverted; do not change PPO until reward-only run is evaluated.
 - Action: vertical / horizontal command limits are symmetric at `2.5 / 2.5`.
 - Action: `beta_validity` now has a `0.25` floor so horizontal guidance is not fully disabled when the rocket is near vertical.
@@ -43,6 +43,11 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 - up2160 run'i guncel oturum filtresiyle (`update 2142-2160`, parcali `2161` haric) basarili kabul edildi: `117` episode, `109` success, `%93.162` success, tail `R20=%95`, `R50=%96`, `R100=%96`.
 - up2160 snapshot grafigi ve ozetleri `docs/phase_planning/phase_2_1_up2160/` altinda tutulur.
 - Sonraki faza gecis icin curriculum tablosunun ilk satiri adaydir: `105-120 radius`, `max_step=520`; ayar sadece snapshot commit/push tamamlandiktan sonra uygulanmali.
+- Faz 2.2 `105-120 radius` kosusu `up2520` checkpoint'inde handoff olarak donduruldu. `up2162-up2520` araligi `1951` episode icinde `%78.575` success verdi; tail degerleri `R20=%85`, `R50=%88`, `R100=%86`.
+- `up2580` ve ham log sonu `up2595` son durum olarak arsivlendi ama handoff secilmedi. `up2541-up2580` araligi `%66.038` success'e dustu; `125-130m` observed bandi `up2561-up2580` icinde `%14.286` success'e kadar indi. `up2595` tail biraz toparlansa da `R100=%74` ve hard-bin tail `%57.6` ile `up2520` seviyesine ulasamadi; ayrica `up2595` icin model checkpoint yok.
+- Drift analizi, cokusun agirlikla yuksek thrust / aci kapanmama kombinasyonundan geldigini gosterdi. Collapse penceresinde `125-130m` near_miss ortalama `final_theta=90.13deg`, `mean_a0=-0.217`, `thrust_gate=91.29`; low_agl ortalama `mean_a0=0.558`, `thrust_gate=401.54`.
+- Sonraki ara faz icin plan: `110-120 radius`, `max_step=520`, handoff `up2520`. Bu ara faz 105-110 kolay bandini kaldirip observed `120-130m` araligini calistiracak; `120-140` ana fazina dogrudan gecilmemeli.
+- Ara faz reward hesabi: thrust gate baslangici `theta_start=50`, hedef thrust `target_norm=-0.50`, `gain=2.05`, `dist_scale=28`, `dist_floor=0.70` onerilir. Replay hesabinda bu degisim success episode'larda yaklasik `+0..+3` ek ceza, near_miss'te `+22..+50`, low_agl/collision'da `+140..+160` ek ceza uretti.
 
 ## Graph Output Standard
 
@@ -97,21 +102,17 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 
 ### Reset Radius Phase Plan
 
-- Ust grafik: radius binlerine gore success rate barlari
-- Alt grafik: faz bantlari ve mini success-rate cizgisi
-- Her bin uzerinde su bilgiler yazilmali:
-  - `% success`
-  - `n`
-  - `S`
-  - `WW`
-  - `HA`
-  - `LA`
-- Ayrica grafikte kucuk bir aciklama kutusu olmali:
-  - `n = toplam episode`
-  - `S = success`
-  - `WW = wrong_way`
-  - `HA = high_altitude`
-  - `LA = low_agl`
+- Standart PNG ciktisi `scripts/plot_phase_report.py` icindeki `plot_radius_phase_plan` fonksiyonundan uretilir.
+- Ust grafik: observed `start_distance` binlerine gore success rate barlari.
+- Alt grafik: sol tarafta satir isimleri olacak sekilde uc serit kullanmali: `configured phase`, `observed bins`, `bin SR`.
+- Alt grafik: mevcut configured faz radius bandi, observed `start_distance` bin kutulari ve observed bin success-rate cizgisi.
+- Faz etiketi `surum - faz` formatinda olmali; `active/current/proposed` veya yalniz `P1/P2` gibi baglamsiz etiketler kullanilmamali.
+- Curriculum CSV'deki `planned_phase` degerleri `P1/P2` olarak gosterilmemeli; bunlar proje faz numarasi degil, sadece grid-search satir numarasidir.
+- Gelecek/oneri faz bantlari varsayilan olarak cizilmemeli; sadece mevcut configured faz ve observed aralik gosterilmeli.
+- Her bin uzerinde `% success`, `n`, `S`, `NM`, `WW`, `LA` bilgileri yazilmali.
+- Alt grafikte de her bin icin `% success`, `n`, `S` degerleri gorunmeli.
+- Alt grafikte observed bin kutulari radius araligiyla etiketlenmeli (`115-120m` gibi); mavi kutularin faz degil observed `start_distance` binleri oldugu grafikte yazmali.
+- Aciklama kutusu grafigin saginda sabit durmali ve icerigi kapatmamalidir: `n = total episodes`, `S = success`, `NM = near_miss`, `WW = wrong_way`, `LA = low_agl`, `HA = high_altitude`, `TO = timeout`.
 
 ### General Rule
 
@@ -166,9 +167,9 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 ### Next Candidate Row
 
 - Use this only after the current phase is evaluated with live logs.
-- Radius: `105-120`, `max_step=520`.
-- `theta_progress_gain=1.665`, `alpha_beta_gain=0.465`, `axis_error_penalty_gain=0.28`, `angle_focus_gain=1.87`.
-- `turn_toward_gain=0.384`, `action_alignment_gain=0.060`, `reverse_penalty_gain=0.405`, `near_success_gain=0.25`.
+- Radius: `110-120`, `max_step=520`, handoff `up2520`.
+- `theta_progress_gain=1.75`, `alpha_beta_gain=0.465`, `axis_error_penalty_gain=0.28`, `angle_focus_gain=2.05`.
+- `turn_toward_gain=0.40`, `action_alignment_gain=0.075`, `reverse_penalty_gain=0.45`, `near_success_gain=0.30`.
 - `MIN_THRUST=690`, `MAX_THRUST=850`.
-- `thrust_gate_gain=1.65`, `thrust_gate_target_norm=-0.45`, `thrust_gate_theta_start_deg=55`, `thrust_gate_theta_span_deg=15`.
-- `thrust_gate_distance_scale=30`, `thrust_gate_distance_floor=0.65`.
+- `thrust_gate_gain=2.05`, `thrust_gate_target_norm=-0.50`, `thrust_gate_theta_start_deg=50`, `thrust_gate_theta_span_deg=15`.
+- `thrust_gate_distance_scale=28`, `thrust_gate_distance_floor=0.70`.

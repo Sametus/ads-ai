@@ -1,0 +1,26 @@
+v8.7.6 - Faz 2.2 handoff | up 2162-2520
+
+Generated from completed updates only.
+phase_name: v8_7_phase_2_2_radius_105_120_reward_grid
+update_range: 2162-2520
+episodes: 1951
+success_rate: 78.575%
+rolling_tail: R20=85.000% R50=88.000% R100=86.000%
+done_counts: {'success': 1533, 'near_miss': 354, 'low_agl': 42, 'wrong_way': 19, 'timeout': 2, 'high_altitude': 1}
+start_distance_range: 115.248-129.895 m
+
+Radius bins:
+- 115-120m: n=628, success=553, SR=88.06%
+- 120-125m: n=683, success=578, SR=84.63%
+- 125-130m: n=640, success=402, SR=62.81%
+
+Outputs:
+- phase_2_2_handoff_up2520_success_rate.png
+- phase_2_2_handoff_up2520_success_rug.png
+- phase_2_2_handoff_up2520_reset_outcome_polar.png
+- phase_2_2_handoff_up2520_hit_location_polar.png
+- phase_2_2_handoff_up2520_reset_radius_distribution.png
+- phase_2_2_handoff_up2520_reset_radius_phase_plan.png
+- phase_2_2_handoff_up2520_episode_diagnostics.csv
+- phase_2_2_handoff_up2520_reset_radius_bins.csv
+- phase_2_2_handoff_up2520_summary.txt
