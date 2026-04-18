@@ -140,6 +140,9 @@ public class Env : MonoBehaviour
     public float thrustScale = 1f;
     public float torqueScale = 1.45f;
     public float rollTorqueScale = 3.2f;
+    public float lowAltitudeTurnDampStartAgl = 0.5f;
+    public float lowAltitudeTurnDampFullAgl = 18f;
+    public float lowAltitudeMinTurnScale = 0.15f;
 
     [Header("Guidance Stabilization")]
     public float targetHeightOffset = 0f;
@@ -326,7 +329,11 @@ public class Env : MonoBehaviour
         float forwardUpDot = Vector3.Dot(rocketPoint.forward.normalized, upRefWorld);
         float betaValidity = ComputeBetaValidity(forwardUpDot);
 
-        Vector3 commandTurnWorld = (rightRefWorld * currentVerticalCmd) + (upRefWorld * (currentHorizontalCmd * betaValidity));
+        float lowAltitudeTurnScale = ComputeLowAltitudeTurnScale();
+        float safeVerticalCmd = currentVerticalCmd * lowAltitudeTurnScale;
+        float safeHorizontalCmd = currentHorizontalCmd * lowAltitudeTurnScale;
+
+        Vector3 commandTurnWorld = (rightRefWorld * safeVerticalCmd) + (upRefWorld * (safeHorizontalCmd * betaValidity));
         Vector3 commandTurnLocal = rocketRb.transform.InverseTransformDirection(commandTurnWorld);
         Vector3 localAngVel = rocketPoint.InverseTransformDirection(rocketRb.angularVelocity);
         float rollErrorRad = ComputeRollErrorRad(upRefWorld, rocketPoint.forward);
@@ -443,6 +450,23 @@ public class Env : MonoBehaviour
 
         grounded = false;
         return groundRayMax;
+    }
+
+    private float ReadAGLForControl()
+    {
+        Vector3 origin = rocketRb.worldCenterOfMass;
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, groundRayMax, groundMask, QueryTriggerInteraction.Ignore))
+            return hit.distance;
+
+        return groundRayMax;
+    }
+
+    private float ComputeLowAltitudeTurnScale()
+    {
+        float agl = ReadAGLForControl();
+        float fullAgl = Mathf.Max(lowAltitudeTurnDampFullAgl, lowAltitudeTurnDampStartAgl + 0.01f);
+        float t = Mathf.InverseLerp(lowAltitudeTurnDampStartAgl, fullAgl, agl);
+        return Mathf.Lerp(lowAltitudeMinTurnScale, 1f, Mathf.Clamp01(t));
     }
 
     private static float[] ToFloatArray(Vector3 value)

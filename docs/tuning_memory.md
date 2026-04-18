@@ -173,3 +173,22 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 - `MIN_THRUST=690`, `MAX_THRUST=850`.
 - `thrust_gate_gain=2.05`, `thrust_gate_target_norm=-0.50`, `thrust_gate_theta_start_deg=50`, `thrust_gate_theta_span_deg=15`.
 - `thrust_gate_distance_scale=28`, `thrust_gate_distance_floor=0.70`.
+
+## V8 Closure Decision
+
+- V8 was closed at `v8.7.7` as an unsuccessful architecture after the final `v8_7_phase_2_3_radius_105_120_safe_climb_guidance` retry.
+- Final V8 snapshot: `archives/v8_failed_final_up2514/`.
+- Final retry used `up2500` as source checkpoint and logged `update 2502-2514`, `50` episodes.
+- Outcome: `success=4/50 (%8.0)`, `near_miss=28/50 (%56.0)`, `wrong_way=9/50 (%18.0)`, `low_agl=7/50 (%14.0)`.
+- Diagnosis: reward-only tuning could not stabilize direction control. The policy reached the target neighborhood but failed to keep nose alignment, and later PPO updates drifted toward high-thrust / repeated steering patterns.
+- Future documentation should describe V8 as a reward-heavy, sign-based action architecture that was abandoned in favor of V9 clock-guidance.
+
+## V9 Versioning Rule
+
+- V9 starts a new state/action architecture, not a continuation of V8 checkpoints.
+- Version family format:
+  - Base architecture: `v9.0`.
+  - First phase under this architecture: `v9.0.0`.
+  - Second phase under the same architecture: `v9.0.1`.
+  - If phases show a jump-level architecture or curriculum improvement, bump to `v9.1`.
+- V9 should use clock-guidance state/action naming in docs and logs.
