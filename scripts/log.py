@@ -42,19 +42,30 @@ STEP_HEADER = [
     "alignment",
     "closing_speed",
     "forward_up_dot",
+    "clock_validity",
     "agl",
     "alt_error",
     "grounded_flag",
     "ang_vel_mag",
-    "rel_vel_right",
-    "rel_vel_up",
+    "target_clock_12",
+    "target_clock_6",
+    "target_clock_3",
+    "target_clock_9",
+    "rel_vel_clock_12",
+    "rel_vel_clock_6",
+    "rel_vel_clock_3",
+    "rel_vel_clock_9",
     "rel_vel_forward",
-    "turn_rate_vertical",
-    "turn_rate_horizontal",
+    "turn_rate_clock_12",
+    "turn_rate_clock_6",
+    "turn_rate_clock_3",
+    "turn_rate_clock_9",
     "turn_rate_roll",
     "thrust",
-    "vertical_cmd",
-    "horizontal_cmd",
+    "clock_12_cmd",
+    "clock_6_cmd",
+    "clock_3_cmd",
+    "clock_9_cmd",
 ] + PYTHON_STEP_LOG_KEYS + REWARD_BREAKDOWN_KEYS + TELEMETRY_FLAT_KEYS
 
 EPISODE_HEADER = [
@@ -222,7 +233,10 @@ def print_step_console(update_id, info):
         f"AltE: {info['alt_error']:>6.2f} | "
         f"Aln: {info.get('alignment', 0.0):>5.2f} | "
         f"R: {info['reward']:>7.3f} | "
-        f"Act: [{info['thrust']:.2f}, {info['vertical_cmd']:.2f}, {info['horizontal_cmd']:.2f}]"
+        f"TC: [{info.get('target_clock_12', 0.0):.2f},{info.get('target_clock_6', 0.0):.2f},"
+        f"{info.get('target_clock_3', 0.0):.2f},{info.get('target_clock_9', 0.0):.2f}] | "
+        f"Act: [{info['thrust']:.2f}, {info['clock_12_cmd']:.2f}, {info['clock_6_cmd']:.2f}, "
+        f"{info['clock_3_cmd']:.2f}, {info['clock_9_cmd']:.2f}]"
     )
     print(msg, flush=True)
 

@@ -1,0 +1,29 @@
+v9.0.0 - Phase 1 Clock Guidance Failed | up 1-100
+
+Generated from completed updates only.
+phase_name: v9_0_0_phase_1_clock_guidance_140_160
+update_range: 1-100
+episodes: 310
+success_rate: 0.000%
+rolling_tail: R20=0.000% R50=0.000% R100=0.000%
+done_counts: {'high_altitude': 240, 'near_miss': 70}
+start_distance_range: 148.147-167.132 m
+
+Radius bins:
+- 145-150m: n=33, success=0, SR=0.00%
+- 150-155m: n=71, success=0, SR=0.00%
+- 155-160m: n=76, success=0, SR=0.00%
+- 160-165m: n=93, success=0, SR=0.00%
+- 165-170m: n=37, success=0, SR=0.00%
+
+Outputs:
+- v9_0_0_failed_up100_success_rate.png
+- v9_0_0_failed_up100_success_rug.png
+- v9_0_0_failed_up100_reset_outcome_polar.png
+- v9_0_0_failed_up100_hit_location_polar.png
+- v9_0_0_failed_up100_reset_radius_distribution.png
+- v9_0_0_failed_up100_reset_radius_phase_plan.png
+- v9_0_0_failed_up100_clock_action_alignment.png
+- v9_0_0_failed_up100_episode_diagnostics.csv
+- v9_0_0_failed_up100_reset_radius_bins.csv
+- v9_0_0_failed_up100_summary.txt

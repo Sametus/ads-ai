@@ -447,3 +447,27 @@
 > - **Failure Diagnosis**: Basarisizligin ana nedeni terminal ceza buyuklugu degil, yon temsilidir. Roket hedef yakinine ulasabildigi halde burun acisini koruyamadi (`near_miss` ortalama final theta yaklasik `77deg`) ve PPO update'leri yuksek-thrust / tekrar eden steering moduna kayarak `low_agl` ve `wrong_way` pattern'lerini yeniden uretti.
 > - **Artifact Archiving**: `archives/v8_failed_final_up2514/` altina final V8 episode/update loglari, sikistirilmis step log snapshot'i ve kaynak `up2500` checkpoint'i eklendi.
 > - **Next Architecture Decision**: V9, sign-based `vertical_cmd/horizontal_cmd` yerine clock-guidance state/action temsiline gececek. Action seti `thrust + clock_12/clock_6/clock_3/clock_9` kanallari olacak; success mesafesi gevsek `12-15m` bandindan `10m` hedefe cekilecek.
+
+# v9.0 sürüm ailesi
+
+> ## v9.0.0 - Phase 1 Clock-Guidance Training Prep
+>
+> - **Architecture Reset**: V9, V8 checkpoint'leri ile uyumlu olmayan yeni state/action sozlesmesi baslatir. Bu nedenle model prefix'i `ppo_v9_model` / `ppo_v9_state` olarak ayrildi ve egitim sifirdan baslayacak.
+> - **State Redesign**: Roket burnu etrafinda gravity referansli clock frame kuruldu. State'e `target_clock_12/6/3/9`, `rel_vel_clock_12/6/3/9`, `turn_rate_clock_12/6/3/9`, `clock_validity` ve clock telemetry alanlari eklendi.
+> - **Action Redesign**: Eski `vertical_cmd/horizontal_cmd` yerine `thrust + clock_12_cmd + clock_6_cmd + clock_3_cmd + clock_9_cmd` kullanilir. Zıt clock kanallari Unity tarafinda bileşkeye cevrilir ve roket burnu etrafindaki clock frame uzerinden torque uygulanir.
+> - **Reward Redesign**: Clock action alignment, wrong-channel penalty ve coactivation penalty eklendi. Boylece hedef hangi clock kanalindaysa modelin ayni kanali acmasi, ters kanali ve zit coactivation'i azaltmasi beklenir.
+> - **Curriculum Reset**: V9 Phase 1 `140-160m` radius ile baslar. Ilk run sonrasi heading offset `±5deg` olarak daraltildi ve `0deg` dislandi; hedef tam uzerden gecmeyecek ama ilk clock-guidance denemesi icin daha okunabilir olacak.
+> - **Success Tightening**: Success mesafesi `10m`, alignment sarti `0.90`, success reward `260` olarak ayarlandi.
+> - **Roll Suppression Tuning**: Rocket roll hareketi hard-lock edilmeden daha guclu bastirildi. Scene ve `Env.cs` icinde `rollTorqueScale=3.6`, `rollStabilizationGain=22`, `rollDampingGain=12`, `maxRollCorrection=5.25` olarak senkronlandi.
+> - **Analysis Tooling**: Standart PNG ve Plotly faz raporlarina V9 `clock_action_alignment` grafigi eklendi. Bu grafik target clock kanallari ile action clock kanallarini, dominant kanal eslesmesini ve clock reward terimlerini update bazinda izler.
+> - **Repo Cleanup**: Eski hard-coded `plot_success.py`, gecici `_live.py`, Python `__pycache__` ve takip edilmeyen eski failed-run arsivleri temizlendi; V8 final arsivi korundu.
+> - **Versioning Rule**: Bu faz `v9.0.0` olarak adlandirilir. Ayni mimaride sonraki fazlar `v9.0.1`, `v9.0.2` seklinde ilerler; fazlarda sıcrama niteliginde mimari/curriculum degisimi olursa `v9.1` ailesine gecilir.
+
+> ## v9.0.1 - V9 Continuous Clock-Channel Failed Snapshot
+>
+> - **Run Closure**: V9 continuous clock-channel mimarisi `up100` checkpoint'inde basarisiz olarak kapatildi. Snapshot `archives/v9_0_0_failed_up100/` altina alindi; statik PNG, Plotly HTML raporlari, episode/update loglari, parcali step trace ve `up100` model/state eklendi.
+> - **Observed Outcome**: `update 1-100` araliginda `310` episode tamamlandi. Success `0/310` (`%0.0`), near_miss `70/310` (`%22.58`), high_altitude `240/310` (`%77.42`) olarak olculdu. Son `50` episode icinde `12` near_miss ve `38` high_altitude goruldu.
+> - **Failure Diagnosis**: Heading offset daraltildiktan sonra roket hedef koridoruna daha sik girdi, ancak burnu hedefe cevirmedi. Ortalama final theta `137.12deg`, final alignment `-0.696`, final closing speed `-29.34m/s` seviyesinde kaldi.
+> - **Action Diagnosis**: Target/action dominant clock-channel eslesmesi rastgele dort kanal seviyesinde kaldi (`~%25`). Continuous `clock_12/6/3/9` kanallari zit kanal coactivation'ina izin verdigi icin net manevra yonu sikca sulandi.
+> - **Near-Miss Decision**: `near_miss` terminali tuzak olarak degerlendirildi. Yakindan ama kotu aciyla gecen episode'u erken kapattigi icin modelin recovery ve aci kapatma ogrenmesini kesiyor. V10'da terminal olmayacak, sadece diagnostic/log sinyali olarak kalacak.
+> - **Next Architecture Decision**: Action turu degisecegi icin sonraki deneme `v10.0.0` olarak baslatilacak. V10, continuous thrust ile discrete clock-direction steering'i hibrit PPO policy olarak kullanacak.

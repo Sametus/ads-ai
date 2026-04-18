@@ -153,7 +153,8 @@ if __name__ == "__main__":
                         f"AltE={info['alt_error']:.2f} | "
                         f"R={reward:.3f} | "
                         f"V={value:.3f} | "
-                        f"Act=[{info['thrust']:.2f}, {info['vertical_cmd']:.2f}, {info['horizontal_cmd']:.2f}]"
+                        f"Act=[{info['thrust']:.2f}, {info['clock_12_cmd']:.2f}, {info['clock_6_cmd']:.2f}, "
+                        f"{info['clock_3_cmd']:.2f}, {info['clock_9_cmd']:.2f}]"
                     )
 
                 state = next_state

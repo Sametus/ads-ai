@@ -4,7 +4,7 @@ using UnityEngine;
 // =============================================================================
 // PYTHON STATE VEKTORI SOZLESMESI  (env.py - parse_state + normalize_state)
 // =============================================================================
-// Unity tarafinin gonderecegi alanlar ile Python'da kurulan 14 boyutlu state:
+// Unity tarafinin gonderecegi alanlar ile Python'da kurulan V9 clock-guidance state:
 //
 //  Index  | Python state adi | JSON alani
 //  -------|------------------|--------------------------------------
@@ -12,12 +12,16 @@ using UnityEngine;
 //   1     | theta_rad            | states.theta_rad
 //   2     | alpha_rad            | states.alpha_rad
 //   3     | beta_rad             | states.beta_rad
-//   4     | closing_speed        | states.closing_speed
-//   5-7   | rel_vel_ref_*        | states.rel_vel_ref[0..2]
-//   8-10  | turn_rate_ref_*      | states.turn_rate_ref[0..2]
-//   11    | forward_up_dot       | states.forward_up_dot
-//   12    | agl                  | states.agl
-//   13    | alt_error            | states.alt_error
+//   4-7   | target_clock_*       | states.target_clock[0..3] (12,6,3,9)
+//   8     | closing_speed        | states.closing_speed
+//   9-12  | rel_vel_clock_*      | states.rel_vel_clock[0..3] (12,6,3,9)
+//   13    | rel_vel_forward      | states.rel_vel_forward
+//   14-17 | turn_rate_clock_*    | states.turn_rate_clock[0..3] (12,6,3,9)
+//   18    | turn_rate_roll       | states.turn_rate_roll
+//   19    | clock_validity       | states.clock_validity
+//   20    | forward_up_dot       | states.forward_up_dot
+//   21    | agl                  | states.agl
+//   22    | alt_error            | states.alt_error
 //
 // NOT: beta_rad, roket burnu gravity-up eksenine cok yaklastiginda
 //      kararlilik icin fade edilir.
@@ -42,6 +46,13 @@ public class OutgoingStateData
     public float alpha_rad;
     public float beta_rad;
     public float closing_speed;
+
+    public float[] target_clock = new float[4];
+    public float[] rel_vel_clock = new float[4];
+    public float rel_vel_forward;
+    public float[] turn_rate_clock = new float[4];
+    public float turn_rate_roll;
+    public float clock_validity;
 
     public float[] rel_vel_ref = new float[3];
     public float[] turn_rate_ref = new float[3];
@@ -92,14 +103,26 @@ public class OutgoingTelemetryData
     public float[] guidance_up_local = new float[3];
     public float[] guidance_right_local = new float[3];
     public float[] guidance_forward_local = new float[3];
+    public float[] clock_12_world = new float[3];
+    public float[] clock_3_world = new float[3];
+    public float[] clock_forward_world = new float[3];
+    public float[] clock_12_local = new float[3];
+    public float[] clock_3_local = new float[3];
+    public float[] clock_forward_local = new float[3];
     public float[] rel_vel_guidance = new float[3];
+    public float[] rel_vel_clock_signed = new float[3];
     public float[] rocket_ang_vel_guidance = new float[3];
+    public float[] rocket_turn_clock_signed = new float[3];
     public float[] applied_turn_world = new float[3];
     public float[] applied_turn_local = new float[3];
 
     public float target_speed;
     public float roll_error_deg;
     public float beta_validity;
+    public float clock_validity;
+    public float target_clock_angle_deg;
+    public float action_clock_angle_deg;
+    public float action_clock_mag;
 }
 
 [Serializable]
@@ -139,16 +162,16 @@ public class Env : MonoBehaviour
     [Header("Action Scales")]
     public float thrustScale = 1f;
     public float torqueScale = 1.45f;
-    public float rollTorqueScale = 3.2f;
+    public float rollTorqueScale = 3.6f;
     public float lowAltitudeTurnDampStartAgl = 0.5f;
     public float lowAltitudeTurnDampFullAgl = 18f;
     public float lowAltitudeMinTurnScale = 0.15f;
 
     [Header("Guidance Stabilization")]
     public float targetHeightOffset = 0f;
-    public float rollStabilizationGain = 18f;
-    public float rollDampingGain = 9f;
-    public float maxRollCorrection = 4.5f;
+    public float rollStabilizationGain = 22f;
+    public float rollDampingGain = 12f;
+    public float maxRollCorrection = 5.25f;
     public float betaFadeStartAbsForwardUp = 0.80f;
     public float betaFadeEndAbsForwardUp = 0.95f;
     public float betaValidityFloor = 0.25f;
@@ -180,8 +203,10 @@ public class Env : MonoBehaviour
     private int localStepCount = 0;
 
     private float currentThrust = 0f;
-    private float currentVerticalCmd = 0f;
-    private float currentHorizontalCmd = 0f;
+    private float currentClock12Cmd = 0f;
+    private float currentClock6Cmd = 0f;
+    private float currentClock3Cmd = 0f;
+    private float currentClock9Cmd = 0f;
 
     private float fixedTargetY;
     private float fixedTargetRotX;
@@ -287,7 +312,7 @@ public class Env : MonoBehaviour
 
         if (packet.type == "action")
         {
-            if (packet.values == null || packet.values.Length < 3)
+            if (packet.values == null || packet.values.Length < 5)
             {
                 Debug.LogError("[Env] Action paketi gecersiz.");
                 return;
@@ -304,8 +329,10 @@ public class Env : MonoBehaviour
     private void ReadAction(float[] actionValues)
     {
         currentThrust = actionValues[0];
-        currentVerticalCmd = actionValues[1];
-        currentHorizontalCmd = actionValues[2];
+        currentClock12Cmd = Mathf.Max(0f, actionValues[1]);
+        currentClock6Cmd = Mathf.Max(0f, actionValues[2]);
+        currentClock3Cmd = Mathf.Max(0f, actionValues[3]);
+        currentClock9Cmd = Mathf.Max(0f, actionValues[4]);
     }
 
     private void StepOnce()
@@ -326,14 +353,16 @@ public class Env : MonoBehaviour
         rocketRb.AddRelativeForce(Vector3.forward * currentThrust * thrustScale, ForceMode.Force);
 
         BuildGuidanceFrame(targetPoint.position - rocketPoint.position, out Vector3 upRefWorld, out Vector3 rightRefWorld, out Vector3 forwardRefWorld);
-        float forwardUpDot = Vector3.Dot(rocketPoint.forward.normalized, upRefWorld);
+        BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out Vector3 clockForwardWorld, out _);
+        float forwardUpDot = Vector3.Dot(clockForwardWorld, upRefWorld);
         float betaValidity = ComputeBetaValidity(forwardUpDot);
 
         float lowAltitudeTurnScale = ComputeLowAltitudeTurnScale();
-        float safeVerticalCmd = currentVerticalCmd * lowAltitudeTurnScale;
-        float safeHorizontalCmd = currentHorizontalCmd * lowAltitudeTurnScale;
+        float clock12Net = (currentClock12Cmd - currentClock6Cmd) * lowAltitudeTurnScale;
+        float clock3Net = (currentClock3Cmd - currentClock9Cmd) * lowAltitudeTurnScale;
+        Vector3 desiredClockTurnWorld = (clock12World * clock12Net) + (clock3World * clock3Net);
 
-        Vector3 commandTurnWorld = (rightRefWorld * safeVerticalCmd) + (upRefWorld * (safeHorizontalCmd * betaValidity));
+        Vector3 commandTurnWorld = Vector3.Cross(clockForwardWorld, desiredClockTurnWorld) * betaValidity;
         Vector3 commandTurnLocal = rocketRb.transform.InverseTransformDirection(commandTurnWorld);
         Vector3 localAngVel = rocketPoint.InverseTransformDirection(rocketRb.angularVelocity);
         float rollErrorRad = ComputeRollErrorRad(upRefWorld, rocketPoint.forward);
@@ -409,8 +438,10 @@ public class Env : MonoBehaviour
         rocketRb.WakeUp();
 
         currentThrust = 0f;
-        currentVerticalCmd = 0f;
-        currentHorizontalCmd = 0f;
+        currentClock12Cmd = 0f;
+        currentClock6Cmd = 0f;
+        currentClock3Cmd = 0f;
+        currentClock9Cmd = 0f;
 
         float headingRad = targetRotZ * Mathf.Deg2Rad;
         targetMoveDir = new Vector3(-Mathf.Sin(headingRad), 0f, -Mathf.Cos(headingRad)).normalized;
@@ -537,6 +568,37 @@ public class Env : MonoBehaviour
         cachedGuidanceForward = forwardRefWorld;
     }
 
+    private void BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out Vector3 clockForwardWorld, out float clockValidity)
+    {
+        Vector3 gravityWorld = Physics.gravity;
+        Vector3 gravityUpWorld = gravityWorld.sqrMagnitude > 1e-8f ? (-gravityWorld).normalized : Vector3.up;
+
+        clockForwardWorld = rocketPoint.forward.sqrMagnitude > 1e-8f
+            ? rocketPoint.forward.normalized
+            : Vector3.forward;
+
+        Vector3 projectedGravityUp = Vector3.ProjectOnPlane(gravityUpWorld, clockForwardWorld);
+        clockValidity = Mathf.Clamp01(projectedGravityUp.magnitude);
+
+        if (projectedGravityUp.sqrMagnitude > 1e-8f)
+            clock12World = projectedGravityUp.normalized;
+        else
+            clock12World = ProjectOnPlaneNormalized(rocketPoint.up, clockForwardWorld);
+
+        if (clock12World.sqrMagnitude <= 1e-8f)
+            clock12World = ProjectOnPlaneNormalized(Vector3.up, clockForwardWorld);
+
+        if (clock12World.sqrMagnitude <= 1e-8f)
+            clock12World = Vector3.up;
+
+        clock3World = Vector3.Cross(clock12World, clockForwardWorld);
+        if (clock3World.sqrMagnitude <= 1e-8f)
+            clock3World = rocketPoint.right;
+
+        clock3World.Normalize();
+        clock12World = Vector3.Cross(clockForwardWorld, clock3World).normalized;
+    }
+
     private float ComputeRollErrorRad(Vector3 upRefWorld, Vector3 forwardAxisWorld)
     {
         Vector3 refUpOnPlane = Vector3.ProjectOnPlane(upRefWorld, forwardAxisWorld);
@@ -597,8 +659,33 @@ public class Env : MonoBehaviour
         Vector3 targetAngVelLocal = rocketPoint.InverseTransformDirection(targetAngVelWorld);
         Vector3 gravityLocal = rocketPoint.InverseTransformDirection(gravityWorld);
         BuildGuidanceFrame(relPosWorld, out Vector3 upRefWorld, out Vector3 rightRefWorld, out Vector3 forwardRefWorld);
+        BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out Vector3 clockForwardWorld, out float clockValidity);
         float forwardUpDot = Vector3.Dot(rocketForwardWorld, upRefWorld);
         float betaValidity = ComputeBetaValidity(forwardUpDot);
+
+        Vector3 relDirClockPlane = Vector3.ProjectOnPlane(relDirWorld, clockForwardWorld);
+        Vector3 lateralClockDir = relDirClockPlane.sqrMagnitude > 1e-8f ? relDirClockPlane.normalized : Vector3.zero;
+        float targetClock12Signed = Vector3.Dot(lateralClockDir, clock12World);
+        float targetClock3Signed = Vector3.Dot(lateralClockDir, clock3World);
+        float targetClockAngleDeg = lateralClockDir.sqrMagnitude > 1e-8f
+            ? Mathf.Atan2(targetClock3Signed, targetClock12Signed) * Mathf.Rad2Deg
+            : 0f;
+
+        float relVelClock12Signed = Vector3.Dot(relVelWorld, clock12World);
+        float relVelClock3Signed = Vector3.Dot(relVelWorld, clock3World);
+        float relVelForwardClock = Vector3.Dot(relVelWorld, clockForwardWorld);
+
+        Vector3 noseTurnWorld = Vector3.Cross(rocketAngVelWorld, clockForwardWorld);
+        float turnClock12Signed = Vector3.Dot(noseTurnWorld, clock12World);
+        float turnClock3Signed = Vector3.Dot(noseTurnWorld, clock3World);
+        float turnRateRoll = Vector3.Dot(rocketAngVelWorld, clockForwardWorld);
+
+        float actionClock12Net = currentClock12Cmd - currentClock6Cmd;
+        float actionClock3Net = currentClock3Cmd - currentClock9Cmd;
+        float actionClockMag = Mathf.Sqrt((actionClock12Net * actionClock12Net) + (actionClock3Net * actionClock3Net));
+        float actionClockAngleDeg = actionClockMag > 1e-6f
+            ? Mathf.Atan2(actionClock3Net, actionClock12Net) * Mathf.Rad2Deg
+            : 0f;
 
         Vector3 relDirTop = Vector3.ProjectOnPlane(relDirWorld, upRefWorld);
         if (relDirTop.sqrMagnitude > 1e-8f)
@@ -650,12 +737,33 @@ public class Env : MonoBehaviour
         Vector3 guidanceUpLocal = rocketRb.transform.InverseTransformDirection(upRefWorld);
         Vector3 guidanceRightLocal = rocketRb.transform.InverseTransformDirection(rightRefWorld);
         Vector3 guidanceForwardLocal = rocketRb.transform.InverseTransformDirection(forwardRefWorld);
+        Vector3 clock12Local = rocketRb.transform.InverseTransformDirection(clock12World);
+        Vector3 clock3Local = rocketRb.transform.InverseTransformDirection(clock3World);
+        Vector3 clockForwardLocal = rocketRb.transform.InverseTransformDirection(clockForwardWorld);
 
         s.distance = distance;
         s.theta_rad = thetaRad;
         s.alpha_rad = alphaRad;
         s.beta_rad = betaRad;
         s.closing_speed = distance > 1e-6f ? -Vector3.Dot(relVelWorld, relDirWorld) : 0f;
+
+        s.target_clock[0] = Mathf.Max(0f, targetClock12Signed);
+        s.target_clock[1] = Mathf.Max(0f, -targetClock12Signed);
+        s.target_clock[2] = Mathf.Max(0f, targetClock3Signed);
+        s.target_clock[3] = Mathf.Max(0f, -targetClock3Signed);
+
+        s.rel_vel_clock[0] = Mathf.Max(0f, relVelClock12Signed);
+        s.rel_vel_clock[1] = Mathf.Max(0f, -relVelClock12Signed);
+        s.rel_vel_clock[2] = Mathf.Max(0f, relVelClock3Signed);
+        s.rel_vel_clock[3] = Mathf.Max(0f, -relVelClock3Signed);
+        s.rel_vel_forward = relVelForwardClock;
+
+        s.turn_rate_clock[0] = Mathf.Max(0f, turnClock12Signed);
+        s.turn_rate_clock[1] = Mathf.Max(0f, -turnClock12Signed);
+        s.turn_rate_clock[2] = Mathf.Max(0f, turnClock3Signed);
+        s.turn_rate_clock[3] = Mathf.Max(0f, -turnClock3Signed);
+        s.turn_rate_roll = turnRateRoll;
+        s.clock_validity = clockValidity;
 
         s.rel_vel_ref[0] = relVelGuidance.x;
         s.rel_vel_ref[1] = relVelGuidance.y;
@@ -708,13 +816,25 @@ public class Env : MonoBehaviour
         telemetry.guidance_up_local = ToFloatArray(guidanceUpLocal);
         telemetry.guidance_right_local = ToFloatArray(guidanceRightLocal);
         telemetry.guidance_forward_local = ToFloatArray(guidanceForwardLocal);
+        telemetry.clock_12_world = ToFloatArray(clock12World);
+        telemetry.clock_3_world = ToFloatArray(clock3World);
+        telemetry.clock_forward_world = ToFloatArray(clockForwardWorld);
+        telemetry.clock_12_local = ToFloatArray(clock12Local);
+        telemetry.clock_3_local = ToFloatArray(clock3Local);
+        telemetry.clock_forward_local = ToFloatArray(clockForwardLocal);
         telemetry.rel_vel_guidance = ToFloatArray(relVelGuidance);
+        telemetry.rel_vel_clock_signed = ToFloatArray(new Vector3(relVelClock12Signed, relVelClock3Signed, relVelForwardClock));
         telemetry.rocket_ang_vel_guidance = ToFloatArray(rocketAngVelGuidance);
+        telemetry.rocket_turn_clock_signed = ToFloatArray(new Vector3(turnClock12Signed, turnClock3Signed, turnRateRoll));
         telemetry.applied_turn_world = ToFloatArray(lastAppliedTurnWorld);
         telemetry.applied_turn_local = ToFloatArray(lastAppliedTurnLocal);
         telemetry.target_speed = targetSpeed;
         telemetry.roll_error_deg = rollErrorDeg;
         telemetry.beta_validity = betaValidity;
+        telemetry.clock_validity = clockValidity;
+        telemetry.target_clock_angle_deg = targetClockAngleDeg;
+        telemetry.action_clock_angle_deg = actionClockAngleDeg;
+        telemetry.action_clock_mag = actionClockMag;
 
         return new OutgoingPacket
         {

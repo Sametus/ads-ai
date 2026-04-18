@@ -12,6 +12,8 @@ from plotly.subplots import make_subplots
 from plot_phase_report import (
     OUTCOME_COLORS,
     OUTCOME_ORDER,
+    CLOCK_CHANNELS,
+    load_clock_alignment_report,
     load_reset_points,
     load_terminal_success_points,
     make_bins,
@@ -428,7 +430,24 @@ def plot_hit_location_polar(
     title: str,
 ) -> go.Figure:
     if terminal_points is None or terminal_points.empty:
-        raise ValueError("No terminal success points found.")
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No success hits in this phase window.",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font={"size": 14},
+        )
+        fig.update_layout(
+            polar={
+                "radialaxis": {"range": [0, 16], "title": "Hit distance from target (m)"},
+                "angularaxis": {"direction": "clockwise", "rotation": 0},
+            }
+        )
+        write_html(fig, path, title)
+        return fig
 
     success_meta = episodes.loc[
         episodes["done_reason"] == "success",
@@ -492,6 +511,170 @@ def plot_hit_location_polar(
     return fig
 
 
+def plot_clock_action_alignment(clock_report: pd.DataFrame | None, path: Path, title: str) -> go.Figure:
+    fig = make_subplots(
+        rows=4,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.09,
+        subplot_titles=(
+            "Target/action clock-vector alignment",
+            "Mean action output by clock channel",
+            "Mean target direction by clock channel",
+            "Clock reward terms and anti-pattern signals",
+        ),
+    )
+
+    if clock_report is None or clock_report.empty:
+        fig.add_annotation(
+            text=(
+                "No V9 clock columns were found in step_log.csv.<br>"
+                "This graph will populate after V9 training writes clock state/action logs."
+            ),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font={"size": 14},
+        )
+        write_html(fig, path, title)
+        return fig
+
+    x = clock_report["update_id"]
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=clock_report["clock_vector_cosine"],
+            mode="lines",
+            name="target/action vector cosine",
+            line={"color": "#111827", "width": 2.2},
+            hovertemplate="up=%{x}<br>cosine=%{y:.3f}<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=clock_report["clock_dominant_match"],
+            mode="lines",
+            name="dominant channel match",
+            line={"color": "#2563eb", "width": 2.0, "dash": "dot"},
+            hovertemplate="up=%{x}<br>match=%{y:.3f}<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+    fig.add_hline(y=0.0, line_color="#64748b", line_width=1, opacity=0.55, row=1, col=1)
+    fig.add_hline(y=0.75, line_color="#16a34a", line_width=1, line_dash="dash", opacity=0.75, row=1, col=1)
+
+    action_colors = {"12": "#16a34a", "6": "#ef4444", "3": "#2563eb", "9": "#f59e0b"}
+    for channel in CLOCK_CHANNELS:
+        col_name = f"clock_{channel}_cmd"
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=clock_report[col_name],
+                mode="lines",
+                name=col_name,
+                line={"color": action_colors[channel], "width": 1.8},
+                hovertemplate=f"up=%{{x}}<br>{col_name}=%{{y:.3f}}<extra></extra>",
+            ),
+            row=2,
+            col=1,
+        )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=clock_report["net_clock_cmd_mag"],
+            mode="lines",
+            name="net command magnitude",
+            line={"color": "#0f172a", "width": 2.0, "dash": "dash"},
+            hovertemplate="up=%{x}<br>net_cmd=%{y:.3f}<extra></extra>",
+        ),
+        row=2,
+        col=1,
+    )
+
+    for channel in CLOCK_CHANNELS:
+        col_name = f"target_clock_{channel}"
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=clock_report[col_name],
+                mode="lines",
+                name=col_name,
+                line={"color": action_colors[channel], "width": 1.8},
+                hovertemplate=f"up=%{{x}}<br>{col_name}=%{{y:.3f}}<extra></extra>",
+            ),
+            row=3,
+            col=1,
+        )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=clock_report["target_clock_mag"],
+            mode="lines",
+            name="target clock magnitude",
+            line={"color": "#0f172a", "width": 2.0, "dash": "dash"},
+            hovertemplate="up=%{x}<br>target_mag=%{y:.3f}<extra></extra>",
+        ),
+        row=3,
+        col=1,
+    )
+
+    reward_specs = [
+        ("reward_clock_action_alignment", "#16a34a", "solid"),
+        ("reward_clock_wrong_channel", "#ef4444", "solid"),
+        ("reward_clock_coactivation", "#f59e0b", "solid"),
+        ("clock_opposite_cmd", "#7c3aed", "dash"),
+        ("clock_coactivation", "#64748b", "dash"),
+    ]
+    for col_name, color, dash in reward_specs:
+        if col_name not in clock_report.columns or clock_report[col_name].isna().all():
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=clock_report[col_name],
+                mode="lines",
+                name=col_name,
+                line={"color": color, "width": 1.9, "dash": dash},
+                hovertemplate=f"up=%{{x}}<br>{col_name}=%{{y:.4f}}<extra></extra>",
+            ),
+            row=4,
+            col=1,
+        )
+
+    fig.update_yaxes(title_text="alignment", range=[-1.05, 1.05], row=1, col=1)
+    fig.update_yaxes(title_text="command", row=2, col=1)
+    fig.update_yaxes(title_text="target", row=3, col=1)
+    fig.update_yaxes(title_text="reward", row=4, col=1)
+    fig.update_xaxes(title_text="Update", row=4, col=1)
+    fig.update_layout(
+        height=980,
+        annotations=list(fig.layout.annotations)
+        + [
+            {
+                "text": (
+                    "Cosine near +1 means the net action points toward the target clock channel; "
+                    "below 0 means the action points away."
+                ),
+                "xref": "paper",
+                "yref": "paper",
+                "x": 1.0,
+                "y": -0.06,
+                "showarrow": False,
+                "xanchor": "right",
+                "font": {"size": 11, "color": "#475569"},
+            }
+        ],
+    )
+    write_html(fig, path, title)
+    return fig
+
+
 def write_dashboard(figs: list[tuple[str, go.Figure]], path: Path, title: str) -> None:
     body = [f"<html><head><meta charset='utf-8'><title>{title}</title></head><body>"]
     body.append(f"<h1>{title}</h1>")
@@ -527,6 +710,7 @@ def main() -> None:
     bin_df = radius_bins(episodes, bins)
     reset_points = load_reset_points(logs_dir, episodes, last_completed_update)
     terminal_points = load_terminal_success_points(logs_dir, episodes, last_completed_update)
+    clock_report = load_clock_alignment_report(logs_dir, args.start_update, last_completed_update)
 
     prefix = slugify(args.phase_slug)
     title = f"{args.phase_label} | up {int(episodes['update_id'].min())}-{last_completed_update}"
@@ -537,6 +721,7 @@ def main() -> None:
         "hit_location_polar": out_dir / f"{prefix}_plotly_hit_location_polar.html",
         "reset_radius_distribution": out_dir / f"{prefix}_plotly_reset_radius_distribution.html",
         "reset_radius_phase_plan": out_dir / f"{prefix}_plotly_reset_radius_phase_plan.html",
+        "clock_action_alignment": out_dir / f"{prefix}_plotly_clock_action_alignment.html",
         "dashboard": out_dir / f"{prefix}_plotly_dashboard.html",
     }
 
@@ -565,6 +750,14 @@ def main() -> None:
         (
             "Hit Location Polar",
             plot_hit_location_polar(episodes, terminal_points, outputs["hit_location_polar"], f"{title} | hit location polar"),
+        ),
+        (
+            "Clock Action Alignment",
+            plot_clock_action_alignment(
+                clock_report,
+                outputs["clock_action_alignment"],
+                f"{title} | clock action alignment",
+            ),
         ),
     ]
     write_dashboard(figs, outputs["dashboard"], f"{title} | Plotly dashboard")

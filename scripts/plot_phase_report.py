@@ -254,6 +254,166 @@ def load_terminal_success_points(
     return points
 
 
+CLOCK_REQUIRED_COLUMNS = [
+    "update_id",
+    "target_clock_12",
+    "target_clock_6",
+    "target_clock_3",
+    "target_clock_9",
+    "clock_12_cmd",
+    "clock_6_cmd",
+    "clock_3_cmd",
+    "clock_9_cmd",
+]
+
+CLOCK_OPTIONAL_COLUMNS = [
+    "episode_id",
+    "step_id",
+    "theta_deg",
+    "distance",
+    "clock_validity",
+    "action_clock_mag",
+    "target_clock_angle_deg",
+    "action_clock_angle_deg",
+    "reward_clock_action_alignment",
+    "reward_clock_wrong_channel",
+    "reward_clock_coactivation",
+]
+
+CLOCK_CHANNELS = ["12", "6", "3", "9"]
+
+
+def _numeric_column(frame: pd.DataFrame, col: str) -> pd.Series:
+    if col not in frame.columns:
+        return pd.Series(np.nan, index=frame.index, dtype=float)
+    return pd.to_numeric(frame[col], errors="coerce")
+
+
+def add_clock_alignment_metrics(frame: pd.DataFrame) -> pd.DataFrame:
+    work = frame.copy()
+    for col in CLOCK_REQUIRED_COLUMNS + CLOCK_OPTIONAL_COLUMNS:
+        if col in work.columns:
+            work[col] = pd.to_numeric(work[col], errors="coerce")
+        else:
+            work[col] = np.nan
+
+    target_12 = work["target_clock_12"].to_numpy(dtype=float)
+    target_6 = work["target_clock_6"].to_numpy(dtype=float)
+    target_3 = work["target_clock_3"].to_numpy(dtype=float)
+    target_9 = work["target_clock_9"].to_numpy(dtype=float)
+    cmd_12 = work["clock_12_cmd"].to_numpy(dtype=float)
+    cmd_6 = work["clock_6_cmd"].to_numpy(dtype=float)
+    cmd_3 = work["clock_3_cmd"].to_numpy(dtype=float)
+    cmd_9 = work["clock_9_cmd"].to_numpy(dtype=float)
+
+    target_x = target_3 - target_9
+    target_y = target_12 - target_6
+    action_x = cmd_3 - cmd_9
+    action_y = cmd_12 - cmd_6
+    target_mag = np.sqrt(np.square(target_x) + np.square(target_y))
+    action_mag = np.sqrt(np.square(action_x) + np.square(action_y))
+    denom = target_mag * action_mag
+    dot = target_x * action_x + target_y * action_y
+
+    work["clock_vector_cosine"] = np.where(denom > 1e-6, np.clip(dot / denom, -1.0, 1.0), np.nan)
+    work["clock_vector_error_deg"] = np.degrees(np.arccos(np.clip(work["clock_vector_cosine"], -1.0, 1.0)))
+    work["target_clock_mag"] = target_mag
+    work["net_clock_cmd_mag"] = action_mag
+    work["clock_opposite_cmd"] = (
+        target_12 * cmd_6
+        + target_6 * cmd_12
+        + target_3 * cmd_9
+        + target_9 * cmd_3
+    )
+    work["clock_coactivation"] = np.minimum(cmd_12, cmd_6) + np.minimum(cmd_3, cmd_9)
+
+    target_stack = np.column_stack([target_12, target_6, target_3, target_9])
+    action_stack = np.column_stack([cmd_12, cmd_6, cmd_3, cmd_9])
+    target_clean = np.where(np.isnan(target_stack), -np.inf, target_stack)
+    action_clean = np.where(np.isnan(action_stack), -np.inf, action_stack)
+    target_dom = np.argmax(target_clean, axis=1)
+    action_dom = np.argmax(action_clean, axis=1)
+    target_peak = np.max(target_clean, axis=1)
+    action_peak = np.max(action_clean, axis=1)
+    target_peak = np.where(np.isfinite(target_peak), target_peak, np.nan)
+    action_peak = np.where(np.isfinite(action_peak), action_peak, np.nan)
+    dominant_valid = (target_peak > 0.05) & (action_peak > 0.05)
+    work["clock_dominant_match"] = np.where(dominant_valid, (target_dom == action_dom).astype(float), np.nan)
+    return work
+
+
+def load_clock_alignment_report(
+    logs_dir: Path,
+    start_update: int | None,
+    end_update: int | None,
+) -> pd.DataFrame | None:
+    step_path = logs_dir / "step_log.csv"
+    if not step_path.exists():
+        return None
+
+    try:
+        available_cols = pd.read_csv(step_path, nrows=0).columns
+    except pd.errors.EmptyDataError:
+        return None
+
+    if not set(CLOCK_REQUIRED_COLUMNS).issubset(set(available_cols)):
+        return None
+
+    usecols = [col for col in CLOCK_REQUIRED_COLUMNS + CLOCK_OPTIONAL_COLUMNS if col in available_cols]
+    metric_cols = [
+        "clock_vector_cosine",
+        "clock_vector_error_deg",
+        "clock_dominant_match",
+        "target_clock_mag",
+        "net_clock_cmd_mag",
+        "clock_opposite_cmd",
+        "clock_coactivation",
+        "target_clock_12",
+        "target_clock_6",
+        "target_clock_3",
+        "target_clock_9",
+        "clock_12_cmd",
+        "clock_6_cmd",
+        "clock_3_cmd",
+        "clock_9_cmd",
+        "theta_deg",
+        "distance",
+        "clock_validity",
+        "action_clock_mag",
+        "reward_clock_action_alignment",
+        "reward_clock_wrong_channel",
+        "reward_clock_coactivation",
+    ]
+
+    parts: list[pd.DataFrame] = []
+    for chunk in pd.read_csv(step_path, usecols=usecols, chunksize=250_000, low_memory=False):
+        chunk["update_id"] = pd.to_numeric(chunk["update_id"], errors="coerce")
+        chunk = chunk[chunk["update_id"].notna()].copy()
+        chunk["update_id"] = chunk["update_id"].astype(int)
+        if start_update is not None:
+            chunk = chunk[chunk["update_id"] >= int(start_update)]
+        if end_update is not None:
+            chunk = chunk[chunk["update_id"] <= int(end_update)]
+        if chunk.empty:
+            continue
+
+        metrics = add_clock_alignment_metrics(chunk)
+        grouped = metrics.groupby("update_id")[metric_cols].agg(["sum", "count"])
+        grouped.columns = [f"{metric}_{stat}" for metric, stat in grouped.columns]
+        parts.append(grouped)
+
+    if not parts:
+        return None
+
+    combined = pd.concat(parts).groupby(level=0).sum().sort_index()
+    report = pd.DataFrame({"update_id": combined.index.astype(int)})
+    for metric in metric_cols:
+        count = combined[f"{metric}_count"].replace(0, np.nan)
+        report[metric] = combined[f"{metric}_sum"] / count
+    report["sample_count"] = combined["clock_vector_cosine_count"].astype(int)
+    return report.reset_index(drop=True)
+
+
 def apply_plot_style() -> None:
     plt.rcParams.update(
         {
@@ -710,7 +870,21 @@ def plot_hit_location_polar(
     title: str,
 ) -> None:
     if terminal_points is None or terminal_points.empty:
-        raise ValueError("No terminal success points found for hit-location polar plot.")
+        fig = plt.figure(figsize=(9.4, 8.2))
+        ax = fig.add_subplot(111, projection="polar")
+        ax.set_title(f"{title}\nTarget-centered success hit locations", va="bottom")
+        ax.text(
+            0.5,
+            0.5,
+            "No success hits in this phase window.",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=11,
+            bbox={"boxstyle": "round,pad=0.35", "facecolor": "white", "edgecolor": "#cbd5e1", "alpha": 0.96},
+        )
+        save_fig(fig, out_path)
+        return
 
     hit_df = terminal_points.copy()
     success_meta = episodes.loc[
@@ -783,6 +957,158 @@ def plot_hit_location_polar(
         va="bottom",
         fontsize=9,
         bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "edgecolor": "#cbd5e1", "alpha": 0.94},
+    )
+    save_fig(fig, out_path)
+
+
+def _plot_line_if_available(
+    ax: plt.Axes,
+    x: pd.Series,
+    y: pd.Series,
+    label: str,
+    color: str,
+    linestyle: str = "-",
+    linewidth: float = 1.8,
+) -> bool:
+    if y.isna().all():
+        return False
+    ax.plot(x, y, color=color, linestyle=linestyle, linewidth=linewidth, label=label)
+    return True
+
+
+def plot_clock_action_alignment(clock_report: pd.DataFrame | None, out_path: Path, title: str) -> None:
+    fig, axes = plt.subplots(4, 1, figsize=(13.5, 11.0), sharex=True)
+    fig.subplots_adjust(left=0.08, right=0.82, top=0.90, bottom=0.08, hspace=0.34)
+    fig.suptitle(f"{title}\nV9 Clock Action Alignment", fontsize=13, fontweight="bold")
+
+    if clock_report is None or clock_report.empty:
+        for ax in axes:
+            ax.set_axis_off()
+        axes[0].text(
+            0.5,
+            0.5,
+            "No V9 clock columns were found in step_log.csv.\nThis plot will populate after V9 training writes clock state/action logs.",
+            transform=axes[0].transAxes,
+            ha="center",
+            va="center",
+            fontsize=11,
+            bbox={"boxstyle": "round,pad=0.35", "facecolor": "white", "edgecolor": "#cbd5e1", "alpha": 0.96},
+        )
+        save_fig(fig, out_path)
+        return
+
+    x = clock_report["update_id"]
+    axes[0].axhline(0.0, color="#64748b", linewidth=0.8, alpha=0.7)
+    axes[0].axhline(0.75, color="#16a34a", linestyle="--", linewidth=0.9, alpha=0.75)
+    _plot_line_if_available(
+        axes[0],
+        x,
+        clock_report["clock_vector_cosine"],
+        "target/action vector cosine",
+        "#111827",
+        linewidth=2.0,
+    )
+    _plot_line_if_available(
+        axes[0],
+        x,
+        clock_report["clock_dominant_match"],
+        "dominant channel match ratio",
+        "#2563eb",
+        linestyle=":",
+        linewidth=2.0,
+    )
+    axes[0].set_ylim(-1.05, 1.05)
+    axes[0].set_ylabel("Alignment")
+    axes[0].set_title("1) Does the selected action channel point toward the target clock channel?")
+    axes[0].legend(loc="lower right", frameon=True, framealpha=0.94)
+
+    command_colors = {
+        "clock_12_cmd": "#16a34a",
+        "clock_6_cmd": "#ef4444",
+        "clock_3_cmd": "#2563eb",
+        "clock_9_cmd": "#f59e0b",
+    }
+    for col, color in command_colors.items():
+        _plot_line_if_available(axes[1], x, clock_report[col], col, color)
+    _plot_line_if_available(
+        axes[1],
+        x,
+        clock_report["net_clock_cmd_mag"],
+        "net command magnitude",
+        "#0f172a",
+        linestyle="--",
+        linewidth=2.1,
+    )
+    axes[1].set_ylabel("Command")
+    axes[1].set_title("2) Mean action output by clock channel")
+    axes[1].legend(loc="upper right", ncol=3, frameon=True, framealpha=0.94)
+
+    target_colors = {
+        "target_clock_12": "#16a34a",
+        "target_clock_6": "#ef4444",
+        "target_clock_3": "#2563eb",
+        "target_clock_9": "#f59e0b",
+    }
+    for col, color in target_colors.items():
+        _plot_line_if_available(axes[2], x, clock_report[col], col, color)
+    _plot_line_if_available(
+        axes[2],
+        x,
+        clock_report["target_clock_mag"],
+        "target clock magnitude",
+        "#0f172a",
+        linestyle="--",
+        linewidth=2.1,
+    )
+    axes[2].set_ylabel("Target channel")
+    axes[2].set_title("3) Mean target direction encoded in clock channels")
+    axes[2].legend(loc="upper right", ncol=3, frameon=True, framealpha=0.94)
+
+    reward_lines = [
+        ("reward_clock_action_alignment", "#16a34a", "-"),
+        ("reward_clock_wrong_channel", "#ef4444", "-"),
+        ("reward_clock_coactivation", "#f59e0b", "-"),
+        ("clock_opposite_cmd", "#7c3aed", "--"),
+        ("clock_coactivation", "#64748b", "--"),
+    ]
+    any_reward = False
+    for col, color, linestyle in reward_lines:
+        any_reward |= _plot_line_if_available(axes[3], x, clock_report[col], col, color, linestyle=linestyle)
+    if not any_reward:
+        axes[3].text(0.5, 0.5, "No clock reward terms found.", transform=axes[3].transAxes, ha="center", va="center")
+    axes[3].set_ylabel("Reward / penalty")
+    axes[3].set_xlabel("Update")
+    axes[3].set_title("4) Clock-specific reward terms and anti-pattern signals")
+    axes[3].legend(loc="upper right", ncol=2, frameon=True, framealpha=0.94)
+
+    last = clock_report.iloc[-1]
+    fig.text(
+        0.835,
+        0.70,
+        "How to read\n"
+        "Cosine near +1: action points at target.\n"
+        "Cosine near 0: sideways/no useful steering.\n"
+        "Cosine below 0: action points away.\n"
+        "Dominant match: strongest action channel\n"
+        "equals strongest target channel.",
+        ha="left",
+        va="top",
+        fontsize=8.8,
+        bbox={"boxstyle": "round,pad=0.35", "facecolor": "white", "edgecolor": "#cbd5e1", "alpha": 0.96},
+    )
+    fig.text(
+        0.835,
+        0.33,
+        "Last update\n"
+        f"up={int(last['update_id'])}\n"
+        f"cos={last['clock_vector_cosine']:.3f}\n"
+        f"match={100.0 * last['clock_dominant_match']:.1f}%\n"
+        f"net_cmd={last['net_clock_cmd_mag']:.3f}\n"
+        f"samples/update={int(last['sample_count'])}",
+        ha="left",
+        va="top",
+        fontsize=8.8,
+        bbox={"boxstyle": "round,pad=0.35", "facecolor": "#f8fafc", "edgecolor": "#cbd5e1", "alpha": 0.96},
     )
     save_fig(fig, out_path)
 
@@ -901,6 +1227,7 @@ def main() -> None:
 
     reset_points = None if args.skip_polar_step_log else load_reset_points(logs_dir, episodes, last_completed_update)
     terminal_success_points = load_terminal_success_points(logs_dir, episodes, last_completed_update)
+    clock_report = load_clock_alignment_report(logs_dir, args.start_update, last_completed_update)
 
     prefix = slugify(args.phase_slug)
     outputs = {
@@ -910,6 +1237,7 @@ def main() -> None:
         "hit_location_polar": out_dir / f"{prefix}_hit_location_polar.png",
         "reset_radius_distribution": out_dir / f"{prefix}_reset_radius_distribution.png",
         "reset_radius_phase_plan": out_dir / f"{prefix}_reset_radius_phase_plan.png",
+        "clock_action_alignment": out_dir / f"{prefix}_clock_action_alignment.png",
         "episode_diagnostics": out_dir / f"{prefix}_episode_diagnostics.csv",
         "radius_bins": out_dir / f"{prefix}_reset_radius_bins.csv",
         "summary": out_dir / f"{prefix}_summary.txt",
@@ -930,6 +1258,7 @@ def main() -> None:
     )
     plot_reset_outcome_polar(episodes, reset_points, outputs["reset_outcome_polar"], title)
     plot_hit_location_polar(episodes, terminal_success_points, outputs["hit_location_polar"], title)
+    plot_clock_action_alignment(clock_report, outputs["clock_action_alignment"], title)
 
     episodes.to_csv(outputs["episode_diagnostics"], index=False)
     bin_df.to_csv(outputs["radius_bins"], index=False)

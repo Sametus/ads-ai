@@ -120,6 +120,14 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
 - Sadece gorsel trend degil, karar vermeyi saglayan sayisal ozet de grafikte bulunmali.
 - Kullanici ozellikle istemedikce eksik veya yalin surum gonderilmemeli; varsayilan cikti dolu ve aciklayici olmali.
 
+### V9 Clock Action Alignment
+
+- V9 ve sonrasi icin standart faz grafiklerine `clock_action_alignment` PNG ve Plotly HTML ciktisi eklenmeli.
+- Bu grafik `target_clock_12/6/3/9` ile `clock_12/6/3/9_cmd` kolonlarini karsilastirmali.
+- Ana karar sinyali `clock_vector_cosine` olmali: `+1` hedef kanalina dogru, `0` etkisiz/yan, `-1` hedefin tersine hareket demektir.
+- `dominant channel match ratio`, net command magnitude, target clock magnitude ve clock reward terimleri ayni grafikte gorunmeli.
+- V9 clock kolonlari yoksa grafik bos hata vermemeli; bunun V9 loglari yazildiktan sonra dolacagini aciklayan placeholder uretmeli.
+
 ## Phase Transition Checklist
 
 - 1. Mevcut fazi sadece aktif `phase_name` filtresi ile analiz et.
@@ -192,3 +200,32 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
   - Second phase under the same architecture: `v9.0.1`.
   - If phases show a jump-level architecture or curriculum improvement, bump to `v9.1`.
 - V9 should use clock-guidance state/action naming in docs and logs.
+- V9 first runnable phase is `v9.0.0` / `v9_0_0_phase_1_clock_guidance_140_160`.
+- V9 checkpoint files use `ppo_v9_model_upXXXX.keras` and `ppo_v9_state_upXXXX.pkl.gz` so V8 checkpoints are not loaded accidentally.
+- Initial V9 curriculum:
+  - Radius: `140-160m`.
+  - Heading offset: `-5..5deg`, with `0deg` excluded (`abs(offset) >= 1deg`).
+  - Success: `distance <= 10m`, `alignment >= 0.90`, `closing_speed >= 0`.
+  - Main diagnostic: target clock channels vs action clock channels.
+- Initial V9 roll suppression was increased after the first short run:
+  - `rollTorqueScale=3.6`.
+  - `rollStabilizationGain=22`.
+  - `rollDampingGain=12`.
+  - `maxRollCorrection=5.25`.
+
+## V9 Closure Decision
+
+- V9 continuous clock-channel steering was closed as unsuccessful at `up100`.
+- Archive: `archives/v9_0_0_failed_up100/`.
+- Outcome over `update 1-100`: `310` episodes, `0` success, `70` near_miss, `240` high_altitude.
+- Diagnosis:
+  - Narrow heading offset helped the rocket enter the target corridor more often.
+  - It still did not learn nose alignment; final theta stayed around `137deg`.
+  - Target/action clock-channel match stayed near the random four-way baseline (`~25%`).
+  - Opposite continuous channels could coactivate, diluting net maneuver direction.
+  - `near_miss` was a trap terminal because it ended bad-angle close passes early.
+- Next version must be `v10.0.0` because the action type changes.
+- V10 direction:
+  - Remove `near_miss` terminal; keep it as diagnostic/log only.
+  - Use hybrid PPO action: continuous thrust plus discrete clock-direction steering.
+  - Treat V10 checkpoints as incompatible with V9 checkpoints.

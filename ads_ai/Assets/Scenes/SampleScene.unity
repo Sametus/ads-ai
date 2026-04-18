@@ -6322,11 +6322,11 @@ MonoBehaviour:
   rocketResetEuler: {x: -90, y: 0, z: 0}
   thrustScale: 1
   torqueScale: 1.45
-  rollTorqueScale: 3.2
+  rollTorqueScale: 3.6
   targetHeightOffset: 0
-  rollStabilizationGain: 18
-  rollDampingGain: 9
-  maxRollCorrection: 4.5
+  rollStabilizationGain: 22
+  rollDampingGain: 12
+  maxRollCorrection: 5.25
   betaFadeStartAbsForwardUp: 0.8
   betaFadeEndAbsForwardUp: 0.95
   betaValidityFloor: 0.25
