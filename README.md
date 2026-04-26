@@ -236,15 +236,7 @@ MODEL_PREFIX = "ppo_v10_model"
 STATE_PREFIX = "ppo_v10_state"
 ```
 
-Checkpoint seçimi:
-
-- Varsayılan: `models/` içindeki en yüksek update otomatik yüklenir.
-- Manuel checkpoint:
-
-```powershell
-$env:ADS_AI_CHECKPOINT_UPDATE="40"
-python scripts/train.py
-```
+Checkpoint seçimi otomatik yapılır. `models/` içindeki en yüksek update numarasına sahip model bulunursa yüklenir; model yoksa eğitim sıfırdan başlar.
 
 ### `scripts/train.py`
 
@@ -464,14 +456,7 @@ conda activate rl_codes
 python scripts/train.py
 ```
 
-6. Belirli checkpoint ile başlatmak istersen:
-
-```powershell
-$env:ADS_AI_CHECKPOINT_UPDATE="40"
-python scripts/train.py
-```
-
-7. Test için:
+6. Test için:
 
 ```powershell
 python scripts/test.py
@@ -601,10 +586,6 @@ Bunlar runtime/deneme çıktısı olduğu için kalıcı mühendislik incelemesi
 
 ```powershell
 # Training
-python scripts/train.py
-
-# Belirli checkpoint ile training
-$env:ADS_AI_CHECKPOINT_UPDATE="40"
 python scripts/train.py
 
 # Test

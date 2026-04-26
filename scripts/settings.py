@@ -105,39 +105,9 @@ def latest_index(pattern, regex=r"_up(\d+)\.keras$"):
     return max(nums) if nums else None
 
 
-def requested_checkpoint_update():
-    raw_value = os.getenv("ADS_AI_CHECKPOINT_UPDATE", "").strip()
-
-    if not raw_value:
-        return None
-
-    try:
-        return int(raw_value)
-    except ValueError:
-        print(
-            f"Gecersiz ADS_AI_CHECKPOINT_UPDATE degeri: {raw_value!r}. "
-            "En son checkpoint kullanilacak."
-        )
-        return None
-
-
 def load_checkpoint(agent):
     start_update = 0
-    requested_up = requested_checkpoint_update()
-    checkpoint_update = None
-
-    if requested_up is not None:
-        if os.path.exists(model_path(requested_up)):
-            checkpoint_update = requested_up
-            print(f"Istenen checkpoint bulundu: Update {checkpoint_update}. Yukleniyor...")
-        else:
-            print(
-                f"Istenen checkpoint bulunamadi: Update {requested_up}. "
-                "En son checkpoint denenecek."
-            )
-
-    if checkpoint_update is None:
-        checkpoint_update = latest_index(os.path.join(MODELS_DIR, f"{MODEL_PREFIX}_up*.keras"))
+    checkpoint_update = latest_index(os.path.join(MODELS_DIR, f"{MODEL_PREFIX}_up*.keras"))
 
     if checkpoint_update is not None:
         print(f"Kayitli model bulundu: Update {checkpoint_update}. Yukleniyor...")

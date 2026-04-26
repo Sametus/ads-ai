@@ -21,55 +21,48 @@ from agent import PPOAgent
 TEST_EPISODES = 5
 STEP_PRINT_EVERY = 50
 
-# True ise policy mean'i kullanılır: a = tanh(mu)
-# False ise train.py'deki gibi sampling yapılır
+# True ise policy mean kullanilir: a = tanh(mu)
+# False ise train.py'deki stochastic sampling mantigi kullanilir
 DETERMINISTIC_POLICY = True
 
-# None -> latest modeli yükler
-# örnek: MODEL_UPDATE_ID = 10
-MODEL_UPDATE_ID = None
-
 
 ############################
-# MODEL YÜKLEME
+# MODEL YUKLEME
 ############################
 
-def load_test_checkpoint(agent, update_id=None):
+def load_test_checkpoint(agent):
     """
-    Test için modeli yükler.
-    update_id verilirse o update'i yükler.
-    None ise models klasöründeki en son modeli yükler.
+    Test icin models klasorundeki en son modeli otomatik yukler.
     """
-    if update_id is None:
-        update_id = settings.latest_index(
-            os.path.join(settings.MODELS_DIR, f"{settings.MODEL_PREFIX}_up*.keras")
-        )
+    update_id = settings.latest_index(
+        os.path.join(settings.MODELS_DIR, f"{settings.MODEL_PREFIX}_up*.keras")
+    )
 
     if update_id is None:
         raise FileNotFoundError(
-            f"'{settings.MODELS_DIR}' içinde test edilecek model bulunamadı."
+            f"'{settings.MODELS_DIR}' icinde test edilecek model bulunamadi."
         )
 
     model_fp = settings.model_path(update_id)
     state_fp = settings.state_path(update_id)
 
     if not os.path.exists(model_fp):
-        raise FileNotFoundError(f"Model dosyası bulunamadı: {model_fp}")
+        raise FileNotFoundError(f"Model dosyasi bulunamadi: {model_fp}")
 
-    print(f"[TEST] Model yükleniyor -> Update {update_id}")
+    print(f"[TEST] Model yukleniyor -> Update {update_id}")
     agent.model = tf.keras.models.load_model(model_fp, compile=False)
 
     if os.path.exists(state_fp):
         settings.load_agent_state(agent, state_fp)
-        print(f"[TEST] Agent state yüklendi -> {state_fp}")
+        print(f"[TEST] Agent state yuklendi -> {state_fp}")
     else:
-        print(f"[TEST] Uyarı: state dosyası yok, sadece model yüklendi -> {state_fp}")
+        print(f"[TEST] Uyari: state dosyasi yok, sadece model yuklendi -> {state_fp}")
 
     return update_id
 
 
 ############################
-# ACTION ÜRETİMİ
+# ACTION URETIMI
 ############################
 
 def select_action(agent, state, deterministic=True):
@@ -77,7 +70,7 @@ def select_action(agent, state, deterministic=True):
     deterministic=True:
         action = tanh(mu)
     deterministic=False:
-        train.py'deki stochastic sampling mantığı kullanılır
+        train.py'deki stochastic sampling mantigi kullanilir
     """
     if deterministic:
         s = tf.convert_to_tensor(state[None, :], dtype=tf.float32)
@@ -106,7 +99,7 @@ if __name__ == "__main__":
     env = Env(settings.IP, settings.PORT)
     agent = PPOAgent()
 
-    loaded_update = load_test_checkpoint(agent, MODEL_UPDATE_ID)
+    loaded_update = load_test_checkpoint(agent)
 
     total_returns = []
     total_lengths = []
