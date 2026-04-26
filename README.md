@@ -2,7 +2,7 @@
 
 ADS-AI, Unity fizik simülasyonu içinde hareket eden bir roketin yaklaşan hedefi vurmayı öğrenmesi için geliştirilen reinforcement learning (pekiştirmeli öğrenme) projesidir. Unity sahnesi fizik, geometri ve telemetry üretir; Python tarafı bu verileri state haline getirir, reward hesaplar ve PPO tabanlı ajan ile action üretir.
 
-Bu README, projeyi hiç bilmeyen bir mühendisin kodu, deney geçmişini, mevcut başarısızlık noktalarını ve sonraki inceleme alanlarını hızlıca anlaması için hazırlanmıştır.
+Bu README, projeyi ilk kez inceleyen bir kişinin kodu, deney geçmişini, mevcut başarısızlık noktalarını ve sonraki inceleme alanlarını hızlıca anlaması için hazırlanmıştır.
 
 ## Mevcut Durum
 
@@ -20,7 +20,7 @@ Son bilinen V10 sonucu:
 - Dominant hata: `high_altitude`
 - Tanı: Action/state mimarisi bazı durumlarda vurma üretebildi, fakat PPO bunu kararlı hedef yönelimine çeviremedi.
 
-Bu proje şu an "tamamlanmış başarılı model" durumunda değildir. Kod ve loglar, bir sonraki mühendislik incelemesi için korunmuş araştırma/deney ortamıdır.
+Bu proje şu an "tamamlanmış başarılı model" durumunda değildir. Kod ve loglar, sonraki teknik inceleme için korunmuş araştırma/deney ortamıdır.
 
 ## Ana Hedef
 
@@ -387,7 +387,7 @@ Terminal durumları:
 | `wrong_way` | Hedeften uzaklaşma ve büyük açı paterni oluştu |
 | `timeout` | Episode maksimum step sayısına ulaştı |
 
-Önemli problem: Terminal reward büyüklüğü tek başına yeterli olmadı. Başarıya giden ara davranışları doğru işaretleyen reward bileşenleri hâlâ projenin en kritik mühendislik alanıdır.
+Önemli problem: Terminal reward büyüklüğü tek başına yeterli olmadı. Başarıya giden ara davranışları doğru işaretleyen reward bileşenleri hâlâ projenin en kritik teknik konularından biridir.
 
 ## Loglar
 
@@ -523,7 +523,7 @@ Success terminali çoğu zaman episode sonunda gelir. Başarıya sebep olan erke
 
 ## Bilinen Açık Problemler
 
-Bir mühendis incelemesinde özellikle şu başlıklar kontrol edilmelidir:
+Sonraki incelemede özellikle şu başlıklar kontrol edilmelidir:
 
 1. State yeterli mi?
 
@@ -553,7 +553,7 @@ Bir mühendis incelemesinde özellikle şu başlıklar kontrol edilmelidir:
 
    Torque, thrust, roll stabilization ve scene serialized değerleri kodla uyumlu mu?
 
-## Mühendis İçin Önerilen İnceleme Sırası
+## Önerilen İnceleme Sırası
 
 1. `archives/v10_0_1_failed_up40/README.md` dosyasını oku.
 2. `scripts/env.py` içindeki `STATE_KEYS`, `ACTION_KEYS`, `ACTIVE_PHASE_CONFIG` ve reward hesaplarını incele.
@@ -573,7 +573,7 @@ Bu snapshot'ta aşağıdaki geçici dosyalar tutulmaz:
 - Root `logs/` içeriği
 - Root `models/` içeriği
 
-Bunlar runtime/deneme çıktısı olduğu için kalıcı mühendislik incelemesinde arşivlenmiş faz logları ve tracked kod tercih edilmelidir.
+Bunlar runtime/deneme çıktısı olduğu için kalıcı teknik incelemede arşivlenmiş faz logları ve tracked kod tercih edilmelidir.
 
 ## Önemli Uyarılar
 
