@@ -29,17 +29,49 @@ STATE_KEYS = [
     "alt_error",
 ]
 
-ACTION_KEYS = ["thrust", "clock_12_cmd", "clock_6_cmd", "clock_3_cmd", "clock_9_cmd"]
+SQRT_HALF = float(np.sqrt(0.5))
+
+TURN_DIRECTION_NAMES = [
+    "hold",
+    "clock_12",
+    "clock_12_3",
+    "clock_3",
+    "clock_3_6",
+    "clock_6",
+    "clock_6_9",
+    "clock_9",
+    "clock_9_12",
+]
+
+# V10 policy outputs a continuous thrust plus one categorical clock direction.
+# Python expands the direction into the existing Unity clock torque channels.
+TURN_DIRECTION_VECTORS = np.asarray(
+    [
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [SQRT_HALF, SQRT_HALF],
+        [0.0, 1.0],
+        [-SQRT_HALF, SQRT_HALF],
+        [-1.0, 0.0],
+        [-SQRT_HALF, -SQRT_HALF],
+        [0.0, -1.0],
+        [SQRT_HALF, -SQRT_HALF],
+    ],
+    dtype=np.float32,
+)
+TURN_DIRECTION_COUNT = len(TURN_DIRECTION_NAMES)
+DISCRETE_TURN_STRENGTH = 1.2
+
+ACTION_KEYS = ["thrust", "turn_direction"]
 
 PYTHON_STEP_LOG_KEYS = [
     "episode_return_so_far",
     "action_logp",
     "value_pred",
     "action_norm_0",
-    "action_norm_1",
-    "action_norm_2",
-    "action_norm_3",
-    "action_norm_4",
+    "action_direction_id",
+    "action_direction_clock12",
+    "action_direction_clock3",
 ]
 
 REWARD_BREAKDOWN_KEYS = [
@@ -148,8 +180,8 @@ AGL_TANH_SCALE = 50.0
 ALT_ERROR_TANH_SCALE = 50.0
 GRAVITY_SCALE = 9.81
 
-MIN_THRUST = 680.0
-MAX_THRUST = 720.0
+MIN_THRUST = 620.0
+MAX_THRUST = 700.0
 MAX_CLOCK_CMD = 2.0
 TARGET_VELOCITY = 25.0
 
@@ -183,6 +215,7 @@ REWARD_CONFIG = {
     "clock_action_alignment_gain": 0.0,
     "clock_wrong_channel_penalty_gain": 0.0,
     "clock_coactivation_penalty_gain": 0.0,
+    "clock_reward_validity_floor": 0.70,
     "action_positive_scale": 1.0,
     "action_negative_scale": 1.0,
     "low_altitude_turn_ready_agl": 18.0,
@@ -243,7 +276,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v9_0_0_phase_1_clock_guidance_140_160",
+    "name": "v10_0_1_phase_1_clock_reward_recovery_140_160",
     "spawn_radius_min": 140.0,
     "spawn_radius_max": 160.0,
     "heading_offset_min": -5.0,
@@ -262,21 +295,22 @@ ACTIVE_PHASE_CONFIG = {
     "axis_error_soft_deg": 30.0,
     "direction_bonus_gain": 0.06,
     "direction_bonus_theta_deg": 70.0,
-    "angle_focus_gain": 0.75,
+    "angle_focus_gain": 0.55,
     "angle_focus_theta_deg": 100.0,
     "angle_bad_start_deg": 58.0,
-    "close_angle_penalty_gain": 1.45,
+    "close_angle_penalty_gain": 0.95,
     "close_angle_distance": 55.0,
     "close_angle_theta_start_deg": 35.0,
     "close_angle_theta_span_deg": 80.0,
     "near_angle_distance": 125.0,
     "near_angle_span": 110.0,
-    "turn_toward_gain": 0.60,
+    "turn_toward_gain": 0.95,
     "turn_toward_theta_deg": 75.0,
     "turn_toward_rate_clip": 4.0,
-    "clock_action_alignment_gain": 0.42,
-    "clock_wrong_channel_penalty_gain": 0.28,
+    "clock_action_alignment_gain": 1.20,
+    "clock_wrong_channel_penalty_gain": 1.20,
     "clock_coactivation_penalty_gain": 0.10,
+    "clock_reward_validity_floor": 0.70,
     "near_success_gain": 0.45,
     "near_success_distance": 42.0,
     "near_success_theta_deg": 34.0,
@@ -285,16 +319,16 @@ ACTIVE_PHASE_CONFIG = {
     "height_align_gain": 0.022,
     "soft_floor_gain": 0.025,
     "soft_floor_grace_steps": 110,
-    "soft_ceiling_start": 105.0,
-    "soft_ceiling_gain": 0.018,
-    "thrust_gate_gain": 0.45,
-    "thrust_gate_target_norm": 0.0,
+    "soft_ceiling_start": 80.0,
+    "soft_ceiling_gain": 0.035,
+    "thrust_gate_gain": 0.65,
+    "thrust_gate_target_norm": -0.10,
     "thrust_gate_theta_start_deg": 55.0,
     "thrust_gate_theta_span_deg": 28.0,
     "thrust_gate_distance_scale": 90.0,
     "thrust_gate_distance_floor": 0.45,
     "bad_thrust_angle_penalty_gain": 0.45,
-    "bad_thrust_angle_min_thrust": 700.0,
+    "bad_thrust_angle_min_thrust": 670.0,
     "bad_thrust_angle_theta_start_deg": 45.0,
     "bad_thrust_angle_theta_span_deg": 90.0,
     "bad_thrust_angle_step": 120,
@@ -314,8 +348,8 @@ ACTIVE_PHASE_CONFIG = {
     "low_agl_grace_steps": 100,
     "collision_penalty": -150.0,
     "low_altitude_penalty": -180.0,
-    "high_altitude_penalty": -105.0,
-    "max_altitude": 145.0,
+    "high_altitude_penalty": -150.0,
+    "max_altitude": 125.0,
     "wrong_way_theta_deg": 128.0,
     "wrong_way_closing_speed": -12.0,
     "wrong_way_distance_ratio": 1.05,
@@ -430,6 +464,7 @@ class Env:
         self.prev_alpha_abs = None
         self.prev_beta_abs = None
         self.prev_agl = None
+        self.last_action_info = {}
 
     # ------------------------------------------------------------------
     # STATE
@@ -502,6 +537,7 @@ class Env:
 
         self.done = False
         self.step_count = 0
+        self.last_action_info = {}
 
         init_loc = {
             "episode_id": self.episode_id,
@@ -591,7 +627,11 @@ class Env:
                 -1.0,
                 1.0,
             ))
-            clock_cmd = np.clip(np.asarray(denorm_action[1:5], dtype=np.float32) / max(MAX_CLOCK_CMD, 1e-6), 0.0, 1.0)
+            clock_cmd = np.clip(
+                np.asarray(denorm_action[1:5], dtype=np.float32) / max(DISCRETE_TURN_STRENGTH, 1e-6),
+                0.0,
+                1.0,
+            )
 
         reward = phase["step_penalty"]
         done = False
@@ -776,13 +816,14 @@ class Env:
             0.0,
             1.0,
         ))
+        clock_reward_validity = max(clock_validity, phase["clock_reward_validity_floor"])
         clock_action_alignment_score = float(np.clip(
-            (float(np.dot(target_clock, clock_cmd)) / target_clock_mass) * turn_need_window * clock_validity,
+            (float(np.dot(target_clock, clock_cmd)) / target_clock_mass) * turn_need_window,
             0.0,
             1.0,
         ))
         clock_wrong_channel_score = float(np.clip(
-            (float(np.dot(target_clock, opposite_clock_cmd)) / target_clock_mass) * turn_need_window * clock_validity,
+            (float(np.dot(target_clock, opposite_clock_cmd)) / target_clock_mass) * turn_need_window,
             0.0,
             1.0,
         ))
@@ -792,8 +833,16 @@ class Env:
             1.0,
         ))
         turn_toward_reward = phase["turn_toward_gain"] * turn_toward_score
-        clock_action_alignment_reward = phase["clock_action_alignment_gain"] * clock_action_alignment_score
-        clock_wrong_channel_penalty = phase["clock_wrong_channel_penalty_gain"] * clock_wrong_channel_score
+        clock_action_alignment_reward = (
+            phase["clock_action_alignment_gain"]
+            * clock_action_alignment_score
+            * clock_reward_validity
+        )
+        clock_wrong_channel_penalty = (
+            phase["clock_wrong_channel_penalty_gain"]
+            * clock_wrong_channel_score
+            * clock_reward_validity
+        )
         clock_coactivation_penalty = phase["clock_coactivation_penalty_gain"] * clock_coactivation_score
 
         near_success_distance_window = float(np.clip(
@@ -958,6 +1007,12 @@ class Env:
         reward -= low_altitude_control_penalty
         reward -= low_altitude_sink_penalty
 
+        near_miss_candidate = (
+            self.step_count > phase["near_miss_grace_steps"]
+            and distance <= phase["near_miss_distance"]
+            and theta_deg >= phase["near_miss_theta_deg"]
+        )
+
         if (
             distance <= phase["success_distance"]
             and alignment >= phase["success_alignment"]
@@ -978,15 +1033,6 @@ class Env:
             reward += terminal_reward
             done = True
             done_reason = "low_agl"
-        elif (
-            self.step_count > phase["near_miss_grace_steps"]
-            and distance <= phase["near_miss_distance"]
-            and theta_deg >= phase["near_miss_theta_deg"]
-        ):
-            terminal_reward = phase["near_miss_penalty"]
-            reward += terminal_reward
-            done = True
-            done_reason = "near_miss"
         elif agl >= phase["max_altitude"]:
             terminal_reward = phase["high_altitude_penalty"]
             reward += terminal_reward
@@ -1060,6 +1106,7 @@ class Env:
             "reward_low_altitude_sink_penalty": float(low_altitude_sink_penalty),
             "reward_low_altitude_guidance_discount": float(low_altitude_guidance_discount),
             "reward_terminal": float(terminal_reward),
+            "near_miss_candidate": 1.0 if near_miss_candidate else 0.0,
             "grounded_flag": 1.0 if grounded else 0.0,
             "done_reason": done_reason,
             "success": success,
@@ -1109,6 +1156,7 @@ class Env:
         info["beta_deg"] = reward_info["beta_deg"]
         info["reward_total"] = reward_info["reward_total"]
         info["success"] = reward_info["success"]
+        info["near_miss_candidate"] = reward_info["near_miss_candidate"]
 
         for key in REWARD_BREAKDOWN_KEYS:
             info[key] = reward_info[key]
@@ -1122,13 +1170,27 @@ class Env:
 
     def denormalize_action(self, action):
         a = np.asarray(action, dtype=np.float32)
-        a = np.clip(a, -1.0, 1.0)
+        thrust_norm = float(np.clip(a[0], -1.0, 1.0)) if len(a) > 0 else 0.0
+        direction_id = int(np.clip(np.rint(a[1] if len(a) > 1 else 0.0), 0, TURN_DIRECTION_COUNT - 1))
+        direction_vector = TURN_DIRECTION_VECTORS[direction_id]
 
-        thrust = MIN_THRUST + ((a[0] + 1.0) / 2.0) * (MAX_THRUST - MIN_THRUST)
-        clock_12_cmd = max(0.0, float(a[1])) * MAX_CLOCK_CMD
-        clock_6_cmd = max(0.0, float(a[2])) * MAX_CLOCK_CMD
-        clock_3_cmd = max(0.0, float(a[3])) * MAX_CLOCK_CMD
-        clock_9_cmd = max(0.0, float(a[4])) * MAX_CLOCK_CMD
+        thrust = MIN_THRUST + ((thrust_norm + 1.0) / 2.0) * (MAX_THRUST - MIN_THRUST)
+        clock_12_net = float(direction_vector[0]) * DISCRETE_TURN_STRENGTH
+        clock_3_net = float(direction_vector[1]) * DISCRETE_TURN_STRENGTH
+
+        clock_12_cmd = max(0.0, clock_12_net)
+        clock_6_cmd = max(0.0, -clock_12_net)
+        clock_3_cmd = max(0.0, clock_3_net)
+        clock_9_cmd = max(0.0, -clock_3_net)
+
+        self.last_action_info = {
+            "action_direction_id": direction_id,
+            "turn_direction_id": direction_id,
+            "turn_direction_name": TURN_DIRECTION_NAMES[direction_id],
+            "action_direction_clock12": clock_12_net,
+            "action_direction_clock3": clock_3_net,
+            "turn_strength": DISCRETE_TURN_STRENGTH,
+        }
 
         return [
             float(thrust),
@@ -1201,6 +1263,8 @@ class Env:
             info["clock_6_cmd"] = None
             info["clock_3_cmd"] = None
             info["clock_9_cmd"] = None
+
+        info.update(self.last_action_info)
 
         return info
 

@@ -2,6 +2,11 @@
 
 import os
 import numpy as np
+
+from cuda_bootstrap import configure_conda_cuda_dlls
+
+configure_conda_cuda_dlls()
+
 import tensorflow as tf
 
 import settings
@@ -76,12 +81,14 @@ def select_action(agent, state, deterministic=True):
     """
     if deterministic:
         s = tf.convert_to_tensor(state[None, :], dtype=tf.float32)
-        mu, v = agent.model(s)
+        thrust_mu, direction_logits, v = agent.model(s)
 
-        mu = tf.squeeze(mu, axis=0)
+        thrust_mu = tf.squeeze(thrust_mu, axis=0)
         v = float(tf.squeeze(v, axis=0).numpy()[0])
 
-        action = tf.tanh(mu).numpy().astype(np.float32)
+        thrust_action = float(tf.tanh(thrust_mu).numpy()[0])
+        direction_id = float(tf.argmax(direction_logits[0]).numpy())
+        action = np.asarray([thrust_action, direction_id], dtype=np.float32)
         return action, v
 
     action, _, v = agent.act(state)
@@ -153,6 +160,7 @@ if __name__ == "__main__":
                         f"AltE={info['alt_error']:.2f} | "
                         f"R={reward:.3f} | "
                         f"V={value:.3f} | "
+                        f"Dir={info.get('turn_direction_name', 'n/a')}#{info.get('turn_direction_id', '')} | "
                         f"Act=[{info['thrust']:.2f}, {info['clock_12_cmd']:.2f}, {info['clock_6_cmd']:.2f}, "
                         f"{info['clock_3_cmd']:.2f}, {info['clock_9_cmd']:.2f}]"
                     )

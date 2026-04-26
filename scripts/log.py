@@ -31,6 +31,7 @@ STEP_HEADER = [
     "done",
     "done_reason",
     "success",
+    "near_miss_candidate",
     "distance",
     "delta_distance",
     "theta_rad",
@@ -235,6 +236,7 @@ def print_step_console(update_id, info):
         f"R: {info['reward']:>7.3f} | "
         f"TC: [{info.get('target_clock_12', 0.0):.2f},{info.get('target_clock_6', 0.0):.2f},"
         f"{info.get('target_clock_3', 0.0):.2f},{info.get('target_clock_9', 0.0):.2f}] | "
+        f"Dir: {info.get('turn_direction_name', 'n/a')}#{info.get('turn_direction_id', '')} | "
         f"Act: [{info['thrust']:.2f}, {info['clock_12_cmd']:.2f}, {info['clock_6_cmd']:.2f}, "
         f"{info['clock_3_cmd']:.2f}, {info['clock_9_cmd']:.2f}]"
     )

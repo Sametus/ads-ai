@@ -6321,15 +6321,18 @@ MonoBehaviour:
   rocketResetPosition: {x: -0.492, y: 0.8375, z: 0.022}
   rocketResetEuler: {x: -90, y: 0, z: 0}
   thrustScale: 1
-  torqueScale: 1.45
+  torqueScale: 1.8
   rollTorqueScale: 3.6
+  lowAltitudeTurnDampStartAgl: 0.5
+  lowAltitudeTurnDampFullAgl: 10
+  lowAltitudeMinTurnScale: 0.35
   targetHeightOffset: 0
-  rollStabilizationGain: 22
-  rollDampingGain: 12
+  rollStabilizationGain: 25
+  rollDampingGain: 20
   maxRollCorrection: 5.25
   betaFadeStartAbsForwardUp: 0.8
   betaFadeEndAbsForwardUp: 0.95
-  betaValidityFloor: 0.25
+  betaValidityFloor: 0.75
   useLocalFrame: 1
   keepTargetYFixed: 1
   keepTargetRotXFixed: 1

@@ -6,6 +6,11 @@ import re
 import warnings
 
 import numpy as np
+
+from cuda_bootstrap import configure_conda_cuda_dlls
+
+configure_conda_cuda_dlls()
+
 import tensorflow as tf
 
 warnings.filterwarnings("ignore")
@@ -18,8 +23,8 @@ TOTAL_UPDATES = 10000
 SAVE_EVERY_UPDATES = 20
 
 MODELS_DIR = "models"
-MODEL_PREFIX = "ppo_v9_model"
-STATE_PREFIX = "ppo_v9_state"
+MODEL_PREFIX = "ppo_v10_model"
+STATE_PREFIX = "ppo_v10_state"
 
 
 def as_float32(x):

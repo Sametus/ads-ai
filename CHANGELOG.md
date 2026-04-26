@@ -471,3 +471,33 @@
 > - **Action Diagnosis**: Target/action dominant clock-channel eslesmesi rastgele dort kanal seviyesinde kaldi (`~%25`). Continuous `clock_12/6/3/9` kanallari zit kanal coactivation'ina izin verdigi icin net manevra yonu sikca sulandi.
 > - **Near-Miss Decision**: `near_miss` terminali tuzak olarak degerlendirildi. Yakindan ama kotu aciyla gecen episode'u erken kapattigi icin modelin recovery ve aci kapatma ogrenmesini kesiyor. V10'da terminal olmayacak, sadece diagnostic/log sinyali olarak kalacak.
 > - **Next Architecture Decision**: Action turu degisecegi icin sonraki deneme `v10.0.0` olarak baslatilacak. V10, continuous thrust ile discrete clock-direction steering'i hibrit PPO policy olarak kullanacak.
+
+# v10.0 sürüm ailesi
+
+> ## v10.0.0 - Hybrid Discrete Clock-Direction Training Prep
+>
+> - **Architecture Break**: Action turu degistigi icin V10, V9 checkpoint'leri ile uyumlu degildir. Model prefix'i `ppo_v10_model` / `ppo_v10_state` olarak ayrildi ve egitim sifirdan baslayacak.
+> - **Hybrid PPO Action**: Policy artik iki action uretir: continuous `thrust` ve categorical `turn_direction`. Discrete yon sinifi Python tarafinda mevcut Unity clock torque kanallarina (`clock_12/6/3/9`) genisletilir.
+> - **Direction Set**: Steering siniflari `hold`, `clock_12`, `clock_12_3`, `clock_3`, `clock_3_6`, `clock_6`, `clock_6_9`, `clock_9`, `clock_9_12` olarak tanimlandi. Boylece zit continuous kanallarin ayni anda acilip net yonu sulandirmasi engellenir.
+> - **Near-Miss Removal**: `near_miss` artik terminal degildir. Kosul sadece `near_miss_candidate` olarak loglanir; hedef yakinindan kotu aciyla gecen episode recovery sansi bulabilir.
+> - **Reward Compatibility**: Clock action alignment reward'i korunur, ancak discrete action komutu reward hesabinda kendi `DISCRETE_TURN_STRENGTH` olcegine normalize edilir. Bu sayede dogru discrete yon secimi zayif odullenmez.
+> - **PPO Update**: Actor head continuous thrust Gaussian'i ve discrete direction categorical logits'i birlikte optimize eder. Entropy ve KL hedefi categorical exploration icin hafif genisletildi (`ent_coef=0.006`, `target_kl=0.006`).
+> - **Runnable Phase**: Ilk V10 fazi `v10_0_0_phase_1_hybrid_discrete_clock_140_160`; radius `140-160m`, heading offset `±5deg` fakat `0deg` haric, success mesafesi `10m` olarak korunur.
+
+> ## v10.0.1 - Clock Reward Recovery Prep
+>
+> - **Failure Observation**: Ilk V10 run'i `up172` civarinda hala `0` success verdi; tamamlanan episode'larin tamamı `high_altitude` ile bitti. Ortalama final theta yaklasik `149deg`, action/target clock cosine ise update boyunca `0` civarinda kaldi.
+> - **Root Cause**: Roket dik uctugu icin `clock_validity` median degeri `~0.018` seviyesindeydi. Clock action alignment reward'i bu degerle carpildigi icin dogru yon secimi pratikte odullenmiyordu.
+> - **Reward Fix**: `clock_reward_validity_floor=0.70`, `clock_action_alignment_gain=1.20`, `clock_wrong_channel_penalty_gain=1.20` olarak ayarlandi. Eski log uzerinde hesaplanan random-policy net clock reward `~0`, oracle dogru yon reward'i ise `~0.626/step`.
+> - **Maneuver Fix**: Unity tarafinda dik konumda turn yetkisi artirildi: `betaValidityFloor=0.75`, `torqueScale=1.8`, `lowAltitudeMinTurnScale=0.35`, `lowAltitudeTurnDampFullAgl=10`.
+> - **Scene Sync**: `SampleScene.unity` icindeki serialize edilmis Env component de ayni degerlere cekildi; Unity'nin eski inspector override'lariyla calismasi engellendi.
+> - **Altitude Fix**: Duz yukari high-altitude davranisini kirmak icin thrust araligi `620-700`, `soft_ceiling_start=80`, `max_altitude=125`, `high_altitude_penalty=-150` yapildi.
+> - **Runnable Phase**: Yeni retry fazi `v10_0_1_phase_1_clock_reward_recovery_140_160`; eski V10 log/model dosyalari temizlenerek sifirdan kosulacak.
+
+> ## v10.0.2 - V10 Failed Final Snapshot
+>
+> - **Final V10 Decision**: V10 hibrit discrete clock-action mimarisi `up40` checkpoint'i ile basarisiz olarak kapatildi. Snapshot `archives/v10_0_1_failed_up40/` altina alindi.
+> - **Observed Outcome**: `update 1-56` araliginda `147` episode tamamlandi. Success `1/147` (`%0.680`), `high_altitude=143`, `wrong_way=2`, `low_agl=1` olarak olculdu. Son `100` episode icinde success gorulmedi.
+> - **Success Note**: Tek success `episode_id=6`, `update=3`, `step=268` icinde geldi; final distance `4.23m`, final theta `24.24deg`, alignment `0.912` oldugu icin vurma kosulu temizdi.
+> - **Failure Diagnosis**: Reward/scene duzeltmesi ilk vurus davranisini uretse de saf PPO exploration kararlı policy'ye donusemedi. Ortalama final theta `132.41deg`, final alignment `-0.661`, final distance `112.33m` seviyesinde kaldi.
+> - **Next Architecture Decision**: V11, reward tahminleme aracini ve hafif orientation warm-start / behavior cloning pretraining'i birlikte kullanacak. Bu sayede PPO rastgele policy yerine hedef yonune bakan bir baslangic policy'sinden fine-tune edilecek.

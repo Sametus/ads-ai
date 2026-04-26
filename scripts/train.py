@@ -3,7 +3,6 @@
 #################  IMPORTS  ##################
 
 import numpy as np
-import tensorflow as tf
 
 import log
 import settings
@@ -83,8 +82,9 @@ if __name__ == "__main__":
             info["action_logp"] = float(logp)
             info["value_pred"] = float(value)
             info["action_norm_0"] = float(action[0])
-            info["action_norm_1"] = float(action[1])
-            info["action_norm_2"] = float(action[2])
+            info["action_direction_id"] = int(action[1])
+            info["action_direction_clock12"] = float(info.get("action_direction_clock12", 0.0))
+            info["action_direction_clock3"] = float(info.get("action_direction_clock3", 0.0))
 
             log.append_step_csv(update_id+1, info)
 
@@ -136,9 +136,7 @@ if __name__ == "__main__":
         if done:
             last_value = 0.0
         else:
-            s_tf = tf.convert_to_tensor(state[None,:], dtype=tf.float32)
-            _, v_tf = agent.model(s_tf)
-            last_value = float(tf.squeeze(v_tf, axis=0).numpy()[0])
+            last_value = agent.value(state)
 
         logs = agent.train(
             states,

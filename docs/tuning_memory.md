@@ -229,3 +229,78 @@ Amac, faz/odul/manevra denemeleri icin notlari kod disinda tutmaktir.
   - Remove `near_miss` terminal; keep it as diagnostic/log only.
   - Use hybrid PPO action: continuous thrust plus discrete clock-direction steering.
   - Treat V10 checkpoints as incompatible with V9 checkpoints.
+
+## V10 Versioning Rule
+
+- V10 starts because the action type changed from continuous clock-channel vector to hybrid continuous/discrete policy.
+- V10 checkpoints use `ppo_v10_model_upXXXX.keras` and `ppo_v10_state_upXXXX.pkl.gz`; never resume V10 from V9 model files.
+- First phase is `v10.0.0` / `v10_0_0_phase_1_hybrid_discrete_clock_140_160`.
+- Phase naming under this architecture:
+  - `v10.0.0`: first runnable hybrid discrete clock phase.
+  - `v10.0.1`, `v10.0.2`: same architecture, curriculum/reward phase increments.
+  - `v10.1`: only if state/action/curriculum logic changes at jump level.
+- V10 action contract inside PPO:
+  - Action 0: continuous `thrust` in `[-1, 1]`.
+  - Action 1: categorical `turn_direction` id.
+- V10 Unity contract remains the same five values after Python denormalization:
+  - `[thrust, clock_12_cmd, clock_6_cmd, clock_3_cmd, clock_9_cmd]`.
+- Direction classes:
+  - `0 hold`.
+  - `1 clock_12`.
+  - `2 clock_12_3`.
+  - `3 clock_3`.
+  - `4 clock_3_6`.
+  - `5 clock_6`.
+  - `6 clock_6_9`.
+  - `7 clock_9`.
+  - `8 clock_9_12`.
+- `near_miss` is not a terminal in V10. It should be tracked as `near_miss_candidate` only.
+- V10 graph/report tooling should still include clock action alignment because denormalized Unity action channels remain available in `step_log.csv`.
+
+## V10 Failure Analysis - No Maneuver / High Altitude
+
+- Current V10 run logs reached `up172` with `529` completed episodes and `0` success.
+- All completed episodes ended as `high_altitude`; mean final theta stayed near `149deg`, mean final distance near `112m`.
+- The rocket was not learning target-directed maneuver:
+  - `action_target_cos` stayed near `0.0` across update windows.
+  - `turn_target_cos` stayed near `0.0`.
+  - terminal episodes still had strong negative alignment (`~ -0.85`).
+- Root cause in reward/action coupling:
+  - Raw `clock_validity` was almost always near zero while the rocket was vertical (`median ~0.018`, `94% < 0.1`).
+  - `reward_clock_action_alignment` and wrong-channel penalty were multiplied by this value, so action direction learning was effectively silent.
+  - Old mean clock action alignment reward was only `~0.0029/step`.
+- V10 retune applied after this analysis:
+  - New retry phase name: `v10_0_1_phase_1_clock_reward_recovery_140_160`.
+  - `clock_reward_validity_floor=0.70`.
+  - `clock_action_alignment_gain=1.20`.
+  - `clock_wrong_channel_penalty_gain=1.20`.
+  - Old-log recalculation: random-policy net clock reward is near zero (`~-0.002/step`), while oracle target direction is strongly positive (`~0.626/step`).
+  - Unity maneuver authority increased for vertical launch: `betaValidityFloor=0.75`, `torqueScale=1.8`, `lowAltitudeMinTurnScale=0.35`, `lowAltitudeTurnDampFullAgl=10`.
+  - `SampleScene.unity` serialized Env values must be kept in sync with `Env.cs`; this run fixed old scene overrides that still had `betaValidityFloor=0.25`, `torqueScale=1.45`, `rollStabilizationGain=22`, `rollDampingGain=12`.
+  - Thrust range reduced to `620-700` and ceiling tightened (`soft_ceiling_start=80`, `max_altitude=125`) to break pure vertical high-altitude behavior.
+
+## V10 Closure Decision
+
+- V10 was closed as unsuccessful after `v10_0_1_phase_1_clock_reward_recovery_140_160`.
+- Archive: `archives/v10_0_1_failed_up40/`.
+- Handoff/final checkpoint kept for analysis: `ppo_v10_model_up40.keras`.
+- Outcome over `update 1-56`: `147` episodes.
+- Done reasons:
+  - `high_altitude=143`.
+  - `wrong_way=2`.
+  - `success=1`.
+  - `low_agl=1`.
+- Success rate: `%0.680`.
+- Tail success:
+  - Last `20` episodes: `%0`.
+  - Last `50` episodes: `%0`.
+  - Last `100` episodes: `%0`.
+- Diagnosis:
+  - V10 action structure can maneuver, and the first success was geometrically clean.
+  - It still did not stabilize into repeatable interception.
+  - Reward-only tuning plus pure PPO exploration is not reliable enough for delivery risk.
+- Next version must be V11.
+- V11 scope:
+  - Keep offline reward estimation in `reward_lab`.
+  - Add orientation warm-start / behavior cloning pretraining.
+  - Use Turkish, short, plain code comments for newly written code.

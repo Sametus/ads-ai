@@ -161,20 +161,20 @@ public class Env : MonoBehaviour
 
     [Header("Action Scales")]
     public float thrustScale = 1f;
-    public float torqueScale = 1.45f;
+    public float torqueScale = 1.8f;
     public float rollTorqueScale = 3.6f;
     public float lowAltitudeTurnDampStartAgl = 0.5f;
-    public float lowAltitudeTurnDampFullAgl = 18f;
-    public float lowAltitudeMinTurnScale = 0.15f;
+    public float lowAltitudeTurnDampFullAgl = 10f;
+    public float lowAltitudeMinTurnScale = 0.35f;
 
     [Header("Guidance Stabilization")]
     public float targetHeightOffset = 0f;
-    public float rollStabilizationGain = 22f;
-    public float rollDampingGain = 12f;
+    public float rollStabilizationGain = 25f;
+    public float rollDampingGain = 20f;
     public float maxRollCorrection = 5.25f;
     public float betaFadeStartAbsForwardUp = 0.80f;
     public float betaFadeEndAbsForwardUp = 0.95f;
-    public float betaValidityFloor = 0.25f;
+    public float betaValidityFloor = 0.75f;
 
     [Header("State Options")]
     public bool useLocalFrame = true;
