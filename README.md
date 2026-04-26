@@ -77,24 +77,111 @@ ads_ai/
 
 Bu tasarımda Unity gerçek zamanlı olarak serbest akmaz; fizik adımı Python step döngüsü tarafından kontrol edilir.
 
-## Gereksinimler
+## Gereksinimler ve Sürüm Bilgisi
 
-Bu proje Windows üzerinde geliştirilmiştir.
+Bu proje Windows üzerinde geliştirilmiştir. Karşı tarafta sorunsuz açılabilmesi için Unity, Python ve Python kütüphane sürümlerinin mümkün olduğunca aynı tutulması önerilir.
 
-- Unity: `6000.3.2f1`
-- Python: `3.7.x`
-- TensorFlow GPU için önerilen sürüm: `tensorflow==2.10.0`
-- Ana paketler: `numpy`, `pandas`, `tensorflow`, `plotly`
+### Doğrulanmış Yerel Ortam
 
-Örnek ortam:
+Bu README güncellenirken yerel `rl_codes` conda ortamında doğrulanan sürümler:
 
-```powershell
-conda create -n rl_codes python=3.7
-conda activate rl_codes
-pip install tensorflow==2.10.0 numpy pandas plotly
+| Bileşen | Sürüm | Not |
+|---|---:|---|
+| İşletim sistemi | Windows | Proje PowerShell ve Windows path yapısı ile kullanıldı |
+| Unity Editor | `6000.3.2f1` | `ads_ai/ProjectSettings/ProjectVersion.txt` içinde kayıtlı |
+| Unity revision | `6000.3.2f1 (a9779f353c9b)` | Aynı dosyada kayıtlı |
+| Python | `3.7.16` | `C:\Users\husey\miniconda3\envs\rl_codes\python.exe` |
+| TensorFlow | `2.10.1` | PPO modeli ve checkpoint yükleme/kaydetme için gerekli |
+| Keras | `2.10.0` | TensorFlow bağımlılığı olarak kullanılıyor |
+| NumPy | `1.21.6` | State/action/reward hesapları |
+| Pandas | `1.3.5` | CSV log ve analiz okuma |
+| Matplotlib | `3.5.3` | Statik grafik scriptleri |
+| Seaborn | `0.12.2` | Yerel ortamda mevcut; temel training için şart değil |
+| Pillow | `9.5.0` | Matplotlib görsel işlemleri için dolaylı/opsiyonel |
+| Protobuf | `3.19.6` | TensorFlow uyumluluğu için önemli |
+| h5py | `3.8.0` | Keras model dosyaları için kullanılır |
+| SciPy | `1.7.3` | Yerel ortamda mevcut; temel training için doğrudan şart değil |
+| scikit-learn | `1.0.2` | Yerel ortamda mevcut; mevcut runtime kodu için şart değil |
+
+Yerel ortamda `plotly` kurulu değildir. Bu nedenle `scripts/plot_phase_report_plotly.py` çalıştırılacaksa ayrıca kurulmalıdır.
+
+### Ana Training İçin Minimum Python Paketleri
+
+Core training/test akışı için gerekli ana paketler:
+
+```text
+tensorflow==2.10.1
+numpy==1.21.6
+pandas==1.3.5
+matplotlib==3.5.3
+protobuf==3.19.6
+h5py==3.8.0
 ```
 
-Not: Projede CUDA DLL yolu için `scripts/cuda_bootstrap.py` kullanılır. GPU bulunamazsa training CPU ile de başlar, fakat yavaş çalışır.
+Statik grafikler için `matplotlib` yeterlidir. Plotly HTML grafikler için ek paket gerekir:
+
+```text
+plotly
+```
+
+### Önerilen Kurulum
+
+Sıfırdan conda ortamı oluşturmak için:
+
+```powershell
+conda create -n rl_codes python=3.7.16
+conda activate rl_codes
+python -m pip install --upgrade pip
+python -m pip install tensorflow==2.10.1 numpy==1.21.6 pandas==1.3.5 matplotlib==3.5.3 seaborn==0.12.2 pillow==9.5.0 protobuf==3.19.6 h5py==3.8.0
+```
+
+Plotly raporları da kullanılacaksa:
+
+```powershell
+python -m pip install plotly
+```
+
+### GPU Durumu
+
+TensorFlow GPU kullanımı için Windows üzerinde TensorFlow `2.10.x` ailesi tercih edilmiştir. Yerel kontrolde TensorFlow GPU cihazı görememiştir:
+
+```text
+tf.config.list_physical_devices("GPU") -> []
+```
+
+Yerel uyarı:
+
+```text
+cudnn64_8.dll not found
+```
+
+Bu, GPU ile çalıştırmak için uyumlu NVIDIA driver, CUDA ve cuDNN kurulumunun tamamlanması gerektiğini gösterir. Projedeki `scripts/cuda_bootstrap.py`, conda ortamındaki `Library/bin` ve `DLLs` klasörlerini `PATH` içine eklemeye çalışır; ancak eksik DLL dosyasını kendisi kurmaz.
+
+GPU doğrulama komutu:
+
+```powershell
+python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+```
+
+Çıktı `[]` ise training CPU ile başlar. CPU ile çalışır fakat eğitim süresi belirgin şekilde uzar.
+
+### Ortam Doğrulama Komutları
+
+Karşı taraf kurulumu yaptıktan sonra şu komutlarla sürümleri kontrol edebilir:
+
+```powershell
+python --version
+python -c "import tensorflow as tf; print(tf.__version__)"
+python -c "import numpy as np; print(np.__version__)"
+python -c "import pandas as pd; print(pd.__version__)"
+python -c "import matplotlib; print(matplotlib.__version__)"
+```
+
+Unity sürümü için:
+
+```powershell
+Get-Content ads_ai\ProjectSettings\ProjectVersion.txt
+```
 
 ## Unity Tarafı
 
