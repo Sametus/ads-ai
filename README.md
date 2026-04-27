@@ -6,9 +6,10 @@ Bu README, projeyi ilk kez inceleyen bir kişinin kodu, deney geçmişini, mevcu
 
 ## Mevcut Durum
 
-- Güncel takip edilen sürüm: `v10.0.2`.
+- Güncel takip edilen sürüm: `v11.0.17`.
 - Son commit baz çizgisi: V10 hibrit discrete clock-direction denemesi başarısız olarak arşivlendi.
-- V11/pretrain denemesi kalıcı çözüm olarak tutulmadı; ilgili pretrain/geçici analiz dosyaları çalışma ağacından temizlendi.
+- V11, PPO eğitimine devam etmeden önce klasik güdüm algoritmasıyla sahnenin fiziksel olarak vurulabilir olup olmadığını ölçen sağlık testi aşamasıdır.
+- Daha önceki pretrain denemesi kalıcı çözüm olarak tutulmadı; ilgili pretrain/geçici analiz dosyaları çalışma ağacından temizlendi.
 - Root `logs/` ve `models/` klasörleri runtime çıktısıdır ve `.gitignore` kapsamındadır.
 - Kalıcı geçmiş deneyler `archives/` altında saklanır.
 
@@ -19,6 +20,31 @@ Son bilinen V10 sonucu:
 - Success: `1/147` (`%0.680`)
 - Dominant hata: `high_altitude`
 - Tanı: Action/state mimarisi bazı durumlarda vurma üretebildi, fakat PPO bunu kararlı hedef yönelimine çeviremedi.
+
+İlk V11 aracı:
+
+- Script: `scripts/pn_guidance_test.py`
+- Amaç: RL kullanmadan PN (Proportional Navigation / oransal güdüm) ile hedefin vurulup vurulamadığını test etmek.
+- Çıktı: `logs/pn_guidance_test.csv`
+- Özet çıktı: `logs/pn_guidance_test_summary.csv`
+- Test seçenekleri: `--mode blend|pn|pursuit|accel`, `--radius-min`, `--radius-max`, `--altitude-guard`, `--step-delay`, `--pause-on-success`
+- Yorum: PN başarılı olursa simülasyon/action otoritesi yeterli kabul edilir ve sonraki adım öğretmen verisi toplamaktır. PN başarısız olursa önce Unity fizik, kuvvet, hedef hareketi ve action uygulaması incelenmelidir.
+- V11.0.2 notu: Unity thrust artık `rocketPoint.forward` yönünden uygulanır. Düşük irtifada yukarı toparlama komutu korunur; yatay/aşağı yönlü dönüşler daha dikkatli uygulanır.
+- V11.0.3 notu: `--altitude-guard` kalkışta sürekli yukarı basmayacak şekilde yumuşatıldı; guard sadece düşüş riski veya kritik alçak irtifa durumunda devreye girer.
+- V11.0.4 notu: PN/ödül denemesine devam etmeden önce Unity action eksenleri tek tek test edilecek. `scripts/action_axis_test.py`, `clock_12/6/3/9` komutlarının beklenen yönde burun dönüşü üretip üretmediğini CSV özetleriyle ölçer.
+- V11.0.5 notu: İlk axis audit sonucunda roll düzeltmesinin aktif steering sırasında baskın kaldığı görüldü. Roll kontrolü kaldırılmadı; fakat manevra komutu varken ve clock frame dik konumdayken roll torku ikincil seviyeye indirildi.
+- V11.0.6 notu: `action_axis_test.py` içine `clock_12_after_clock_6` aşamalı testi eklendi. Roket dikken clock-12 tekil kalabildiği için önce roket eğilir, sonra clock-12 toparlama yönü ölçülür.
+- V11.0.7 notu: Roll düzeltmesi artık sadece ölçeklenmiyor; aktif steering sırasında izin verilen roll correction limiti de küçülüyor. Böylece roll torku `±34` saturasyonuna kolayca vuramayacak.
+- V11.0.8 notu: Fizik motoruna gönderilen son roll torku da `maxRollTorqueCommand=3.0` ile sınırlandı. Önceki limit command seviyesindeydi ve `rollTorqueScale * torqueScale` sonrası yine büyük z-torku oluşabiliyordu.
+- V11.0.9 notu: Roll artık torkla bastırılmıyor; `suppressRollRate=1` ile her fizik adımı sonunda roketin kendi forward ekseni etrafındaki angular velocity bileşeni temizleniyor.
+- V11.0.10 notu: Clock action artık açık çevrim tork değil, kapalı çevrim burun dönüş hızı isteği olarak uygulanır. `clockTurnRateTarget=1.8`, `clockTurnRateControllerGain=1.15`, `maxPitchYawTorqueCommand=3.2`.
+- V11.0.11 notu: Roket tam dikken gravity tabanlı `clock_12` tanımsız kalır. Bu durumda artık roll/gövde yan ekseni yerine hedef bearing/cached guidance fallback kullanılır.
+- V11.0.12 notu: PN test scriptine `--pn-sign` eklendi. Bu parametre pursuit yönünü bozmadan sadece PN/lead bileşeninin işaretini test etmek için kullanılır.
+- V11.0.13 notu: Blend PN testine yakın mesafe handover eklendi. `--lead-fade-start` ve `--lead-fade-end` ile PN/lead etkisi yakında azalır, pursuit hedefe kilitleme etkisi baskın kalır.
+- V11.0.14 notu: PN/lead vektörü pursuit ile toplanmadan önce normalize edilir. Böylece PN'in ham büyüklüğü yakın mesafede pursuit komutunu ezemez. Varsayılan blend ayarı `pursuit_blend=0.80`, `lead_fade_start=95`, `lead_fade_end=45`.
+- V11.0.15 notu: PN baseline hâlâ success alamadığı için reward/RL yerine actuator otoritesi güncellendi. `clockTurnRateTarget=2.8`, `clockTurnRateControllerGain=1.8`, `maxPitchYawTorqueCommand=6.0`; PN test varsayılan thrust `700`.
+- V11.0.16 notu: PN testine `--mode accel` eklendi. Bu mod PN'i doğrudan clock yönü olarak değil, LOS rate ve closing speed üzerinden yanal ivme komutu olarak hesaplar; ivmeyi `rocket_mass`, `thrust`, gravity compensation ve lateral acceleration limitleriyle sınırlar.
+- V11.0.17 notu: 300 m testinde roket hedefe baksa bile uçuş yolu 20-28 m dışarıdan geçtiği için `--mode accel` içine hız hattı düzeltmesi eklendi. Yeni parametreler: `velocity_track_gain=0.25`, `velocity_accel_fraction=0.65`, `loft_weight=0.20`, `loft_agl=45`.
 
 Bu proje şu an "tamamlanmış başarılı model" durumunda değildir. Kod ve loglar, sonraki teknik inceleme için korunmuş araştırma/deney ortamıdır.
 
@@ -590,6 +616,18 @@ python scripts/train.py
 
 # Test
 python scripts/test.py
+
+# Unity action eksen testi
+python scripts/action_axis_test.py --episodes-per-command 1 --steps 120 --step-delay 0.02
+
+# PN klasik gudum saglik testi
+python scripts/pn_guidance_test.py --episodes 5 --radius-min 140 --radius-max 160
+
+# Acceleration-autopilot PN saglik testi
+python scripts/pn_guidance_test.py --mode accel --episodes 5 --radius-min 140 --radius-max 160 --target-y 50 --terminal-max-altitude 140 --output logs/pn_accel_v11017.csv
+
+# 300m acceleration PN testi
+python scripts/pn_guidance_test.py --mode accel --episodes 5 --radius-min 280 --radius-max 300 --target-y 50 --terminal-max-altitude 180 --max-steps 1000 --output logs/pn_accel_v11017_r280_300.csv
 
 # Statik faz raporu
 python scripts/plot_phase_report.py

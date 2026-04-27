@@ -114,6 +114,9 @@ TELEMETRY_VECTOR_SPECS = [
     ("rocket_point_forward_world", ("x", "y", "z")),
     ("rocket_point_up_world", ("x", "y", "z")),
     ("rocket_point_right_world", ("x", "y", "z")),
+    ("rocket_body_forward_world", ("x", "y", "z")),
+    ("rocket_body_up_world", ("x", "y", "z")),
+    ("rocket_body_right_world", ("x", "y", "z")),
     ("rocket_vel_world", ("x", "y", "z")),
     ("rocket_vel_local", ("x", "y", "z")),
     ("rocket_ang_vel_world", ("x", "y", "z")),
@@ -152,6 +155,12 @@ TELEMETRY_VECTOR_SPECS = [
     ("rel_vel_clock_signed", ("x", "y", "z")),
     ("rocket_ang_vel_guidance", ("x", "y", "z")),
     ("rocket_turn_clock_signed", ("x", "y", "z")),
+    ("thrust_world", ("x", "y", "z")),
+    ("desired_clock_turn_world", ("x", "y", "z")),
+    ("command_turn_world", ("x", "y", "z")),
+    ("command_turn_local", ("x", "y", "z")),
+    ("torque_command_local", ("x", "y", "z")),
+    ("torque_command_world", ("x", "y", "z")),
     ("applied_turn_world", ("x", "y", "z")),
     ("applied_turn_local", ("x", "y", "z")),
 ]
@@ -164,6 +173,22 @@ TELEMETRY_SCALAR_KEYS = [
     "target_clock_angle_deg",
     "action_clock_angle_deg",
     "action_clock_mag",
+    "action_clock12_raw",
+    "action_clock3_raw",
+    "action_clock12_net",
+    "action_clock3_net",
+    "low_altitude_turn_scale",
+    "clock12_scale",
+    "clock3_scale",
+    "beta_validity_applied",
+    "roll_control_scale",
+    "roll_correction_cmd",
+    "roll_correction_limit",
+    "roll_torque_limit",
+    "suppressed_roll_rate",
+    "rocket_point_body_forward_dot",
+    "rocket_point_body_up_dot",
+    "rocket_point_body_right_dot",
 ]
 
 TELEMETRY_FLAT_KEYS = [
@@ -525,7 +550,6 @@ class Env:
     # ------------------------------------------------------------------
 
     def reset(self):
-        self.episode_id += 1
         px, pz, ry, rz, heading_offset, target_miss_distance = calculate_new_loc(
             self.phase["spawn_radius_min"],
             self.phase["spawn_radius_max"],
@@ -535,6 +559,35 @@ class Env:
         )
         py = 50.0
 
+        return self._send_reset_values(px, py, pz, ry, rz, heading_offset, target_miss_distance)
+
+    def reset_with_config(
+        self,
+        radius_min,
+        radius_max,
+        heading_offset_min,
+        heading_offset_max,
+        heading_offset_abs_min=0.0,
+        target_y=50.0,
+    ):
+        """
+        PN saglik testleri icin reset araligini komut satirindan degistirir.
+
+        Training tarafinda aktif faz ne ise o kalir. Bu metot sadece klasik gudum
+        testinde 300m gibi ozel senaryolari hizli denemek icin kullanilir.
+        """
+        px, pz, ry, rz, heading_offset, target_miss_distance = calculate_new_loc(
+            radius_min,
+            radius_max,
+            heading_offset_min,
+            heading_offset_max,
+            heading_offset_abs_min,
+        )
+        return self._send_reset_values(px, target_y, pz, ry, rz, heading_offset, target_miss_distance)
+
+    def _send_reset_values(self, px, py, pz, ry, rz, heading_offset, target_miss_distance):
+        """Reset paketini Unity'ye yollar ve ilk state bilgisini standart sekilde hazirlar."""
+        self.episode_id += 1
         self.done = False
         self.step_count = 0
         self.last_action_info = {}
@@ -1163,6 +1216,75 @@ class Env:
 
         self.done = done
         return normalized_state, reward, done, info
+
+    def step_direct_action(self, denorm_action, action_label="scripted_direct"):
+        """
+        Klasik gudum / scripted controller testleri icin dogrudan Unity action'i gonderir.
+
+        Bu metot PPO action normalizasyonunu kullanmaz. Boylece PN gibi algoritmalar,
+        Unity'nin bekledigi fiziksel komutlari dogrudan test edebilir:
+        [thrust, clock_12, clock_6, clock_3, clock_9].
+        """
+        values = np.asarray(denorm_action, dtype=np.float32).reshape(-1)
+        if len(values) < 5:
+            raise ValueError("Direct action icin 5 deger gerekir: thrust, clock_12, clock_6, clock_3, clock_9")
+
+        values = values[:5].astype(np.float32)
+        self.step_count += 1
+
+        clock_12_net = float(values[1] - values[2])
+        clock_3_net = float(values[3] - values[4])
+        self.last_action_info = {
+            "action_direction_id": -1,
+            "turn_direction_id": -1,
+            "turn_direction_name": action_label,
+            "action_direction_clock12": clock_12_net,
+            "action_direction_clock3": clock_3_net,
+            "turn_strength": float(np.sqrt(clock_12_net ** 2 + clock_3_net ** 2)),
+        }
+
+        action_dict = {
+            "episode_id": self.episode_id,
+            "step_id": self.step_count,
+            "type": "action",
+            "values": [float(v) for v in values],
+        }
+
+        self.connect.send_packet(action_dict)
+
+        raw_state = self.read_state()
+        vector_state = self.parse_state(raw_state)
+        normalized_state = self.normalize_state(vector_state)
+
+        reward, done, reward_info = self.calculate_reward(raw_state, denorm_action=values)
+        info = self.build_info(
+            raw_state=raw_state,
+            denorm_action=values,
+            reward=reward,
+            done=done,
+            done_reason=reward_info["done_reason"],
+        )
+
+        info["grounded_flag"] = reward_info["grounded_flag"]
+        info["alignment"] = reward_info["alignment"]
+        info["ang_vel_mag"] = reward_info["ang_vel_mag"]
+        info["closing_speed"] = reward_info["closing_speed"]
+        info["delta_distance"] = reward_info["delta_distance"]
+        info["theta_rad"] = reward_info["theta_rad"]
+        info["theta_deg"] = reward_info["theta_deg"]
+        info["alpha_rad"] = reward_info["alpha_rad"]
+        info["alpha_deg"] = reward_info["alpha_deg"]
+        info["beta_rad"] = reward_info["beta_rad"]
+        info["beta_deg"] = reward_info["beta_deg"]
+        info["reward_total"] = reward_info["reward_total"]
+        info["success"] = reward_info["success"]
+        info["near_miss_candidate"] = reward_info["near_miss_candidate"]
+
+        for key in REWARD_BREAKDOWN_KEYS:
+            info[key] = reward_info[key]
+
+        self.done = done
+        return raw_state, normalized_state, reward, done, info
 
     # ------------------------------------------------------------------
     # YARDIMCI METODLAR

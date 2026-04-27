@@ -500,4 +500,171 @@
 > - **Observed Outcome**: `update 1-56` araliginda `147` episode tamamlandi. Success `1/147` (`%0.680`), `high_altitude=143`, `wrong_way=2`, `low_agl=1` olarak olculdu. Son `100` episode icinde success gorulmedi.
 > - **Success Note**: Tek success `episode_id=6`, `update=3`, `step=268` icinde geldi; final distance `4.23m`, final theta `24.24deg`, alignment `0.912` oldugu icin vurma kosulu temizdi.
 > - **Failure Diagnosis**: Reward/scene duzeltmesi ilk vurus davranisini uretse de saf PPO exploration kararlı policy'ye donusemedi. Ortalama final theta `132.41deg`, final alignment `-0.661`, final distance `112.33m` seviyesinde kaldi.
-> - **Next Architecture Decision**: V11, reward tahminleme aracini ve hafif orientation warm-start / behavior cloning pretraining'i birlikte kullanacak. Bu sayede PPO rastgele policy yerine hedef yonune bakan bir baslangic policy'sinden fine-tune edilecek.
+> - **Next Architecture Decision**: V11, doğrudan reward katsayisi degistirmek yerine once klasik gudum saglik testiyle baslayacak. PN basarili olursa sonraki adim PN verisi toplama ve ogretili baslangic; PN basarisiz olursa once simülasyon/action otoritesi incelenecek.
+
+# v11.0 sürüm ailesi
+
+> ## v11.0.0 - PN Klasik Güdüm Sağlık Testi
+>
+> - **Teknik Karar**: V11, reward katsayisi degistirerek baslamaz. Once sahnenin klasik gudumle vurulabilir olup olmadigi test edilir. Boylece sorun PPO/reward tarafinda mi, yoksa Unity fizik/action/kuvvet tarafinda mi daha net ayrilir.
+> - **Yeni Script**: `scripts/pn_guidance_test.py` eklendi. Script RL modeli kullanmadan PN (Proportional Navigation / oransal gudum) komutu uretir ve Unity'ye dogrudan `[thrust, clock_12, clock_6, clock_3, clock_9]` action paketi yollar.
+> - **Env Yardimci Metodu**: `scripts/env.py` icine `step_direct_action()` eklendi. Bu metot PPO action normalizasyonunu atlayarak klasik algoritmalarin fiziksel Unity action'ini dogrudan test etmesini saglar.
+> - **Parametreler**: `navigation_gain=4.0`, `turn_strength=1.2`, `turn_sign=1.0`, `pursuit_blend=0.25`, `thrust=MAX_THRUST`, `episodes=20`, `max_steps=700`.
+> - **Cikti Dosyasi**: PN test adimlari `logs/pn_guidance_test.csv` icine yazilir. Kaydedilen alanlar arasinda `distance`, `theta_deg`, `closing_speed`, `agl`, PN komutlari ve done reason bulunur.
+> - **Dokumantasyon**: `docs/v11_experiment_plan.md` eklendi. V11 ve sonrasi icin sirali deney akisi yazildi: PN saglik testi, PN verisi toplama, ogretili baslangic, PPO disi algoritma ve en son reward shaping revizyonu.
+> - **README / VERSION**: Aktif takip surumu `v11.0.0` olarak guncellendi; README icine PN saglik testinin amaci ve yorumlama kurali eklendi.
+> - **Beklenen Etki**: PN basarili olursa problem ogretilecek davranisin PPO tarafinda kesfedilememesidir. PN basarisiz olursa once sahne, kuvvetler, hedef hareketi ve action uygulamasi incelenecektir.
+
+> ## v11.0.1 - Detayli PN Test Araci
+>
+> - **Deney Sonucu**: Ilk V11 PN testlerinde iki isaret denendi. `turn_sign=1` ve `turn_sign=-1` kosullarinda `0/20` success goruldu. Buna ragmen `turn_sign=1` testinde en yakin mesafe `3.41m` seviyesine indi; bu, sahnenin tamamen imkansiz olmadigini ama roket burnu/aci hizalamasinin yetersiz kaldigini gosterdi.
+> - **PN Modlari**: `scripts/pn_guidance_test.py` icine `--mode blend|pn|pursuit` eklendi. `blend` PN ve saf hedefe donme sinyalini karistirir, `pn` sadece LOS kaymasini azaltmaya calisir, `pursuit` roket burnunu dogrudan hedefin bulundugu clock yonune cevirir.
+> - **Radius Kontrolu**: Script artik `--radius-min`, `--radius-max`, `--heading-offset-min`, `--heading-offset-max`, `--heading-offset-abs-min` ve `--target-y` parametrelerini alir. Boylece `300m` nihai senaryo RL curriculum'a girmeden once klasik gudumle test edilebilir.
+> - **Gorsel Izleme**: `--step-delay` ve `--pause-on-success` eklendi. Bu sayede Unity sahnesinde roketin hedefi vurdugu an daha yavas ve gorunur izlenebilir.
+> - **Env Yardimci Metodu**: `scripts/env.py` icine `reset_with_config()` ve `_send_reset_values()` eklendi. Bu metotlar training fazini bozmadan PN testinin ozel radius/heading ile reset atmasini saglar.
+> - **Ozet CSV**: Script artik adim CSV'sine ek olarak `*_summary.csv` uretir. Ozet dosyada reset radius, heading offset, min distance, min distance anindaki theta, final distance, final theta ve done reason bulunur.
+> - **Parametreler**: Varsayilanlar `mode=blend`, `navigation_gain=4.0`, `turn_strength=1.2`, `turn_sign=1.0`, `pursuit_blend=0.25`, `thrust=MAX_THRUST`, `episodes=20`, `max_steps=700`.
+> - **README / VERSION / Plan**: Aktif takip surumu `v11.0.1` olarak guncellendi; README ve `docs/v11_experiment_plan.md` detayli PN test akisini aciklar.
+
+> ## v11.0.2 - Unity Action ve Irtifa Guvenligi Duzeltmesi
+>
+> - **Kok Neden Analizi**: 300m pursuit testinde roket hedefe yaklasirken `collision/low_agl` ile bitti. Roket kütlesi `50kg`, V10 training thrust ust siniri `700N` oldugu icin thrust/agirlik orani yaklasik `1.43` seviyesindeydi. Hedefe yatildiginda thrust'in yukari bileseni agirligi tasimaya yetmiyor.
+> - **Unity Thrust Ekseni**: `ads_ai/Assets/Scripts/Env.cs` icinde thrust uygulamasi `rocketRb.AddRelativeForce(Vector3.forward...)` yerine `rocketRb.AddForce(rocketPoint.forward...)` oldu. Boylece state/debug tarafinda roket burnu olarak kullanilan `rocketPoint.forward` ile fiziksel itki ekseni ayni referansa baglandi.
+> - **Dusuk Irtifa Action Guvenligi**: `Env.cs` icinde `lowAltitudeUpTurnMinScale=0.90` eklendi. Dusuk irtifada clock-12 yani gravity-up toparlama komutu artik fazla kisilmaz; clock-6 ve yatay clock-3/9 komutlari mevcut low-altitude damping ile daha dikkatli uygulanir.
+> - **Scene Sync**: `ads_ai/Assets/Scenes/SampleScene.unity` icindeki Env component'e `lowAltitudeUpTurnMinScale: 0.9` eklendi. Unity Inspector serialize degerleri script varsayilanini ezmesin diye sahne de senkronlandi.
+> - **PN Test Guvenligi**: `scripts/pn_guidance_test.py` icine `--altitude-guard`, `--safe-agl`, `--altitude-guard-gain`, `--altitude-thrust-boost` ve `--sink-speed-scale` parametreleri eklendi. Guard aktifken roket yere yaklasir veya asagi hizlanirsa komuta yukari bilesen eklenir.
+> - **PN Test Thrust**: `scripts/pn_guidance_test.py` varsayilan thrust degeri `1400` yapildi ve PN testindeki thrust training araligina kilitlenmedi. Bu degisiklik PPO training action araligini degistirmez; sadece klasik fiziksel vurulabilirlik testi icindir.
+> - **Log Parametreleri**: PN adim/ozet CSV'lerine `altitude_guard_weight`, `rocket_vy`, `altitude_guard`, `safe_agl`, `altitude_guard_gain` ve `altitude_thrust_boost` alanlari eklendi.
+> - **README / VERSION / Plan**: Aktif takip surumu `v11.0.2` olarak guncellendi; README ve `docs/v11_experiment_plan.md` yeni Unity action/irtifa guvenligi notlarini icerir.
+
+> ## v11.0.3 - Altitude Guard Yumusatma
+>
+> - **Deney Sonucu**: V11.0.2 guarded 300m testinde `0/5` success goruldu ve tum episode'lar `high_altitude` ile bitti. Guard kalkista AGL dusuk oldugu icin ilk adimdan itibaren `altitude_guard_weight≈1.49` uretip thrust'i `~3584N` seviyesine cikardi.
+> - **Kok Neden**: Guard mantigi sadece "AGL dusuk" bilgisini yeterli sayiyordu. Roket zaten yukari hizlanirken bile ekstra yukari komut ve thrust boost verdi; bu da low-alt problemini high-alt problemine cevirdi.
+> - **Guard Fix**: `scripts/pn_guidance_test.py` icinde guard artik sadece roket asagi hizlaniyorsa veya `altitude_guard_grace` sonrasi `critical_agl` altindaysa devreye girer. Kalkista yukselirken ekstra yukari komut verilmez.
+> - **Parametreler**: PN test thrust varsayilani `1400 -> 1200`, `altitude_guard_gain=0.85`, `altitude_thrust_boost=300`, `critical_agl=10`, `altitude_guard_grace=80` olarak ayarlandi.
+> - **Terminal Override**: `--terminal-max-altitude` eklendi. Bu opsiyon sadece PN saglik testinde `env.phase["max_altitude"]` degerini gecici esnetir; training faz ayarini kalici degistirmez.
+> - **Log Parametreleri**: PN CSV alanlarina `critical_agl`, `altitude_guard_grace` ve `terminal_max_altitude` eklendi.
+> - **README / VERSION / Plan**: Aktif takip surumu `v11.0.3` olarak guncellendi; README ve `docs/v11_experiment_plan.md` guard yumusatma notlarini icerir.
+
+> ## v11.0.4 - Unity Action Axis Audit
+>
+> - **Deney Karari**: V11.0.3 PN/pursuit denemesinde roket hedefe yaklastiktan sonra drift/orbit davranisi gosterdi. Bu nedenle yeni adim PN parametresi kurcalamak degil, Unity action eksenlerini tek tek olcmektir.
+> - **Yeni Script**: `scripts/action_axis_test.py` eklendi. Script `thrust_only`, `clock_12`, `clock_6`, `clock_3`, `clock_9` sabit komutlarini uygular ve her kanal icin olculen burun donus isaretini CSV'ye yazar.
+> - **Beklenen Isaretler**: `clock_12` icin `rocket_turn_clock_signed_x > 0`, `clock_6` icin `< 0`, `clock_3` icin `rocket_turn_clock_signed_y > 0`, `clock_9` icin `< 0` beklenir. Isaret ters veya cok zayifsa sorun reward degil, action/fizik mapping tarafindadir.
+> - **Telemetry Genisletme**: `Env.cs` ve `scripts/env.py` icine `thrust_world`, `desired_clock_turn_world`, `command_turn_world/local`, `torque_command_world/local`, `action_clock12_raw/net`, `action_clock3_raw/net`, `low_altitude_turn_scale`, `clock12_scale`, `clock3_scale`, `beta_validity_applied` ve rocketPoint/body eksen dot alanlari eklendi.
+> - **Scene Debug Rays**: `Env.cs` icinde `drawActionAuditRays` ve `actionAuditRayLength` eklendi. Scene view'da cyan burun/itki, yesil clock-12, sari clock-3, beyaz hedef, magenta istenen donus ve kirmizi tork ray'i cizilir.
+> - **Scene Sync**: `SampleScene.unity` icindeki Env component'e `drawActionAuditRays=1`, `actionAuditRayLength=12` yazildi. Unity Inspector degerleri script varsayilanini ezmesin diye sahne de senkron tutuldu.
+> - **Takip Surumu**: `VERSION` ve README aktif surumu `v11.0.4` olacak sekilde guncellendi. Bu audit temiz gecmeden PN baseline, pretraining veya reward shaping asamasina gecilmeyecek.
+
+> ## v11.0.5 - Roll Kontrol Onceligi Duzeltmesi
+>
+> - **Audit Bulgusu**: Ilk `action_axis_test.py` kosusunda `clock_6`, `clock_3` ve `clock_9` beklenen isarette tepki verdi; ancak `clock_12` yukari toparlama kanali beklenen pozitif burun donusunu net uretmedi. Ayni kosuda aktif steering sirasinda roll torku `torque_local_z≈±34` seviyesine kadar saturasyona gitti.
+> - **Kok Neden Yorumu**: Roll stabilizer tamamen yanlis degil, fakat pitch/yaw manevra komutu verilirken roll duzeltmesi fazla baskin kaliyordu. Bu durum ozellikle dik kalkis/clock frame gecisinde steering komutunu sulandirip drift davranisini buyutebilir.
+> - **Unity Degisikligi**: `Env.cs` icinde roll duzeltmesine iki olcek eklendi: `activeSteeringRollScale=0.35` ve `rollValidityFloor=0.15`. Manevra komutu buyudukce ve clock frame dik konumdayken roll duzeltmesi ikincil hale gelir.
+> - **Scene Sync**: `SampleScene.unity` icindeki Env component'e `activeSteeringRollScale: 0.35` ve `rollValidityFloor: 0.15` eklendi.
+> - **Telemetry**: `roll_control_scale` ve `roll_correction_cmd` alanlari `Env.cs`, `scripts/env.py` ve `scripts/action_axis_test.py` tarafina eklendi. Boylece sonraki axis audit'te roll baskisinin ne kadar kisildigi sayisal gorulecek.
+> - **Beklenen Etki**: Roll baskisi tamamen yumusatilmadi; sadece aktif pitch/yaw komutu sirasinda direksiyonun onune gecmesi engellendi. Sonraki zorunlu test tekrar `action_axis_test.py` kosusudur.
+
+> ## v11.0.6 - Aşamali Clock-12 Audit
+>
+> - **Audit Bulgusu**: V11.0.5 axis tekrarinda roll baskisi ortalamada azaldi (`roll_control_scale` yaklasik `0.05-0.16` bandina indi), fakat saf `clock_12` komutu hala beklenen pozitif burun donusunu uretmedi.
+> - **Geometri Yorumu**: Roket dik kalkista `rocketPoint.forward` ile gravity-up neredeyse ayni hatta oldugu icin `clock_12` yonu tekillesiyor. Bu durumda "daha yukari don" komutu fiziksel/koordinatsal olarak belirsiz kalabilir.
+> - **Script Degisikligi**: `scripts/action_axis_test.py` icine `clock_12_after_clock_6` staged komutu eklendi. Bu test once `60` step `clock_6` uygular, roketi gravity-up ekseninden ayirir, sonra `clock_12` komutunun toparlama isaretini olcer.
+> - **Default Test Seti**: Varsayilan `--commands` listesine `clock_12_after_clock_6` eklendi. Bundan sonraki axis audit hem saf dik kalkis hem de egildikten sonraki toparlama davranisini raporlayacak.
+> - **Takip Surumu**: `VERSION` ve README `v11.0.6` olarak guncellendi. Bu test temiz cikmadan PN/autopilot baseline'a gecilmeyecek.
+
+> ## v11.0.7 - Roll Saturation Clamp
+>
+> - **Audit Bulgusu**: V11.0.6 axis tekrarinda `clock_12_after_clock_6` isaret olarak temiz cikti (`sign_ok=1`, mean turn12 pozitif). Ancak kullanici gozlemi ve loglar bazi kanallarda asiri roll oldugunu dogruladi: `clock_12/3/9` kosularinda anlik roll rate `~3.9 rad/s`, `torque_local_z` ise yer yer `±34` saturasyonuna cikti.
+> - **Kok Neden**: Roll correction sinyali V11.0.5'te olceklenmis olsa da son clamp hala tam `maxRollCorrection=5.25` ile yapiliyordu. Bu nedenle buyuk roll error/damping anlarinda kucuk olcek bile tam z-tork limitine vurabiliyordu.
+> - **Unity Degisikligi**: `Env.cs` icinde roll correction artik iki asamada sinirlanir: once steering/validity ile olceklenir, sonra aktif steering sirasinda dinamik `rollCorrectionLimit` ile clamp edilir.
+> - **Telemetry**: `roll_correction_limit` alanlari `Env.cs`, `scripts/env.py` ve `scripts/action_axis_test.py` tarafina eklendi. Sonraki testte roll sinyalinin hangi limite carpildigi CSV'den gorulecek.
+> - **Takip Surumu**: `VERSION` ve README `v11.0.7` olarak guncellendi. Beklenen etki roll'u tamamen serbest birakmadan, aktif pitch/yaw manevrasinda buyuk roll tork darbelerini engellemektir.
+
+> ## v11.0.8 - Fiziksel Roll Tork Limiti
+>
+> - **Audit Bulgusu**: V11.0.7 axis tekrarinda kalkis aninda hala asiri roll goruldu. Loglar `clock_3/clock_9` ilk 20 step icinde `measured_roll_rate≈3.9 rad/s` ve `torque_local_z≈±23.9` seviyelerini gosterdi.
+> - **Kok Neden**: V11.0.7'de roll correction command seviyesi sinirlandi; fakat fizik motoruna gitmeden once `rollTorqueScale=3.6` ve `torqueScale=1.8` carpanlari uygulaninca z-tork tekrar buyudu.
+> - **Unity Degisikligi**: `Env.cs` icinde `maxRollTorqueCommand=3.0` eklendi. `AddRelativeTorque` oncesinde son `scaledTorqueCommand.z` bu aralikta clamp edilir; x/y pitch-yaw torklari aynen kalir.
+> - **Scene Sync**: `SampleScene.unity` Env component'e `maxRollTorqueCommand: 3` eklendi.
+> - **Telemetry**: `roll_torque_limit` alanlari `Env.cs`, `scripts/env.py` ve `scripts/action_axis_test.py` tarafina eklendi.
+> - **Takip Surumu**: `VERSION` ve README `v11.0.8` olarak guncellendi. Beklenen etki kalkis anindaki buyuk roll impulse'larini azaltmak, fakat roll baskisini tamamen kapatmamaktir.
+
+> ## v11.0.9 - Roll Rate Projection
+>
+> - **Audit Karari**: V11.0.8 sonrasi `torque_local_z` `±3` bandinda sinirlandi, fakat roketin roll inertia'si pitch/yaw inertia'sina gore yaklasik `13.3x` dusuk oldugu icin kalkis roll'u hala gorulebildi.
+> - **Tasarim Karari**: Bu projede roket roll kontrolu ogrenmeyecek; roll-free varsayimi sim tarafinda garanti edilecek. Bu, onceki tasarim tartismalarinda "roket roll yapmiyor" kabulune daha uygundur.
+> - **Unity Degisikligi**: `Env.cs` icine `suppressRollRate=true` ve `rollRateSuppressBlend=1.0` eklendi. Her `Physics.Simulate()` sonrasi `rocketPoint.forward` ekseni etrafindaki angular velocity bileseni projekte edilip temizlenir.
+> - **Roll Torque Degisikligi**: Projection aktifken roll stabilizer z-torku sifirlanir. Pitch/yaw torklari korunur; sadece forward ekseni etrafindaki roll rate temizlenir.
+> - **Scene Sync**: `SampleScene.unity` Env component'e `suppressRollRate: 1` ve `rollRateSuppressBlend: 1` eklendi.
+> - **Telemetry**: `suppressed_roll_rate` alanlari `Env.cs`, `scripts/env.py` ve `scripts/action_axis_test.py` tarafina eklendi. Axis summary artik `mean_suppressed_roll_rate` raporlar.
+> - **Takip Surumu**: `VERSION` ve README `v11.0.9` olarak guncellendi. Beklenen test sonucu `clock_3/clock_9` kalkisinda roll rate'in sifira yakin kalmasidir.
+
+> ## v11.0.10 - Clock Turn-Rate Controller
+>
+> - **Audit Bulgusu**: `pn_roll_fixed_blend_audit_v1109.csv` logunda PN action ile Unity net action ayni zincirde ilerledi, fakat yakin mesafede mevcut acisal hiz komutu ezdi. `dist<50m` penceresinde burun donus yonu hedef clock yonune karsi calisti; bu durum clock isaretinin tamamen ters olmasindan cok acik cevrim tork uygulamasinin gec kalmasina isaret etti.
+> - **Unity Degisikligi**: `Env.cs` icinde clock action uygulamasi acik cevrim torktan kapali cevrim burun donus hizi kontrolune cevrildi. Action artik "su yone tork bas" degil, "burnu su clock yonunde donder" istegi gibi yorumlanir.
+> - **Yeni Parametreler**: `clockTurnRateTarget=1.8`, `clockTurnRateControllerGain=1.15`, `maxPitchYawTorqueCommand=3.2` eklendi. Bu degerler yakin geciste eski acisal momentumun hedef yonunu ezmesini azaltmak icin secildi.
+> - **Scene Sync**: `SampleScene.unity` Env component'e yeni turn-rate controller parametreleri yazildi; Unity Inspector script default degerlerini ezmeyecek.
+> - **Beklenen Etki**: PN/pursuit testinde `theta_at_min_distance` degeri dusmeli ve `dist<50m` penceresinde `rocket_turn_clock_signed` ile target clock yonu arasindaki uyum pozitife donmelidir. Bu test temizlenmeden reward/PPO tuning'e gecilmeyecek.
+
+> ## v11.0.11 - Clock Singularity Fallback
+>
+> - **Audit Bulgusu**: V11.0.10 PN testinde roket hedefi kovalar gibi davrandi ve `5.7m` / `8.7m` yakin gecisler goruldu, fakat en yakin anda theta `125-132deg` seviyesine cikti. Action uygulamasi iyilesse de roketin tam dik kalkis bolgesinde clock-12 yonu hala zayif tanimliydi.
+> - **Clock Koku**: Roket forward ekseni gravity-up ile paralelken gravity tabanli `clock_12` matematiksel olarak tanimsizdir. Eski fallback `rocketPoint.up` kullaniyordu; bu da silindirik roketin roll/govde yan eksenine bagli keyfi bir saat yonu uretir.
+> - **Unity Degisikligi**: `Env.cs` icindeki `BuildClockFrame()` fallback'i degistirildi. Gravity projection sifirken `clock_12` once hedef bearing'inden, bu yoksa cached guidance yonunden kurulur. Boylece dik kalkista keyfi govde ekseni yerine hedefe gore kararlı bir clock baslangici secilir.
+> - **Beklenen Etki**: Saf `clock_12` axis testi artik dik kalkista daha anlamli bir yonde tepki vermeli; PN/pursuit testinde ilk yon secimi daha az rastgele olmali. Bu degisiklik clock mimarisini atmadan onceki son temel saglamlastirma adimidir.
+
+> ## v11.0.12 - PN Lead Sign Isolation
+>
+> - **Audit Bulgusu**: V11.0.11 pursuit testi clock/action zincirinin duzeldigini gosterdi: `dist<50m` penceresinde action-target ve turn-target uyumu neredeyse `1.0` oldu. Ancak pursuit hedefi arkadan kovalamaya dusup `23-25m` bandinda kaldi.
+> - **Blend Bulgusu**: V11.0.11 blend testi `10.38m`, `12.97m`, `19.53m` yakin gecisler uretti; fakat yakinlasma aninda PN/lead komutu hedef clock yonunun tersine calistigi icin theta `56-63deg` bandinda kaldi.
+> - **Script Degisikligi**: `scripts/pn_guidance_test.py` icine `--pn-sign` eklendi. Bu parametre sadece PN/lead bilesenini tersler; pursuit bileseni ve genel action sign ayni kalir.
+> - **Beklenen Test**: `--pn-sign -1` ile blend testinde theta dusuyorsa problem clock mimarisi degil, PN lead isaretidir. Dusmuyorsa lead karisimi fazla baskindir veya action mimarisi hedef vektor tabanli yeni tasarima gecmelidir.
+
+> ## v11.0.13 - Yakın Mesafe Pursuit Handover
+>
+> - **Audit Bulgusu**: `--pn-sign -1` testi kotu cikti. Min distance `66-71m`, theta `121-124deg` seviyesinde kaldi; yani PN/lead isaretini tamamen terslemek yanlis yoldur.
+> - **Tasarim Karari**: Pozitif PN/lead uzakta hedefin onunu kesmeye yariyor, fakat yakin geciste fazla baskin kalip burun hizalamasini geciktiriyor. Bu nedenle lead'i tamamen terslemek yerine mesafeye bagli azaltmak daha mantikli.
+> - **Script Degisikligi**: `scripts/pn_guidance_test.py` icine `--lead-fade-start` ve `--lead-fade-end` eklendi. Blend modunda distance `lead_fade_start` altina indikce PN/lead agirligi azalir, `lead_fade_end` altinda pursuit yani dogrudan hedefe bakma baskin kalir.
+> - **Log Alanlari**: PN adim CSV'sine `lead_weight`; adim ve ozet CSV'lerine `lead_fade_start`, `lead_fade_end` eklendi. Boylece yakin geciste lead'in gercekten azaldigi logdan gorulebilir.
+> - **Varsayilanlar**: `lead_fade_start=70m`, `lead_fade_end=25m`. Beklenen etki `10-20m` yakin geciste theta'nin `56-63deg` bandindan daha dusuk seviyeye inmesidir.
+
+> ## v11.0.14 - Normalized Lead Blend
+>
+> - **Audit Bulgusu**: V11.0.13 ile min distance `3.33m`, `4.77m`, `9.13m` seviyesine indi; fakat en yakin anda theta `136-167deg` oldu. Handover yakinda lead'i sifirlasa da roket `40-70m` bandinda PN etkisiyle hedef clock yonunun tersine acisal hiz biriktirdi.
+> - **Kok Neden**: Blend toplami `PN vektoru + pursuit vektoru` seklindeydi. PN vektoru ham buyukluk olarak pursuit unit vektorunden cok daha buyuk olabildigi icin `lead_weight` dusse bile pursuit komutunu ezebiliyordu.
+> - **Script Degisikligi**: `scripts/pn_guidance_test.py` icinde PN/lead vektoru artik pursuit ile toplanmadan once normalize edilir. Blend artik iki yon vektoru arasinda yapilir; ham PN buyuklugu sadece debug amaciyla loglanir.
+> - **Varsayilanlar**: `pursuit_blend=0.80`, `lead_fade_start=95m`, `lead_fade_end=45m` olarak guncellendi. Amac uzakta onleme bilgisini korumak, 45m altinda ise burnu hedefe kilitlemektir.
+> - **Beklenen Etki**: `dist<50m` penceresinde `cos action-target` yukselmeli ve en yakin mesafede theta `136-167deg` gibi arkaya bakma degerlerinden belirgin sekilde dusmelidir.
+
+> ## v11.0.15 - Pitch/Yaw Authority Baseline
+>
+> - **Audit Bulgusu**: V11.0.14, theta'yi `49-58deg` bandina indirdi fakat success alamadi. Loglarda action-target uyumu `dist<50m` icin `~0.999` oldu; yani komut dogru, fakat burun donus hizi hedefe yetisemedi. Pitch/yaw torku yakin gecis oncesinde limite vurdu.
+> - **Karar**: Bu asamada reward veya PPO'ya gecmek yanlis olur. Klasik algoritma success alamiyorsa RL de ayni actuator limitine carpacaktir.
+> - **Unity Degisikligi**: `Env.cs` icindeki pitch/yaw otoritesi artirildi: `clockTurnRateTarget=2.8`, `clockTurnRateControllerGain=1.8`, `maxPitchYawTorqueCommand=6.0`.
+> - **Scene Sync**: `SampleScene.unity` Env component de ayni degerlerle senkronlandi.
+> - **PN Test Ayari**: `scripts/pn_guidance_test.py` varsayilan thrust'i `700` yapildi. Bu, RL training thrust ust siniriyle ayni banda daha yakin bir klasik baseline verir.
+> - **Beklenen Etki**: `dist<20m` penceresinde theta `50deg` civarindan success kosuluna yaklasmali. Eger PN hala success alamazsa bir sonraki karar clock action mimarisini degil, torque tabanli actuator modelini daha dogrudan hedef vektoru kontrolune cevirmektir.
+
+> ## v11.0.16 - Acceleration PN Baseline
+>
+> - **Internet/Kaynak Bulgusu**: PN kaynaklari, oransal gudumun dogrudan "clock yonune don" komutu degil, LOS rate ve closing speed uzerinden yanal ivme komutu urettigini gosterdi. Bu ivme komutu normalde ayrica bir autopilot/flight-control katmani tarafindan takip edilir.
+> - **Kok Neden Yorumu**: V11.0.15 torque otoritesi artinca roket daha oynak oldu, fakat success gelmedi. Loglarda min mesafe `15-17m` bandindan `25-34m` bandina kotulesti. Bu, eksigin sadece tork buyuklugu degil, PN ivme komutunu takip eden ara katman oldugunu gosterir.
+> - **Script Degisikligi**: `scripts/pn_guidance_test.py` icine `--mode accel` eklendi. Bu mod `pn_lateral = N * closing_speed * LOS_rate` mantigini korur, PN ivmesini normalize edip kaybetmez.
+> - **Fizik Limiti**: Yeni mod `rocket_mass=50`, `thrust=700`, `gravity_comp=0.95`, `max_up_comp_fraction=0.78`, `lateral_accel_fraction=0.85` parametreleriyle ulasilabilir ivme siniri hesaplar. Boylece PN komutu fiziksel olarak uygulanamayacak kadar buyurse sinirlanir.
+> - **Lead / Pursuit Karisimi**: `intercept_speed_floor=45`, `accel_lead_weight=0.90`, `accel_pursuit_weight=0.45`, `accel_pn_weight=1.00` eklendi. Lead hedefin onunu kesmeye, pursuit ise yakin mesafede burnu hedefe kilitlemeye yardim eder.
+> - **Log Alanlari**: PN CSV'lerine `pn_accel_limit`, `pn_limited_accel_mag`, `pn_accel_saturated`, `gross_accel`, `gravity_comp_accel`, `lead_t_go`, `lead_dir_dot_los`, `desired_accel_clock12`, `desired_accel_clock3` alanlari eklendi.
+> - **README / VERSION**: Aktif takip surumu `v11.0.16` yapildi. Bu test basarili olmadan reward/PPO tuning'e geri donulmeyecek.
+
+> ## v11.0.17 - Velocity Path Correction
+>
+> - **300m Deney Bulgusu**: `pn_accel_v11016_r280_300` ve lead agirlikli kosuda success gelmedi. En yakin mesafe `21-28m`, theta ise cogu episode'da `3-16deg` bandindaydi. Yani roket hedefe bakiyor, fakat hiz/trajectory hatti hedefin 20m disindan akip geciyordu.
+> - **Kok Neden Yorumu**: Burnu hedefe cevirmek yeterli degil; PN'in pratikte basarmasi gereken sey hiz vektorunu da onleme hattina oturtmaktir. Mevcut accel modunda bu hiz-hatti hatasi dogrudan cezalandirilmiyordu.
+> - **Script Degisikligi**: `scripts/pn_guidance_test.py --mode accel` icine velocity tracking eklendi. `desired_velocity = lead_dir * command_speed` hesaplanir, mevcut `rocket_vel` ile farki ivme istegine cevrilir.
+> - **Yeni Parametreler**: `velocity_track_gain=0.25`, `velocity_accel_fraction=0.65`, `loft_weight=0.20`, `loft_agl=45`, `loft_fade_start=260`, `loft_fade_end=120`.
+> - **Loft Mantigi**: Uzak menzilde ve roket AGL hedefinin altindayken hafif yukari bias eklenir. Amac roketin 300m senaryoda cok erken yatip irtifa kaybetmesini azaltmaktir.
+> - **Log Alanlari**: PN CSV'lerine `velocity_error_mag`, `velocity_correction_mag`, `velocity_correction_saturated`, `loft_factor`, `loft_accel_mag` eklendi. Boylece 300m testinde miss sebebi artik hiz hatti ve loft tarafindan da okunabilir.
+> - **Max Step Fix**: PN testinde `--max-steps` artik sadece script loop'unu degil, `env.phase["max_step"]` ve `env.max_step` degerlerini de gunceller. Onceki 300m testinde komut 1000 olsa bile env tarafinda timeout 700 stepte bitiyordu.
+> - **README / VERSION**: Aktif takip surumu `v11.0.17` yapildi. Beklenen etki 300m testinde `min_distance` degerini `21-28m` bandindan success threshold'a yaklastirmaktir.

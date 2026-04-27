@@ -6318,6 +6318,8 @@ MonoBehaviour:
   distanceLine: {fileID: 684538538}
   forwardLine: {fileID: 2039309739}
   forwardLineLength: 20
+  drawActionAuditRays: 1
+  actionAuditRayLength: 12
   rocketResetPosition: {x: -0.492, y: 0.8375, z: 0.022}
   rocketResetEuler: {x: -90, y: 0, z: 0}
   thrustScale: 1
@@ -6326,10 +6328,19 @@ MonoBehaviour:
   lowAltitudeTurnDampStartAgl: 0.5
   lowAltitudeTurnDampFullAgl: 10
   lowAltitudeMinTurnScale: 0.35
+  lowAltitudeUpTurnMinScale: 0.9
+  clockTurnRateTarget: 2.8
+  clockTurnRateControllerGain: 1.8
+  maxPitchYawTorqueCommand: 6
   targetHeightOffset: 0
   rollStabilizationGain: 25
   rollDampingGain: 20
   maxRollCorrection: 5.25
+  activeSteeringRollScale: 0.35
+  rollValidityFloor: 0.15
+  maxRollTorqueCommand: 3
+  suppressRollRate: 1
+  rollRateSuppressBlend: 1
   betaFadeStartAbsForwardUp: 0.8
   betaFadeEndAbsForwardUp: 0.95
   betaValidityFloor: 0.75

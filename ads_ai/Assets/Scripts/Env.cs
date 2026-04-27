@@ -73,6 +73,9 @@ public class OutgoingTelemetryData
     public float[] rocket_point_forward_world = new float[3];
     public float[] rocket_point_up_world = new float[3];
     public float[] rocket_point_right_world = new float[3];
+    public float[] rocket_body_forward_world = new float[3];
+    public float[] rocket_body_up_world = new float[3];
+    public float[] rocket_body_right_world = new float[3];
     public float[] rocket_vel_world = new float[3];
     public float[] rocket_vel_local = new float[3];
     public float[] rocket_ang_vel_world = new float[3];
@@ -113,6 +116,12 @@ public class OutgoingTelemetryData
     public float[] rel_vel_clock_signed = new float[3];
     public float[] rocket_ang_vel_guidance = new float[3];
     public float[] rocket_turn_clock_signed = new float[3];
+    public float[] thrust_world = new float[3];
+    public float[] desired_clock_turn_world = new float[3];
+    public float[] command_turn_world = new float[3];
+    public float[] command_turn_local = new float[3];
+    public float[] torque_command_local = new float[3];
+    public float[] torque_command_world = new float[3];
     public float[] applied_turn_world = new float[3];
     public float[] applied_turn_local = new float[3];
 
@@ -123,6 +132,22 @@ public class OutgoingTelemetryData
     public float target_clock_angle_deg;
     public float action_clock_angle_deg;
     public float action_clock_mag;
+    public float action_clock12_raw;
+    public float action_clock3_raw;
+    public float action_clock12_net;
+    public float action_clock3_net;
+    public float low_altitude_turn_scale;
+    public float clock12_scale;
+    public float clock3_scale;
+    public float beta_validity_applied;
+    public float roll_control_scale;
+    public float roll_correction_cmd;
+    public float roll_correction_limit;
+    public float roll_torque_limit;
+    public float suppressed_roll_rate;
+    public float rocket_point_body_forward_dot;
+    public float rocket_point_body_up_dot;
+    public float rocket_point_body_right_dot;
 }
 
 [Serializable]
@@ -154,6 +179,8 @@ public class Env : MonoBehaviour
     public LineRenderer distanceLine;
     public LineRenderer forwardLine;
     public float forwardLineLength = 20f;
+    public bool drawActionAuditRays = true;
+    public float actionAuditRayLength = 12f;
 
     [Header("Rocket Reset Pose")]
     public Vector3 rocketResetPosition = new Vector3(-0.492f, 0.8375f, 0.022f);
@@ -166,12 +193,21 @@ public class Env : MonoBehaviour
     public float lowAltitudeTurnDampStartAgl = 0.5f;
     public float lowAltitudeTurnDampFullAgl = 10f;
     public float lowAltitudeMinTurnScale = 0.35f;
+    public float lowAltitudeUpTurnMinScale = 0.90f;
+    public float clockTurnRateTarget = 2.8f;
+    public float clockTurnRateControllerGain = 1.8f;
+    public float maxPitchYawTorqueCommand = 6.0f;
 
     [Header("Guidance Stabilization")]
     public float targetHeightOffset = 0f;
     public float rollStabilizationGain = 25f;
     public float rollDampingGain = 20f;
     public float maxRollCorrection = 5.25f;
+    public float activeSteeringRollScale = 0.35f;
+    public float rollValidityFloor = 0.15f;
+    public float maxRollTorqueCommand = 3.0f;
+    public bool suppressRollRate = true;
+    public float rollRateSuppressBlend = 1.0f;
     public float betaFadeStartAbsForwardUp = 0.80f;
     public float betaFadeEndAbsForwardUp = 0.95f;
     public float betaValidityFloor = 0.75f;
@@ -214,6 +250,25 @@ public class Env : MonoBehaviour
     private Vector3 cachedGuidanceForward = Vector3.forward;
     private Vector3 lastAppliedTurnWorld = Vector3.zero;
     private Vector3 lastAppliedTurnLocal = Vector3.zero;
+    private Vector3 lastThrustWorld = Vector3.zero;
+    private Vector3 lastDesiredClockTurnWorld = Vector3.zero;
+    private Vector3 lastCommandTurnWorld = Vector3.zero;
+    private Vector3 lastCommandTurnLocal = Vector3.zero;
+    private Vector3 lastTorqueCommandLocal = Vector3.zero;
+    private Vector3 lastTorqueCommandWorld = Vector3.zero;
+    private float lastClock12Raw = 0f;
+    private float lastClock3Raw = 0f;
+    private float lastClock12Net = 0f;
+    private float lastClock3Net = 0f;
+    private float lastLowAltitudeTurnScale = 1f;
+    private float lastClock12Scale = 1f;
+    private float lastClock3Scale = 1f;
+    private float lastBetaValidityApplied = 1f;
+    private float lastRollControlScale = 1f;
+    private float lastRollCorrectionCmd = 0f;
+    private float lastRollCorrectionLimit = 0f;
+    private float lastRollTorqueLimit = 0f;
+    private float lastSuppressedRollRate = 0f;
 
     private void Start()
     {
@@ -344,32 +399,88 @@ public class Env : MonoBehaviour
         UpdateParticleFX();
 
         Physics.Simulate(Time.fixedDeltaTime);
+        SuppressRollRate();
         UpdateDebugLines();
         SendStateToPython();
     }
 
     private void ApplyAction()
     {
-        rocketRb.AddRelativeForce(Vector3.forward * currentThrust * thrustScale, ForceMode.Force);
+        // Itkiyi rocketPoint.forward ile uygulariz; state/debug tarafinda roket burnu olarak bu eksen kullaniliyor.
+        // Boylece "hedefe bakma" ile fiziksel itki ekseni ayni referansa baglanir.
+        lastThrustWorld = rocketPoint.forward * currentThrust * thrustScale;
+        rocketRb.AddForce(lastThrustWorld, ForceMode.Force);
 
         BuildGuidanceFrame(targetPoint.position - rocketPoint.position, out Vector3 upRefWorld, out Vector3 rightRefWorld, out Vector3 forwardRefWorld);
-        BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out Vector3 clockForwardWorld, out _);
+        BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out Vector3 clockForwardWorld, out float clockValidity);
         float forwardUpDot = Vector3.Dot(clockForwardWorld, upRefWorld);
         float betaValidity = ComputeBetaValidity(forwardUpDot);
 
         float lowAltitudeTurnScale = ComputeLowAltitudeTurnScale();
-        float clock12Net = (currentClock12Cmd - currentClock6Cmd) * lowAltitudeTurnScale;
-        float clock3Net = (currentClock3Cmd - currentClock9Cmd) * lowAltitudeTurnScale;
-        Vector3 desiredClockTurnWorld = (clock12World * clock12Net) + (clock3World * clock3Net);
+        float clock12Raw = currentClock12Cmd - currentClock6Cmd;
+        float clock3Raw = currentClock3Cmd - currentClock9Cmd;
 
-        Vector3 commandTurnWorld = Vector3.Cross(clockForwardWorld, desiredClockTurnWorld) * betaValidity;
+        // Dusuk irtifada yukari toparlama komutu kisilmaz; aksi halde roket yere yaklasinca kendini kurtaramaz.
+        // Clock 12 gravity-up yonudur. Clock 6 ve yatay kanal ise dusuk irtifada daha dikkatli uygulanir.
+        float upTurnScale = Mathf.Max(lowAltitudeTurnScale, lowAltitudeUpTurnMinScale);
+        float clock12Scale = clock12Raw >= 0f ? upTurnScale : lowAltitudeTurnScale;
+        float clock3Scale = lowAltitudeTurnScale;
+        float clock12Net = clock12Raw * clock12Scale;
+        float clock3Net = clock3Raw * clock3Scale;
+        Vector3 desiredClockTurnWorld = (clock12World * clock12Net) + (clock3World * clock3Net);
+        Vector3 currentNoseTurnWorld = Vector3.Cross(rocketRb.angularVelocity, clockForwardWorld);
+
+        // Clock action artik "su yone tork bas" degil, "burnu su yonde donder" istegidir.
+        // Mevcut burun donus hizi hatadan dusulur; boylece roket hedefi gectikten sonra eski acisal hizla savrulmaz.
+        Vector3 desiredNoseTurnWorld = desiredClockTurnWorld * Mathf.Max(0f, clockTurnRateTarget);
+        Vector3 turnRateErrorWorld = desiredNoseTurnWorld - currentNoseTurnWorld;
+        Vector3 commandTurnWorld = Vector3.Cross(clockForwardWorld, turnRateErrorWorld)
+            * betaValidity
+            * Mathf.Max(0f, clockTurnRateControllerGain);
         Vector3 commandTurnLocal = rocketRb.transform.InverseTransformDirection(commandTurnWorld);
         Vector3 localAngVel = rocketPoint.InverseTransformDirection(rocketRb.angularVelocity);
         float rollErrorRad = ComputeRollErrorRad(upRefWorld, rocketPoint.forward);
+        float steeringMag = Mathf.Clamp01(Mathf.Sqrt((clock12Net * clock12Net) + (clock3Net * clock3Net)));
+        float steeringRollScale = Mathf.Lerp(1f, activeSteeringRollScale, steeringMag);
+        float validityRollScale = Mathf.Lerp(rollValidityFloor, 1f, Mathf.Clamp01(clockValidity));
+        float rollControlScale = Mathf.Clamp01(steeringRollScale * validityRollScale);
+
+        // Audit icin ham/net action ve ara vektorleri sakliyoruz.
+        // Bu sayede Python tarafinda "komut verildi ama burun hangi yone dondu?" sorusu sayisal incelenebilir.
+        lastClock12Raw = clock12Raw;
+        lastClock3Raw = clock3Raw;
+        lastClock12Net = clock12Net;
+        lastClock3Net = clock3Net;
+        lastLowAltitudeTurnScale = lowAltitudeTurnScale;
+        lastClock12Scale = clock12Scale;
+        lastClock3Scale = clock3Scale;
+        lastBetaValidityApplied = betaValidity;
+        lastDesiredClockTurnWorld = desiredClockTurnWorld;
+        lastCommandTurnWorld = commandTurnWorld;
+        lastCommandTurnLocal = commandTurnLocal;
 
         commandTurnLocal.z = 0f;
-        commandTurnLocal.z += (rollErrorRad * rollStabilizationGain) - (localAngVel.z * rollDampingGain);
+        // Roll baskisi steering'i ezmemeli. Roket aktif donus komutu alirken ve clock frame dik konumda zayifken
+        // roll duzeltmesini ikincil tutuyoruz; boylece roll kontrolu pitch/yaw manevrasini bozmuyor.
+        float rawRollCorrectionCmd = ((rollErrorRad * rollStabilizationGain) - (localAngVel.z * rollDampingGain)) * rollControlScale;
+        float rollLimitScale = Mathf.Lerp(1f, Mathf.Max(rollValidityFloor, rollControlScale), steeringMag);
+        float rollCorrectionLimit = maxRollCorrection * Mathf.Clamp01(rollLimitScale);
+        float rollCorrectionCmd = Mathf.Clamp(rawRollCorrectionCmd, -rollCorrectionLimit, rollCorrectionLimit);
+
+        if (suppressRollRate)
+        {
+            // Roll'u bu projede ogrenilecek ayri bir hedef yapmiyoruz.
+            // Projection aktifken z torkunu sifirlayip roll rate'i fizik adimi sonunda temizliyoruz.
+            rollCorrectionCmd = 0f;
+            rollCorrectionLimit = 0f;
+            rollControlScale = 0f;
+        }
+
+        commandTurnLocal.z += rollCorrectionCmd;
         commandTurnLocal.z = Mathf.Clamp(commandTurnLocal.z, -maxRollCorrection, maxRollCorrection);
+        lastRollControlScale = rollControlScale;
+        lastRollCorrectionCmd = rollCorrectionCmd;
+        lastRollCorrectionLimit = rollCorrectionLimit;
 
         lastAppliedTurnLocal = commandTurnLocal;
         lastAppliedTurnWorld = rocketRb.transform.TransformDirection(lastAppliedTurnLocal);
@@ -379,7 +490,40 @@ public class Env : MonoBehaviour
             lastAppliedTurnLocal.y,
             lastAppliedTurnLocal.z * rollTorqueScale
         );
-        rocketRb.AddRelativeTorque(torqueCommand * torqueScale, ForceMode.Force);
+
+        // Fizige giden son roll torkunu da sinirliyoruz.
+        // Onceki clamp command seviyesindeydi; rollTorqueScale ve torqueScale carpilinca kalkista buyuk z-torku dogabiliyordu.
+        Vector3 scaledTorqueCommand = torqueCommand * torqueScale;
+        float pitchYawTorqueLimit = Mathf.Max(0f, maxPitchYawTorqueCommand);
+        scaledTorqueCommand.x = Mathf.Clamp(scaledTorqueCommand.x, -pitchYawTorqueLimit, pitchYawTorqueLimit);
+        scaledTorqueCommand.y = Mathf.Clamp(scaledTorqueCommand.y, -pitchYawTorqueLimit, pitchYawTorqueLimit);
+        float rollTorqueLimit = Mathf.Max(0f, maxRollTorqueCommand);
+        scaledTorqueCommand.z = Mathf.Clamp(scaledTorqueCommand.z, -rollTorqueLimit, rollTorqueLimit);
+        lastTorqueCommandLocal = scaledTorqueCommand;
+        lastRollTorqueLimit = rollTorqueLimit;
+        lastTorqueCommandWorld = rocketRb.transform.TransformDirection(lastTorqueCommandLocal);
+        rocketRb.AddRelativeTorque(lastTorqueCommandLocal, ForceMode.Force);
+    }
+
+    private void SuppressRollRate()
+    {
+        if (!suppressRollRate)
+        {
+            lastSuppressedRollRate = 0f;
+            return;
+        }
+
+        Vector3 forwardAxis = rocketPoint.forward.sqrMagnitude > 1e-8f
+            ? rocketPoint.forward.normalized
+            : rocketRb.transform.forward.normalized;
+
+        float blend = Mathf.Clamp01(rollRateSuppressBlend);
+        float rollRate = Vector3.Dot(rocketRb.angularVelocity, forwardAxis);
+        Vector3 rollAngularVelocity = forwardAxis * rollRate;
+
+        // Forward ekseni etrafindaki acisal hiz roll'dur; bunu temizleyerek roketi roll-free kabul ediyoruz.
+        rocketRb.angularVelocity -= rollAngularVelocity * blend;
+        lastSuppressedRollRate = rollRate * blend;
     }
 
     private void MoveTarget()
@@ -581,12 +725,21 @@ public class Env : MonoBehaviour
         clockValidity = Mathf.Clamp01(projectedGravityUp.magnitude);
 
         if (projectedGravityUp.sqrMagnitude > 1e-8f)
+        {
             clock12World = projectedGravityUp.normalized;
+        }
         else
-            clock12World = ProjectOnPlaneNormalized(rocketPoint.up, clockForwardWorld);
+        {
+            // Roket tam dikken gravity-up, burun eksenine paralel olur ve clock-12 tanimsiz kalir.
+            // Bu durumda roketin roll'e bagli yan ekseni yerine hedef/cached guidance yonunu kullaniriz.
+            // Boylece silindirik govde uzerindeki keyfi "saat 12" secimi hedefe gore kararlı kalir.
+            Vector3 targetBearingFallback = ProjectOnPlaneNormalized(targetPoint.position - rocketPoint.position, clockForwardWorld);
+            Vector3 cachedFallback = ProjectOnPlaneNormalized(cachedGuidanceForward, clockForwardWorld);
+            clock12World = targetBearingFallback.sqrMagnitude > 1e-8f ? targetBearingFallback : cachedFallback;
+        }
 
         if (clock12World.sqrMagnitude <= 1e-8f)
-            clock12World = ProjectOnPlaneNormalized(Vector3.up, clockForwardWorld);
+            clock12World = ProjectOnPlaneNormalized(Vector3.forward, clockForwardWorld);
 
         if (clock12World.sqrMagnitude <= 1e-8f)
             clock12World = Vector3.up;
@@ -639,6 +792,9 @@ public class Env : MonoBehaviour
         Vector3 relDirWorld = distance > 1e-6f ? relPosWorld / distance : Vector3.zero;
         Vector3 rocketForwardWorld = rocketPoint.forward.normalized;
         Vector3 rocketRightWorld = rocketPoint.right.normalized;
+        Vector3 rocketBodyForwardWorld = rocketRb.transform.forward.normalized;
+        Vector3 rocketBodyUpWorld = rocketRb.transform.up.normalized;
+        Vector3 rocketBodyRightWorld = rocketRb.transform.right.normalized;
 
         Vector3 targetVelWorld = (targetMoveDir.sqrMagnitude > 1e-6f)
             ? targetMoveDir * targetSpeed
@@ -786,6 +942,9 @@ public class Env : MonoBehaviour
         telemetry.rocket_point_forward_world = ToFloatArray(rocketPoint.forward);
         telemetry.rocket_point_up_world = ToFloatArray(rocketPoint.up);
         telemetry.rocket_point_right_world = ToFloatArray(rocketRightWorld);
+        telemetry.rocket_body_forward_world = ToFloatArray(rocketBodyForwardWorld);
+        telemetry.rocket_body_up_world = ToFloatArray(rocketBodyUpWorld);
+        telemetry.rocket_body_right_world = ToFloatArray(rocketBodyRightWorld);
         telemetry.rocket_vel_world = ToFloatArray(rocketVelWorld);
         telemetry.rocket_vel_local = ToFloatArray(rocketVelLocal);
         telemetry.rocket_ang_vel_world = ToFloatArray(rocketAngVelWorld);
@@ -826,6 +985,12 @@ public class Env : MonoBehaviour
         telemetry.rel_vel_clock_signed = ToFloatArray(new Vector3(relVelClock12Signed, relVelClock3Signed, relVelForwardClock));
         telemetry.rocket_ang_vel_guidance = ToFloatArray(rocketAngVelGuidance);
         telemetry.rocket_turn_clock_signed = ToFloatArray(new Vector3(turnClock12Signed, turnClock3Signed, turnRateRoll));
+        telemetry.thrust_world = ToFloatArray(lastThrustWorld);
+        telemetry.desired_clock_turn_world = ToFloatArray(lastDesiredClockTurnWorld);
+        telemetry.command_turn_world = ToFloatArray(lastCommandTurnWorld);
+        telemetry.command_turn_local = ToFloatArray(lastCommandTurnLocal);
+        telemetry.torque_command_local = ToFloatArray(lastTorqueCommandLocal);
+        telemetry.torque_command_world = ToFloatArray(lastTorqueCommandWorld);
         telemetry.applied_turn_world = ToFloatArray(lastAppliedTurnWorld);
         telemetry.applied_turn_local = ToFloatArray(lastAppliedTurnLocal);
         telemetry.target_speed = targetSpeed;
@@ -835,6 +1000,22 @@ public class Env : MonoBehaviour
         telemetry.target_clock_angle_deg = targetClockAngleDeg;
         telemetry.action_clock_angle_deg = actionClockAngleDeg;
         telemetry.action_clock_mag = actionClockMag;
+        telemetry.action_clock12_raw = lastClock12Raw;
+        telemetry.action_clock3_raw = lastClock3Raw;
+        telemetry.action_clock12_net = lastClock12Net;
+        telemetry.action_clock3_net = lastClock3Net;
+        telemetry.low_altitude_turn_scale = lastLowAltitudeTurnScale;
+        telemetry.clock12_scale = lastClock12Scale;
+        telemetry.clock3_scale = lastClock3Scale;
+        telemetry.beta_validity_applied = lastBetaValidityApplied;
+        telemetry.roll_control_scale = lastRollControlScale;
+        telemetry.roll_correction_cmd = lastRollCorrectionCmd;
+        telemetry.roll_correction_limit = lastRollCorrectionLimit;
+        telemetry.roll_torque_limit = lastRollTorqueLimit;
+        telemetry.suppressed_roll_rate = lastSuppressedRollRate;
+        telemetry.rocket_point_body_forward_dot = Vector3.Dot(rocketPoint.forward.normalized, rocketBodyForwardWorld);
+        telemetry.rocket_point_body_up_dot = Vector3.Dot(rocketPoint.up.normalized, rocketBodyUpWorld);
+        telemetry.rocket_point_body_right_dot = Vector3.Dot(rocketPoint.right.normalized, rocketBodyRightWorld);
 
         return new OutgoingPacket
         {
@@ -856,6 +1037,34 @@ public class Env : MonoBehaviour
             forwardLine.SetPosition(0, rocketPoint.position);
             forwardLine.SetPosition(1, rocketPoint.position + rocketPoint.forward * forwardLineLength);
         }
+
+        DrawActionAuditRays();
+    }
+
+    private void DrawActionAuditRays()
+    {
+        if (!drawActionAuditRays)
+            return;
+
+        Vector3 origin = rocketPoint.position;
+
+        // Scene view icin renkli eksen cizimleri:
+        // Cyan burun/itki, yesil clock-12, sari clock-3, beyaz hedef, magenta istenen donus, kirmizi uygulanan tork.
+        Debug.DrawRay(origin, rocketPoint.forward.normalized * actionAuditRayLength, Color.cyan, Time.fixedDeltaTime, false);
+
+        BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out _, out _);
+        Debug.DrawRay(origin, clock12World * actionAuditRayLength, Color.green, Time.fixedDeltaTime, false);
+        Debug.DrawRay(origin, clock3World * actionAuditRayLength, Color.yellow, Time.fixedDeltaTime, false);
+
+        Vector3 relToTarget = targetPoint.position - rocketPoint.position;
+        if (relToTarget.sqrMagnitude > 1e-8f)
+            Debug.DrawRay(origin, relToTarget.normalized * actionAuditRayLength, Color.white, Time.fixedDeltaTime, false);
+
+        if (lastDesiredClockTurnWorld.sqrMagnitude > 1e-8f)
+            Debug.DrawRay(origin, lastDesiredClockTurnWorld.normalized * actionAuditRayLength, Color.magenta, Time.fixedDeltaTime, false);
+
+        if (lastTorqueCommandWorld.sqrMagnitude > 1e-8f)
+            Debug.DrawRay(origin, lastTorqueCommandWorld.normalized * actionAuditRayLength, Color.red, Time.fixedDeltaTime, false);
     }
 
     private void UpdateParticleFX()
