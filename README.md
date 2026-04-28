@@ -6,7 +6,7 @@ Bu README, projeyi ilk kez inceleyen bir kişinin kodu, deney geçmişini, mevcu
 
 ## Mevcut Durum
 
-- Güncel takip edilen sürüm: `v11.0.17`.
+- Güncel takip edilen sürüm: `v12.0.1`.
 - Son commit baz çizgisi: V10 hibrit discrete clock-direction denemesi başarısız olarak arşivlendi.
 - V11, PPO eğitimine devam etmeden önce klasik güdüm algoritmasıyla sahnenin fiziksel olarak vurulabilir olup olmadığını ölçen sağlık testi aşamasıdır.
 - Daha önceki pretrain denemesi kalıcı çözüm olarak tutulmadı; ilgili pretrain/geçici analiz dosyaları çalışma ağacından temizlendi.
@@ -27,7 +27,7 @@ Son bilinen V10 sonucu:
 - Amaç: RL kullanmadan PN (Proportional Navigation / oransal güdüm) ile hedefin vurulup vurulamadığını test etmek.
 - Çıktı: `logs/pn_guidance_test.csv`
 - Özet çıktı: `logs/pn_guidance_test_summary.csv`
-- Test seçenekleri: `--mode blend|pn|pursuit|accel`, `--radius-min`, `--radius-max`, `--altitude-guard`, `--step-delay`, `--pause-on-success`
+- Test seçenekleri: `--mode blend|pn|pursuit|accel|direct`, `--radius-min`, `--radius-max`, `--altitude-guard`, `--step-delay`, `--pause-on-success`
 - Yorum: PN başarılı olursa simülasyon/action otoritesi yeterli kabul edilir ve sonraki adım öğretmen verisi toplamaktır. PN başarısız olursa önce Unity fizik, kuvvet, hedef hareketi ve action uygulaması incelenmelidir.
 - V11.0.2 notu: Unity thrust artık `rocketPoint.forward` yönünden uygulanır. Düşük irtifada yukarı toparlama komutu korunur; yatay/aşağı yönlü dönüşler daha dikkatli uygulanır.
 - V11.0.3 notu: `--altitude-guard` kalkışta sürekli yukarı basmayacak şekilde yumuşatıldı; guard sadece düşüş riski veya kritik alçak irtifa durumunda devreye girer.
@@ -45,6 +45,9 @@ Son bilinen V10 sonucu:
 - V11.0.15 notu: PN baseline hâlâ success alamadığı için reward/RL yerine actuator otoritesi güncellendi. `clockTurnRateTarget=2.8`, `clockTurnRateControllerGain=1.8`, `maxPitchYawTorqueCommand=6.0`; PN test varsayılan thrust `700`.
 - V11.0.16 notu: PN testine `--mode accel` eklendi. Bu mod PN'i doğrudan clock yönü olarak değil, LOS rate ve closing speed üzerinden yanal ivme komutu olarak hesaplar; ivmeyi `rocket_mass`, `thrust`, gravity compensation ve lateral acceleration limitleriyle sınırlar.
 - V11.0.17 notu: 300 m testinde roket hedefe baksa bile uçuş yolu 20-28 m dışarıdan geçtiği için `--mode accel` içine hız hattı düzeltmesi eklendi. Yeni parametreler: `velocity_track_gain=0.25`, `velocity_accel_fraction=0.65`, `loft_weight=0.20`, `loft_agl=45`.
+- V11.0.18 notu: Test için `--mode direct` eklendi. Bu mod clock/torque action zincirini bypass eder; Python dünya uzayında gerekli ivmeyi hesaplar, Unity bu ivmeyi doğrudan uygular ve roket burnunu hedefe kilitler. Amaç RL değil, sahnede vurmanın mümkün olduğunu kesin göstermek.
+- V12.0.0 notu: RL action mimarisi direct acceleration olarak sadeleştirildi. Ajan artık `thrust + discrete clock` seçmez; `accel_right`, `accel_up`, `accel_forward` continuous action üretir. Python bu action'ı Unity direct packet formatına çevirir.
+- V12.0.1 notu: Direct RL kalkış güvenliği eklendi. Reset sonrası ilk state saklanır, yerdeyken rastgele action'ın roketi yana/aşağı çarpması engellenir, direct look rotasyonu gravity-up referansı ile roll-free hale getirilir ve console log renkleri korunur.
 
 Bu proje şu an "tamamlanmış başarılı model" durumunda değildir. Kod ve loglar, sonraki teknik inceleme için korunmuş araştırma/deney ortamıdır.
 
@@ -628,6 +631,9 @@ python scripts/pn_guidance_test.py --mode accel --episodes 5 --radius-min 140 --
 
 # 300m acceleration PN testi
 python scripts/pn_guidance_test.py --mode accel --episodes 5 --radius-min 280 --radius-max 300 --target-y 50 --terminal-max-altitude 180 --max-steps 1000 --output logs/pn_accel_v11017_r280_300.csv
+
+# Direct-guidance hedef vurma testi
+python scripts/pn_guidance_test.py --mode direct --episodes 5 --radius-min 280 --radius-max 300 --target-y 50 --terminal-max-altitude 240 --max-steps 1000 --output logs/pn_direct_v11018_r280_300.csv
 
 # Statik faz raporu
 python scripts/plot_phase_report.py

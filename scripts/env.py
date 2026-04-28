@@ -3,7 +3,9 @@ from datetime import datetime
 import connector
 import numpy as np
 
-STATE_KEYS = [
+CONTROL_MODE = "direct_accel"
+
+CLOCK_STATE_KEYS = [
     "distance",
     "theta_rad",
     "alpha_rad",
@@ -28,6 +30,27 @@ STATE_KEYS = [
     "agl",
     "alt_error",
 ]
+
+DIRECT_STATE_KEYS = [
+    "distance",
+    "rel_dir_right",
+    "rel_dir_up",
+    "rel_dir_forward",
+    "rel_vel_right",
+    "rel_vel_up",
+    "rel_vel_forward",
+    "rocket_vel_right",
+    "rocket_vel_up",
+    "rocket_vel_forward",
+    "closing_speed",
+    "theta_rad",
+    "agl",
+    "alt_error",
+    "target_speed",
+    "rocket_speed",
+]
+
+STATE_KEYS = DIRECT_STATE_KEYS if CONTROL_MODE == "direct_accel" else CLOCK_STATE_KEYS
 
 SQRT_HALF = float(np.sqrt(0.5))
 
@@ -62,16 +85,39 @@ TURN_DIRECTION_VECTORS = np.asarray(
 TURN_DIRECTION_COUNT = len(TURN_DIRECTION_NAMES)
 DISCRETE_TURN_STRENGTH = 1.2
 
-ACTION_KEYS = ["thrust", "turn_direction"]
+# Direct RL action artik motor torku degil, guidance frame icinde istenen ivmedir.
+# Ilk PPO action'lari rastgele oldugu icin limiti baseline testinden daha dusuk tutuyoruz.
+DIRECT_ACTION_MAX_ACCEL = 65.0
+DIRECT_ACTION_MARKER = -7777.0
+DIRECT_LAUNCH_SAFE_AGL = 8.0
+DIRECT_LAUNCH_SAFE_STEPS = 80
+DIRECT_LAUNCH_MIN_UP_ACCEL = 42.0
+DIRECT_LAUNCH_MIN_FORWARD_ACCEL = 8.0
+DIRECT_LAUNCH_MAX_SIDE_ACCEL = 28.0
+
+ACTION_KEYS = (
+    ["accel_right", "accel_up", "accel_forward"]
+    if CONTROL_MODE == "direct_accel"
+    else ["thrust", "turn_direction"]
+)
 
 PYTHON_STEP_LOG_KEYS = [
     "episode_return_so_far",
     "action_logp",
     "value_pred",
     "action_norm_0",
+    "action_norm_1",
+    "action_norm_2",
     "action_direction_id",
     "action_direction_clock12",
     "action_direction_clock3",
+    "direct_accel_world_x",
+    "direct_accel_world_y",
+    "direct_accel_world_z",
+    "direct_accel_cmd_right",
+    "direct_accel_cmd_up",
+    "direct_accel_cmd_forward",
+    "direct_launch_guard",
 ]
 
 REWARD_BREAKDOWN_KEYS = [
@@ -169,7 +215,6 @@ TELEMETRY_SCALAR_KEYS = [
     "target_speed",
     "roll_error_deg",
     "beta_validity",
-    "clock_validity",
     "target_clock_angle_deg",
     "action_clock_angle_deg",
     "action_clock_mag",
@@ -301,58 +346,58 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v10_0_1_phase_1_clock_reward_recovery_140_160",
+    "name": "v12_0_0_phase_1_direct_accel_140_160",
     "spawn_radius_min": 140.0,
     "spawn_radius_max": 160.0,
     "heading_offset_min": -5.0,
     "heading_offset_max": 5.0,
     "heading_offset_abs_min": 1.0,
-    "max_step": 700,
-    "step_penalty": -0.015,
-    "distance_gain": 0.14,
-    "alignment_gain": 0.12,
-    "closing_gain": 0.04,
-    "theta_progress_gain": 3.00,
+    "max_step": 800,
+    "step_penalty": -0.010,
+    "distance_gain": 0.18,
+    "alignment_gain": 0.04,
+    "closing_gain": 0.08,
+    "theta_progress_gain": 0.25,
     "theta_progress_clip_deg": 10.0,
-    "alpha_beta_gain": 0.90,
+    "alpha_beta_gain": 0.00,
     "alpha_beta_progress_clip_deg": 16.0,
-    "axis_error_penalty_gain": 0.28,
+    "axis_error_penalty_gain": 0.00,
     "axis_error_soft_deg": 30.0,
-    "direction_bonus_gain": 0.06,
+    "direction_bonus_gain": 0.08,
     "direction_bonus_theta_deg": 70.0,
-    "angle_focus_gain": 0.55,
+    "angle_focus_gain": 0.05,
     "angle_focus_theta_deg": 100.0,
     "angle_bad_start_deg": 58.0,
-    "close_angle_penalty_gain": 0.95,
+    "close_angle_penalty_gain": 0.00,
     "close_angle_distance": 55.0,
     "close_angle_theta_start_deg": 35.0,
     "close_angle_theta_span_deg": 80.0,
     "near_angle_distance": 125.0,
     "near_angle_span": 110.0,
-    "turn_toward_gain": 0.95,
+    "turn_toward_gain": 0.00,
     "turn_toward_theta_deg": 75.0,
     "turn_toward_rate_clip": 4.0,
-    "clock_action_alignment_gain": 1.20,
-    "clock_wrong_channel_penalty_gain": 1.20,
-    "clock_coactivation_penalty_gain": 0.10,
+    "clock_action_alignment_gain": 0.00,
+    "clock_wrong_channel_penalty_gain": 0.00,
+    "clock_coactivation_penalty_gain": 0.00,
     "clock_reward_validity_floor": 0.70,
     "near_success_gain": 0.45,
     "near_success_distance": 42.0,
     "near_success_theta_deg": 34.0,
     "reverse_penalty_gain": 0.45,
-    "ang_vel_penalty": 0.035,
+    "ang_vel_penalty": 0.00,
     "height_align_gain": 0.022,
     "soft_floor_gain": 0.025,
     "soft_floor_grace_steps": 110,
-    "soft_ceiling_start": 80.0,
-    "soft_ceiling_gain": 0.035,
-    "thrust_gate_gain": 0.65,
+    "soft_ceiling_start": 150.0,
+    "soft_ceiling_gain": 0.020,
+    "thrust_gate_gain": 0.00,
     "thrust_gate_target_norm": -0.10,
     "thrust_gate_theta_start_deg": 55.0,
     "thrust_gate_theta_span_deg": 28.0,
     "thrust_gate_distance_scale": 90.0,
     "thrust_gate_distance_floor": 0.45,
-    "bad_thrust_angle_penalty_gain": 0.45,
+    "bad_thrust_angle_penalty_gain": 0.00,
     "bad_thrust_angle_min_thrust": 670.0,
     "bad_thrust_angle_theta_start_deg": 45.0,
     "bad_thrust_angle_theta_span_deg": 90.0,
@@ -362,9 +407,9 @@ ACTIVE_PHASE_CONFIG = {
     "low_alt_climb_speed": 4.0,
     "low_alt_agl_progress_clip": 0.12,
     "low_alt_escape_gain": 0.35,
-    "low_alt_control_penalty_gain": 0.10,
+    "low_alt_control_penalty_gain": 0.00,
     "low_alt_sink_penalty_gain": 2.40,
-    "low_alt_guidance_discount_gain": 1.00,
+    "low_alt_guidance_discount_gain": 0.00,
     "low_alt_thrust_gate_relief": 0.80,
     "late_floor_agl": 28.0,
     "late_floor_step": 160,
@@ -373,8 +418,8 @@ ACTIVE_PHASE_CONFIG = {
     "low_agl_grace_steps": 100,
     "collision_penalty": -150.0,
     "low_altitude_penalty": -180.0,
-    "high_altitude_penalty": -150.0,
-    "max_altitude": 125.0,
+    "high_altitude_penalty": -120.0,
+    "max_altitude": 180.0,
     "wrong_way_theta_deg": 128.0,
     "wrong_way_closing_speed": -12.0,
     "wrong_way_distance_ratio": 1.05,
@@ -489,6 +534,7 @@ class Env:
         self.prev_alpha_abs = None
         self.prev_beta_abs = None
         self.prev_agl = None
+        self.last_raw_state = None
         self.last_action_info = {}
 
     # ------------------------------------------------------------------
@@ -499,6 +545,9 @@ class Env:
         return self.connect.read_packet()
 
     def parse_state(self, raw_state):
+        if CONTROL_MODE == "direct_accel":
+            return self.parse_direct_state(raw_state)
+
         s = raw_state["states"]
 
         return np.array([
@@ -527,7 +576,69 @@ class Env:
             s["alt_error"],
         ], dtype=np.float32)
 
+    def parse_direct_state(self, raw_state):
+        """Direct-accel mimarisi icin sade state vektoru kurar."""
+        s = raw_state["states"]
+        telemetry = raw_state.get("telemetry", {})
+
+        rel_pos = self._telemetry_vec(telemetry, "rel_pos_world")
+        rel_vel = self._telemetry_vec(telemetry, "rel_vel_world")
+        rocket_vel = self._telemetry_vec(telemetry, "rocket_vel_world")
+        right_ref = self._safe_unit(self._telemetry_vec(telemetry, "guidance_right_world"), np.array([1.0, 0.0, 0.0]))
+        up_ref = self._safe_unit(self._telemetry_vec(telemetry, "guidance_up_world"), np.array([0.0, 1.0, 0.0]))
+        forward_ref = self._safe_unit(self._telemetry_vec(telemetry, "guidance_forward_world"), np.array([0.0, 0.0, 1.0]))
+
+        distance = float(s["distance"])
+        rel_dir = self._safe_unit(rel_pos, forward_ref)
+        rocket_speed = float(np.linalg.norm(rocket_vel))
+
+        return np.array([
+            distance,
+            float(np.dot(rel_dir, right_ref)),
+            float(np.dot(rel_dir, up_ref)),
+            float(np.dot(rel_dir, forward_ref)),
+            float(np.dot(rel_vel, right_ref)),
+            float(np.dot(rel_vel, up_ref)),
+            float(np.dot(rel_vel, forward_ref)),
+            float(np.dot(rocket_vel, right_ref)),
+            float(np.dot(rocket_vel, up_ref)),
+            float(np.dot(rocket_vel, forward_ref)),
+            float(s["closing_speed"]),
+            float(s["theta_rad"]),
+            float(s["agl"]),
+            float(s["alt_error"]),
+            float(telemetry.get("target_speed", TARGET_VELOCITY)),
+            rocket_speed,
+        ], dtype=np.float32)
+
+    @staticmethod
+    def _telemetry_vec(telemetry, name):
+        values = telemetry.get(name, [0.0, 0.0, 0.0])
+        if not isinstance(values, (list, tuple)) or len(values) < 3:
+            return np.zeros(3, dtype=np.float32)
+        return np.asarray(values[:3], dtype=np.float32)
+
+    @staticmethod
+    def _safe_unit(value, fallback):
+        value = np.asarray(value, dtype=np.float32)
+        norm = float(np.linalg.norm(value))
+        if norm <= 1e-6:
+            return np.asarray(fallback, dtype=np.float32)
+        return value / norm
+
+    @staticmethod
+    def _clamp_magnitude(value, max_magnitude):
+        """Vektor buyuklugunu Unity'ye gitmeden once sinirlar; log ile fizik ayni kalir."""
+        value = np.asarray(value, dtype=np.float32)
+        norm = float(np.linalg.norm(value))
+        if norm <= 1e-6 or norm <= max_magnitude:
+            return value
+        return value * (float(max_magnitude) / norm)
+
     def normalize_state(self, vector_state):
+        if CONTROL_MODE == "direct_accel":
+            return self.normalize_direct_state(vector_state)
+
         s = vector_state.copy()
         s[0] = np.tanh(s[0] / DISTANCE_TANH_SCALE)
         s[1] = np.clip(s[1] / np.pi, 0.0, 1.0)
@@ -543,6 +654,21 @@ class Env:
         s[20] = np.clip(s[20], -1.0, 1.0)
         s[21] = np.tanh(s[21] / AGL_TANH_SCALE)
         s[22] = np.tanh(s[22] / ALT_ERROR_TANH_SCALE)
+        return s.astype(np.float32)
+
+    def normalize_direct_state(self, vector_state):
+        """Direct state icin her alani basit ve okunur araliklara sikistirir."""
+        s = vector_state.copy()
+        s[0] = np.tanh(s[0] / 300.0)
+        s[1:4] = np.clip(s[1:4], -1.0, 1.0)
+        s[4:7] = np.tanh(s[4:7] / 60.0)
+        s[7:10] = np.tanh(s[7:10] / 100.0)
+        s[10] = np.tanh(s[10] / 60.0)
+        s[11] = np.clip(s[11] / np.pi, 0.0, 1.0)
+        s[12] = np.tanh(s[12] / 100.0)
+        s[13] = np.tanh(s[13] / 100.0)
+        s[14] = np.tanh(s[14] / 50.0)
+        s[15] = np.tanh(s[15] / 120.0)
         return s.astype(np.float32)
 
     # ------------------------------------------------------------------
@@ -601,6 +727,7 @@ class Env:
         self.connect.send_packet(data=init_loc)
 
         raw_state = self.read_state()
+        self.last_raw_state = raw_state
         vector_state = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
         self.prev_distance = float(raw_state["states"]["distance"])
@@ -1184,14 +1311,21 @@ class Env:
         self.connect.send_packet(action_dict)
 
         raw_state = self.read_state()
+        self.last_raw_state = raw_state
         vector_state = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
 
-        reward, done, reward_info = self.calculate_reward(raw_state, denorm_action=denorm_action)
+        is_direct_guidance = bool(len(denorm_action) >= 7 and float(denorm_action[0]) <= DIRECT_ACTION_MARKER + 0.5)
+        reward_action = (
+            np.asarray([MAX_THRUST, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+            if is_direct_guidance
+            else denorm_action
+        )
+        reward, done, reward_info = self.calculate_reward(raw_state, denorm_action=reward_action)
 
         info = self.build_info(
             raw_state=raw_state,
-            denorm_action=denorm_action,
+            denorm_action=reward_action,
             reward=reward,
             done=done,
             done_reason=reward_info["done_reason"]
@@ -1222,25 +1356,37 @@ class Env:
         Klasik gudum / scripted controller testleri icin dogrudan Unity action'i gonderir.
 
         Bu metot PPO action normalizasyonunu kullanmaz. Boylece PN gibi algoritmalar,
-        Unity'nin bekledigi fiziksel komutlari dogrudan test edebilir:
-        [thrust, clock_12, clock_6, clock_3, clock_9].
+        Unity'nin bekledigi fiziksel komutlari dogrudan test edebilir.
+        Standart paket: [thrust, clock_12, clock_6, clock_3, clock_9].
+        Direct paket: [-7777, accel_x, accel_y, accel_z, look_x, look_y, look_z].
         """
         values = np.asarray(denorm_action, dtype=np.float32).reshape(-1)
         if len(values) < 5:
             raise ValueError("Direct action icin 5 deger gerekir: thrust, clock_12, clock_6, clock_3, clock_9")
 
-        values = values[:5].astype(np.float32)
+        is_direct_guidance = bool(len(values) >= 7 and float(values[0]) <= DIRECT_ACTION_MARKER + 0.5)
+        if is_direct_guidance:
+            values = values[:7].astype(np.float32)
+        else:
+            values = values[:5].astype(np.float32)
         self.step_count += 1
 
-        clock_12_net = float(values[1] - values[2])
-        clock_3_net = float(values[3] - values[4])
+        if is_direct_guidance:
+            clock_12_net = 0.0
+            clock_3_net = 0.0
+            turn_strength = float(np.linalg.norm(values[1:4]))
+        else:
+            clock_12_net = float(values[1] - values[2])
+            clock_3_net = float(values[3] - values[4])
+            turn_strength = float(np.sqrt(clock_12_net ** 2 + clock_3_net ** 2))
+
         self.last_action_info = {
             "action_direction_id": -1,
             "turn_direction_id": -1,
             "turn_direction_name": action_label,
             "action_direction_clock12": clock_12_net,
             "action_direction_clock3": clock_3_net,
-            "turn_strength": float(np.sqrt(clock_12_net ** 2 + clock_3_net ** 2)),
+            "turn_strength": turn_strength,
         }
 
         action_dict = {
@@ -1253,13 +1399,17 @@ class Env:
         self.connect.send_packet(action_dict)
 
         raw_state = self.read_state()
+        self.last_raw_state = raw_state
         vector_state = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
 
-        reward, done, reward_info = self.calculate_reward(raw_state, denorm_action=values)
+        # Direct paket reward icin sahte clock action gibi yorumlanmasin.
+        # Reward terminal/success analizi state'ten gelir; action cezalari bu baseline testinde anlamsizdir.
+        reward_action = np.asarray([MAX_THRUST, 0.0, 0.0, 0.0, 0.0], dtype=np.float32) if is_direct_guidance else values
+        reward, done, reward_info = self.calculate_reward(raw_state, denorm_action=reward_action)
         info = self.build_info(
             raw_state=raw_state,
-            denorm_action=values,
+            denorm_action=reward_action,
             reward=reward,
             done=done,
             done_reason=reward_info["done_reason"],
@@ -1291,6 +1441,9 @@ class Env:
     # ------------------------------------------------------------------
 
     def denormalize_action(self, action):
+        if CONTROL_MODE == "direct_accel":
+            return self.denormalize_direct_accel_action(action)
+
         a = np.asarray(action, dtype=np.float32)
         thrust_norm = float(np.clip(a[0], -1.0, 1.0)) if len(a) > 0 else 0.0
         direction_id = int(np.clip(np.rint(a[1] if len(a) > 1 else 0.0), 0, TURN_DIRECTION_COUNT - 1))
@@ -1320,6 +1473,85 @@ class Env:
             float(clock_6_cmd),
             float(clock_3_cmd),
             float(clock_9_cmd),
+        ]
+
+    def denormalize_direct_accel_action(self, action):
+        """RL'in [-1,1] acceleration action'ini Unity direct packet'ine cevirir."""
+        a = np.asarray(action, dtype=np.float32).reshape(-1)
+        if len(a) < 3:
+            a = np.pad(a, (0, 3 - len(a)), mode="constant")
+        a = np.clip(a[:3], -1.0, 1.0)
+
+        raw_state = self.last_raw_state or {}
+        telemetry = raw_state.get("telemetry", {})
+        right_ref = self._safe_unit(self._telemetry_vec(telemetry, "guidance_right_world"), np.array([1.0, 0.0, 0.0]))
+        up_ref = self._safe_unit(self._telemetry_vec(telemetry, "guidance_up_world"), np.array([0.0, 1.0, 0.0]))
+        forward_ref = self._safe_unit(self._telemetry_vec(telemetry, "guidance_forward_world"), np.array([0.0, 0.0, 1.0]))
+        rel_pos = self._telemetry_vec(telemetry, "rel_pos_world")
+        look_dir = self._safe_unit(rel_pos, forward_ref)
+
+        accel_cmd = np.asarray(a, dtype=np.float32) * DIRECT_ACTION_MAX_ACCEL
+        states = raw_state.get("states", {})
+        agl = float(states.get("agl", 0.0))
+
+        launch_progress = max(
+            np.clip(agl / max(DIRECT_LAUNCH_SAFE_AGL, 1e-6), 0.0, 1.0),
+            np.clip(float(self.step_count) / max(DIRECT_LAUNCH_SAFE_STEPS, 1), 0.0, 1.0),
+        )
+        launch_guard = float(launch_progress < 1.0)
+
+        if launch_guard > 0.0:
+            # Kalkista PPO henuz rastgele action uretir. Bu filtre sadece yere vurmayi engeller;
+            # hedefe gitme kararini yine agent'in sag/ileri/yukari ivme secimi belirler.
+            min_up = (1.0 - launch_progress) * DIRECT_LAUNCH_MIN_UP_ACCEL
+            min_forward = (1.0 - launch_progress) * DIRECT_LAUNCH_MIN_FORWARD_ACCEL
+            side_limit = DIRECT_LAUNCH_MAX_SIDE_ACCEL + (
+                DIRECT_ACTION_MAX_ACCEL - DIRECT_LAUNCH_MAX_SIDE_ACCEL
+            ) * launch_progress
+
+            accel_cmd[1] = max(float(accel_cmd[1]), float(min_up))
+            accel_cmd[2] = max(float(accel_cmd[2]), float(min_forward))
+
+            side_mag = float(np.linalg.norm([accel_cmd[0], accel_cmd[2]]))
+            if side_mag > side_limit:
+                side_scale = float(side_limit / max(side_mag, 1e-6))
+                accel_cmd[0] *= side_scale
+                accel_cmd[2] *= side_scale
+
+        accel_world = (
+            right_ref * float(accel_cmd[0])
+            + up_ref * float(accel_cmd[1])
+            + forward_ref * float(accel_cmd[2])
+        )
+        accel_world = self._clamp_magnitude(accel_world, DIRECT_ACTION_MAX_ACCEL)
+
+        self.last_action_info = {
+            "action_direction_id": -1,
+            "turn_direction_id": -1,
+            "turn_direction_name": "direct_accel",
+            "action_direction_clock12": float(a[1]),
+            "action_direction_clock3": float(a[0]),
+            "turn_strength": float(np.linalg.norm(a)),
+            "action_norm_0": float(a[0]),
+            "action_norm_1": float(a[1]),
+            "action_norm_2": float(a[2]),
+            "direct_accel_world_x": float(accel_world[0]),
+            "direct_accel_world_y": float(accel_world[1]),
+            "direct_accel_world_z": float(accel_world[2]),
+            "direct_accel_cmd_right": float(accel_cmd[0]),
+            "direct_accel_cmd_up": float(accel_cmd[1]),
+            "direct_accel_cmd_forward": float(accel_cmd[2]),
+            "direct_launch_guard": launch_guard,
+        }
+
+        return [
+            float(DIRECT_ACTION_MARKER),
+            float(accel_world[0]),
+            float(accel_world[1]),
+            float(accel_world[2]),
+            float(look_dir[0]),
+            float(look_dir[1]),
+            float(look_dir[2]),
         ]
 
     def build_info(self, raw_state, denorm_action=None, reward=None, done=None, done_reason=None):

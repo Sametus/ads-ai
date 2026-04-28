@@ -81,8 +81,11 @@ if __name__ == "__main__":
             info["episode_return_so_far"] = float(episode_return)
             info["action_logp"] = float(logp)
             info["value_pred"] = float(value)
-            info["action_norm_0"] = float(action[0])
-            info["action_direction_id"] = int(action[1])
+            # Action boyutu mimariye gore degisebilir.
+            # V12 direct-accel icin 3 continuous action logluyoruz; eski direction alanlari bos kalabilir.
+            for action_index, action_value in enumerate(action):
+                info[f"action_norm_{action_index}"] = float(action_value)
+            info["action_direction_id"] = int(action[1]) if len(action) == 2 else -1
             info["action_direction_clock12"] = float(info.get("action_direction_clock12", 0.0))
             info["action_direction_clock3"] = float(info.get("action_direction_clock3", 0.0))
 

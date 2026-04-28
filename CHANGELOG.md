@@ -668,3 +668,35 @@
 > - **Log Alanlari**: PN CSV'lerine `velocity_error_mag`, `velocity_correction_mag`, `velocity_correction_saturated`, `loft_factor`, `loft_accel_mag` eklendi. Boylece 300m testinde miss sebebi artik hiz hatti ve loft tarafindan da okunabilir.
 > - **Max Step Fix**: PN testinde `--max-steps` artik sadece script loop'unu degil, `env.phase["max_step"]` ve `env.max_step` degerlerini de gunceller. Onceki 300m testinde komut 1000 olsa bile env tarafinda timeout 700 stepte bitiyordu.
 > - **README / VERSION**: Aktif takip surumu `v11.0.17` yapildi. Beklenen etki 300m testinde `min_distance` degerini `21-28m` bandindan success threshold'a yaklastirmaktir.
+
+> ## v11.0.18 - Direct Guidance Baseline
+>
+> - **Karar**: Klasik accel PN 300m testinde hala hedefi kacirinca, clock/torque action zinciri bypass edilerek dogrudan dunya ivmesi baseline'i eklendi. Bu RL icin nihai action degil; sadece sahnenin hedefi kesin vurabildigini gosteren referans testtir.
+> - **Unity Degisikligi**: `Env.cs` icine direct action paketi eklendi. Paket formati `[-7777, accel_x, accel_y, accel_z, look_x, look_y, look_z]`. `-7777` marker'i gorulunce Unity normal `thrust/clock` yolunu kullanmaz, `ForceMode.Acceleration` ile dunya ivmesini uygular.
+> - **Roll/Debug Duzeltmesi**: Direct mode'da `rocketPoint.forward` hedef yonune kilitlenir ve `directZeroAngularVelocity=true` ile kafa karistiran roll/donus artefaktlari sifirlanir. Scene view'da direct mode icin yesil/sari clock eksenleri cizilmez; sadece cyan burun, beyaz hedef, magenta look ve kirmizi ivme cizilir.
+> - **Python Degisikligi**: `scripts/env.py` icindeki `step_direct_action()` artik 7 elemanli direct action paketini kesmeden Unity'ye yollar. Reward/action cezasi icin bu paket sahte clock action gibi yorumlanmaz.
+> - **PN Test Degisikligi**: `scripts/pn_guidance_test.py --mode direct` eklendi. Python `t_go` hesaplar, `rocket_accel = 2*(rel_pos + rel_vel*t_go)/t_go^2` denklemiyle gereken ivmeyi bulur, gravity compensation uygular ve ivmeyi `direct_max_accel=90` ile sinirlar.
+> - **Yeni Parametreler**: `direct_speed=85`, `direct_close_speed=65`, `direct_close_distance=90`, `direct_min_tgo=0.35`, `direct_max_tgo=7.5`, `direct_max_accel=90`, `direct_velocity_damping=0.0`.
+> - **Beklenen Etki**: 280-300m testte success gorulmeli. Bu test basarili olup clock/torque PN basarisiz kalirsa sorun reward degil, mevcut action uygulama mimarisinin fazla dolayli ve zor ogrenilir olmasidir.
+
+# v12.0 sürüm ailesi
+
+> ## v12.0.0 - RL Direct Acceleration Architecture
+>
+> - **Mimari Karar**: V11 direct baseline hedefi vurdu. Bu nedenle RL tarafinda eski `thrust + discrete clock direction` action mimarisi birakildi ve `direct_accel` mimarisine gecildi.
+> - **Action Seti**: `scripts/env.py` icinde `ACTION_KEYS = ["accel_right", "accel_up", "accel_forward"]`. Ajan 3 continuous action uretir; her biri `[-1, 1]` araligindadir.
+> - **Unity Packet**: Python action'i guidance frame'den dunya ivmesine cevirir ve Unity'ye `[-7777, accel_x, accel_y, accel_z, look_x, look_y, look_z]` paketi yollar. `-7777` marker'i Unity tarafinda direct mode'u acar.
+> - **State Seti**: Clock agirlikli state yerine sade direct state kullanilir: distance, hedef yonu, relative velocity, rocket velocity, closing speed, theta, AGL, altitude error, target speed ve rocket speed. Toplam state boyutu `16`.
+> - **Agent Degisikligi**: `scripts/agent.py` artik categorical direction head kullanmaz. Tek actor head `action_mu` ile 3 continuous action uretir; `log_std` boyutu da action sayisi kadardir.
+> - **Reward Sadelestirme**: Aktif faz `v12_0_0_phase_1_direct_accel_140_160` oldu. Clock action alignment, wrong channel, coactivation, turn-toward ve roll/angle karmaşasi sifirlandi. Ana sinyal distance progress, closing speed, success terminal ve sade altitude guvenligidir.
+> - **Checkpoint Ayrimi**: `scripts/settings.py` model prefix'i `ppo_v12_direct_model`, state prefix'i `ppo_v12_direct_state` oldu. Eski V10/V11 checkpoint'leri action boyutu degistigi icin otomatik yuklenmez.
+> - **Console Log**: `scripts/log.py` direct mode'da eski thrust/clock action yerine `Acc: [x, y, z]` dunya ivmesini yazar. Boylece train sirasinda ajanin ne tarafa ivme verdigi okunabilir.
+> - **Sade Kod Notu**: Eski PN/clock test kodlari silinmedi; karsilastirma ve raporlama icin korunur. Training yolu ise artik direct acceleration mimarisini kullanir.
+
+> ## v12.0.1 - Direct Launch Safety and Roll-Free Look Fix
+>
+> - **Kok Neden**: Ilk V12 run loglarinda `episode 1-4` cok erken `collision`, `episode 5` ise `low_agl` oldu. AGL baslangici `~0.40m` oldugu icin rastgele PPO action'i yerdeyken yana/asagi ivme uretip roketi rampadan kopariyordu. Ayrica `reset()` sonrasi ilk telemetry `last_raw_state` icine yazilmadigi icin ilk action hedef frame'i yerine fallback dunya eksenleriyle hesaplanabiliyordu.
+> - **Python Duzeltmesi**: `scripts/env.py` icinde resetten sonra `last_raw_state` saklanir. `DIRECT_ACTION_MAX_ACCEL` `90 -> 65` yapildi. Kalkis filtresi eklendi: AGL `8m` altinda veya ilk `80` stepte minimum yukari ivme, kucuk ileri bias ve yanal ivme limiti uygulanir. Bu filtre hedefe gitmeyi cozmez; sadece rastgele ilk action'in yerde ani carpismaya donusmesini engeller.
+> - **Unity Duzeltmesi**: `Env.cs` direct look rotasyonu artik sadece `FromToRotation` ile burun hizalamaz. Gravity-up referansli `LookRotation` kullanilir; boylece direct mode'da govde roll'u keyfi kalmaz. Reset aninda direct action cache'i ve roket rigidbody poz/rot degerleri de temizlenir.
+> - **Console / Log Duzeltmesi**: `scripts/log.py` episode final satirlarinda onceki renkli terminal mantigi korunur. Step ve reset satirlari bilerek renksiz birakildi. Reset satiri artik `Target Pos` yaninda `Rocket Pos` da yazar; boylece konsoldaki target reset konumu roket rampadan ayrildi sanilmaz. `clock_validity` duplicate CSV header'i kaldirildi.
+> - **Beklenen Etki**: V12.0.1 ile roket kalkista yerde takla/yan carpma yapmamali, Scene view'daki direct look cizgileri roll gibi yorumlanacak sekilde donmemeli ve ilk episode'lar en azindan fiziksel olarak okunabilir hale gelmelidir.

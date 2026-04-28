@@ -18,6 +18,21 @@ MAGENTA = "\033[95m"
 CYAN = "\033[96m"
 RESET = "\033[0m"
 
+
+def _terminal_color(done_reason):
+    """Terminal nedenlerini konsolda ayni renklerle gosterir."""
+    if done_reason == "success":
+        return GREEN
+    if done_reason in ["low_agl", "low_altitude"]:
+        return YELLOW
+    if done_reason == "high_altitude":
+        return MAGENTA
+    if done_reason in ["wrong_way", "collision", "timeout"]:
+        return RED
+    if done_reason in ["near_miss", "escaped"]:
+        return CYAN
+    return RESET
+
 STEP_HEADER = [
     "timestamp",
     "update_id",
@@ -224,6 +239,18 @@ def append_update_csv(update_id, logs, gamma, lam, lr):
 
 
 def print_step_console(update_id, info):
+    if info.get("turn_direction_name") == "direct_accel":
+        action_text = (
+            f"Acc: [{info.get('direct_accel_world_x', 0.0):.1f}, "
+            f"{info.get('direct_accel_world_y', 0.0):.1f}, "
+            f"{info.get('direct_accel_world_z', 0.0):.1f}]"
+        )
+    else:
+        action_text = (
+            f"Act: [{info['thrust']:.2f}, {info['clock_12_cmd']:.2f}, {info['clock_6_cmd']:.2f}, "
+            f"{info['clock_3_cmd']:.2f}, {info['clock_9_cmd']:.2f}]"
+        )
+
     msg = (
         f"[UP {update_id:<4} | EP {info['episode_id']:<4} | ST {info['step_id']:<4}] "
         f"Dst: {info['distance']:>7.2f} | "
@@ -237,8 +264,7 @@ def print_step_console(update_id, info):
         f"TC: [{info.get('target_clock_12', 0.0):.2f},{info.get('target_clock_6', 0.0):.2f},"
         f"{info.get('target_clock_3', 0.0):.2f},{info.get('target_clock_9', 0.0):.2f}] | "
         f"Dir: {info.get('turn_direction_name', 'n/a')}#{info.get('turn_direction_id', '')} | "
-        f"Act: [{info['thrust']:.2f}, {info['clock_12_cmd']:.2f}, {info['clock_6_cmd']:.2f}, "
-        f"{info['clock_3_cmd']:.2f}, {info['clock_9_cmd']:.2f}]"
+        f"{action_text}"
     )
     print(msg, flush=True)
 
@@ -263,22 +289,7 @@ def print_episode_console(episode_id, episode_return, episode_len,
         f"{timestamp}"
     )
 
-    if done_reason == "success":
-        color = GREEN
-    elif done_reason in ["low_agl", "low_altitude"]:
-        color = YELLOW
-    elif done_reason == "high_altitude":
-        color = MAGENTA
-    elif done_reason == "wrong_way":
-        color = RED
-    elif done_reason == "near_miss":
-        color = CYAN
-    elif done_reason == "timeout":
-        color = RED
-    elif done_reason == "escaped":
-        color = CYAN
-    else:
-        color = RESET
+    color = _terminal_color(done_reason)
 
     print(f"{color}{msg}{RESET}", flush=True)
 
@@ -300,10 +311,16 @@ def print_update_console(update_id, logs):
 
 
 def print_reset_console(episode_id, start_info):
+    rocket_pos = (
+        start_info.get("rocket_pos_world_x", 0.0),
+        start_info.get("rocket_pos_world_y", 0.0),
+        start_info.get("rocket_pos_world_z", 0.0),
+    )
     msg = (
         f"[EP {episode_id:<5}] RESET | "
         f"Phase: {start_info.get('phase_id', '')} {start_info.get('phase_name', '')} | "
         f"Target Pos: ({start_info['reset_px']:.2f}, {start_info['reset_py']:.2f}, {start_info['reset_pz']:.2f}) | "
+        f"Rocket Pos: ({rocket_pos[0]:.2f}, {rocket_pos[1]:.2f}, {rocket_pos[2]:.2f}) | "
         f"Rot: ({start_info['reset_ry']:.2f}, {start_info['reset_rz']:.2f})"
     )
     print(msg, flush=True)

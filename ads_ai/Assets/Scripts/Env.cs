@@ -198,6 +198,13 @@ public class Env : MonoBehaviour
     public float clockTurnRateControllerGain = 1.8f;
     public float maxPitchYawTorqueCommand = 6.0f;
 
+    [Header("Direct Guidance Test (Sadece klasik baseline)")]
+    public float directActionMarker = -7777f;
+    public float directAccelLimit = 90f;
+    public float directMaxSpeed = 140f;
+    public float directLookRateDeg = 720f;
+    public bool directZeroAngularVelocity = true;
+
     [Header("Guidance Stabilization")]
     public float targetHeightOffset = 0f;
     public float rollStabilizationGain = 25f;
@@ -243,6 +250,9 @@ public class Env : MonoBehaviour
     private float currentClock6Cmd = 0f;
     private float currentClock3Cmd = 0f;
     private float currentClock9Cmd = 0f;
+    private bool currentDirectGuidanceMode = false;
+    private Vector3 currentDirectAccelWorld = Vector3.zero;
+    private Vector3 currentDirectLookWorld = Vector3.forward;
 
     private float fixedTargetY;
     private float fixedTargetRotX;
@@ -383,6 +393,24 @@ public class Env : MonoBehaviour
 
     private void ReadAction(float[] actionValues)
     {
+        if (actionValues.Length >= 7 && actionValues[0] <= directActionMarker + 0.5f)
+        {
+            // Direct mode hem klasik baseline hem de V12 RL icin kullanilir.
+            // Clock/torque zinciri yerine dunya uzayinda sinirli ivme uygulariz.
+            currentDirectGuidanceMode = true;
+            currentThrust = 0f;
+            currentClock12Cmd = 0f;
+            currentClock6Cmd = 0f;
+            currentClock3Cmd = 0f;
+            currentClock9Cmd = 0f;
+            currentDirectAccelWorld = new Vector3(actionValues[1], actionValues[2], actionValues[3]);
+            currentDirectLookWorld = new Vector3(actionValues[4], actionValues[5], actionValues[6]);
+            return;
+        }
+
+        currentDirectGuidanceMode = false;
+        currentDirectAccelWorld = Vector3.zero;
+        currentDirectLookWorld = Vector3.forward;
         currentThrust = actionValues[0];
         currentClock12Cmd = Mathf.Max(0f, actionValues[1]);
         currentClock6Cmd = Mathf.Max(0f, actionValues[2]);
@@ -406,6 +434,12 @@ public class Env : MonoBehaviour
 
     private void ApplyAction()
     {
+        if (currentDirectGuidanceMode)
+        {
+            ApplyDirectGuidanceAction();
+            return;
+        }
+
         // Itkiyi rocketPoint.forward ile uygulariz; state/debug tarafinda roket burnu olarak bu eksen kullaniliyor.
         // Boylece "hedefe bakma" ile fiziksel itki ekseni ayni referansa baglanir.
         lastThrustWorld = rocketPoint.forward * currentThrust * thrustScale;
@@ -505,6 +539,101 @@ public class Env : MonoBehaviour
         rocketRb.AddRelativeTorque(lastTorqueCommandLocal, ForceMode.Force);
     }
 
+    private void ApplyDirectGuidanceAction()
+    {
+        // Direct guidance testinde action artik tork degil, dunya uzayinda istenen ivmedir.
+        // ForceMode.Acceleration kullandigimiz icin kütle etkisini ayri dusunmeyiz; bu sadece baseline testidir.
+        Vector3 accelWorld = Vector3.ClampMagnitude(currentDirectAccelWorld, Mathf.Max(0f, directAccelLimit));
+        Vector3 velocityWorld = rocketRb.linearVelocity;
+        float maxSpeed = Mathf.Max(0f, directMaxSpeed);
+
+        if (maxSpeed > 0f && velocityWorld.magnitude > maxSpeed && accelWorld.sqrMagnitude > 1e-8f)
+        {
+            Vector3 speedDir = velocityWorld.normalized;
+            float speedUpPart = Vector3.Dot(accelWorld, speedDir);
+            if (speedUpPart > 0f)
+                accelWorld -= speedDir * speedUpPart;
+        }
+
+        lastThrustWorld = accelWorld;
+        lastDesiredClockTurnWorld = currentDirectLookWorld.sqrMagnitude > 1e-8f
+            ? currentDirectLookWorld.normalized
+            : rocketPoint.forward;
+        lastCommandTurnWorld = accelWorld;
+        lastCommandTurnLocal = rocketRb.transform.InverseTransformDirection(accelWorld);
+        lastAppliedTurnWorld = lastDesiredClockTurnWorld;
+        lastAppliedTurnLocal = rocketRb.transform.InverseTransformDirection(lastAppliedTurnWorld);
+        lastTorqueCommandLocal = Vector3.zero;
+        lastTorqueCommandWorld = Vector3.zero;
+        lastClock12Raw = 0f;
+        lastClock3Raw = 0f;
+        lastClock12Net = 0f;
+        lastClock3Net = 0f;
+        lastLowAltitudeTurnScale = 1f;
+        lastClock12Scale = 1f;
+        lastClock3Scale = 1f;
+        lastBetaValidityApplied = 1f;
+        lastRollControlScale = 0f;
+        lastRollCorrectionCmd = 0f;
+        lastRollCorrectionLimit = 0f;
+        lastRollTorqueLimit = 0f;
+
+        rocketRb.AddForce(accelWorld, ForceMode.Acceleration);
+        AlignRocketPointToDirectLook();
+    }
+
+    private void AlignRocketPointToDirectLook()
+    {
+        Vector3 lookWorld = currentDirectLookWorld.sqrMagnitude > 1e-8f
+            ? currentDirectLookWorld.normalized
+            : rocketPoint.forward.normalized;
+
+        if (lookWorld.sqrMagnitude <= 1e-8f)
+            return;
+
+        // Burnu hedefe cevirirken roll'u serbest birakmiyoruz.
+        // FromToRotation sadece forward eksenini hizalar; govde roll'u keyfi kalabilir.
+        // LookRotation ise forward + gravity-up referansi ile okunur, roll-free bir durus kurar.
+        Quaternion desiredRotation = BuildRollStableDirectRotation(lookWorld);
+        Quaternion nextRotation = Quaternion.RotateTowards(
+            rocketRb.rotation,
+            desiredRotation,
+            Mathf.Max(0f, directLookRateDeg) * Time.fixedDeltaTime
+        );
+
+        rocketRb.MoveRotation(nextRotation);
+
+        if (directZeroAngularVelocity)
+        {
+            // Direct mode'da roll/donus dinamikleri test edilmiyor; kafa karistiran roll artefaktlarini sifirlariz.
+            rocketRb.angularVelocity = Vector3.zero;
+            lastSuppressedRollRate = 0f;
+        }
+    }
+
+    private Quaternion BuildRollStableDirectRotation(Vector3 lookWorld)
+    {
+        Vector3 gravityWorld = Physics.gravity;
+        Vector3 upRefWorld = gravityWorld.sqrMagnitude > 1e-8f ? (-gravityWorld).normalized : Vector3.up;
+        Vector3 rollStableUp = Vector3.ProjectOnPlane(upRefWorld, lookWorld);
+
+        if (rollStableUp.sqrMagnitude <= 1e-8f)
+            rollStableUp = Vector3.ProjectOnPlane(cachedGuidanceForward, lookWorld);
+
+        if (rollStableUp.sqrMagnitude <= 1e-8f)
+            rollStableUp = Vector3.ProjectOnPlane(rocketRb.transform.up, lookWorld);
+
+        if (rollStableUp.sqrMagnitude <= 1e-8f)
+            rollStableUp = Vector3.Cross(Vector3.right, lookWorld);
+
+        if (rollStableUp.sqrMagnitude <= 1e-8f)
+            rollStableUp = Vector3.Cross(Vector3.forward, lookWorld);
+
+        Quaternion desiredPointRotation = Quaternion.LookRotation(lookWorld, rollStableUp.normalized);
+        Quaternion pointToDesiredDelta = desiredPointRotation * Quaternion.Inverse(rocketPoint.rotation);
+        return pointToDesiredDelta * rocketRb.rotation;
+    }
+
     private void SuppressRollRate()
     {
         if (!suppressRollRate)
@@ -566,14 +695,20 @@ public class Env : MonoBehaviour
 
         if (targetRb != null)
         {
+            // Kinematic Rigidbody uzerinde velocity set etmek Unity'de uyari basar.
+            // Once non-kinematic yapip hizi temizliyor, sonra hedefi tekrar script kontrollu kinematic moda aliyoruz.
+            targetRb.isKinematic = false;
             targetRb.linearVelocity = Vector3.zero;
             targetRb.angularVelocity = Vector3.zero;
             targetRb.isKinematic = true;
         }
 
         rocketRb.isKinematic = true;
+        Quaternion resetRotation = Quaternion.Euler(rocketResetEuler);
         rocket.position = rocketResetPosition;
-        rocket.rotation = Quaternion.Euler(rocketResetEuler);
+        rocket.rotation = resetRotation;
+        rocketRb.position = rocketResetPosition;
+        rocketRb.rotation = resetRotation;
         Physics.SyncTransforms();
 
         rocketRb.isKinematic = false;
@@ -586,6 +721,9 @@ public class Env : MonoBehaviour
         currentClock6Cmd = 0f;
         currentClock3Cmd = 0f;
         currentClock9Cmd = 0f;
+        currentDirectGuidanceMode = false;
+        currentDirectAccelWorld = Vector3.zero;
+        currentDirectLookWorld = rocketPoint != null ? rocketPoint.forward : Vector3.forward;
 
         float headingRad = targetRotZ * Mathf.Deg2Rad;
         targetMoveDir = new Vector3(-Mathf.Sin(headingRad), 0f, -Mathf.Cos(headingRad)).normalized;
@@ -1052,6 +1190,23 @@ public class Env : MonoBehaviour
         // Cyan burun/itki, yesil clock-12, sari clock-3, beyaz hedef, magenta istenen donus, kirmizi uygulanan tork.
         Debug.DrawRay(origin, rocketPoint.forward.normalized * actionAuditRayLength, Color.cyan, Time.fixedDeltaTime, false);
 
+        if (currentDirectGuidanceMode)
+        {
+            // Direct mode'da clock eksenleri bilerek cizilmez; onlar roll varmis gibi kafa karistirabiliyor.
+            // Burada sadece hedef yonu, istenen look yonu ve uygulanan ivme gosterilir.
+            Vector3 relToTargetDirect = targetPoint.position - rocketPoint.position;
+            if (relToTargetDirect.sqrMagnitude > 1e-8f)
+                Debug.DrawRay(origin, relToTargetDirect.normalized * actionAuditRayLength, Color.white, Time.fixedDeltaTime, false);
+
+            if (lastDesiredClockTurnWorld.sqrMagnitude > 1e-8f)
+                Debug.DrawRay(origin, lastDesiredClockTurnWorld.normalized * actionAuditRayLength, Color.magenta, Time.fixedDeltaTime, false);
+
+            if (lastThrustWorld.sqrMagnitude > 1e-8f)
+                Debug.DrawRay(origin, lastThrustWorld.normalized * actionAuditRayLength, Color.red, Time.fixedDeltaTime, false);
+
+            return;
+        }
+
         BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out _, out _);
         Debug.DrawRay(origin, clock12World * actionAuditRayLength, Color.green, Time.fixedDeltaTime, false);
         Debug.DrawRay(origin, clock3World * actionAuditRayLength, Color.yellow, Time.fixedDeltaTime, false);
@@ -1071,7 +1226,9 @@ public class Env : MonoBehaviour
     {
         if (rocketExhaustFx != null)
         {
-            if (currentThrust > 0.1f)
+            bool shouldPlayRocketFx = currentThrust > 0.1f
+                || (currentDirectGuidanceMode && currentDirectAccelWorld.sqrMagnitude > 0.01f);
+            if (shouldPlayRocketFx)
             {
                 if (!rocketExhaustFx.isPlaying) rocketExhaustFx.Play();
             }

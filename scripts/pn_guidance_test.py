@@ -10,6 +10,7 @@ from env import Env
 
 DEFAULT_OUTPUT = os.path.join("logs", "pn_guidance_test.csv")
 EPS = 1e-6
+DIRECT_ACTION_MARKER = -7777.0
 
 
 def default_summary_output(step_output):
@@ -96,6 +97,83 @@ def positive_negative_channels(clock12_net, clock3_net):
     ]
 
 
+def build_direct_guidance_action(info, args, rel_pos, rel_vel, rocket_vel, target_vel, gravity):
+    """
+    Direct guidance baseline'i.
+
+    Bu mod RL action mimarisini test etmez; hedefi vurabilecek saf fizik/gudum referansi kurar.
+    Python gerekli dunya ivmesini hesaplar, Unity de bu ivmeyi dogrudan uygular.
+    """
+    distance = max(float(np.linalg.norm(rel_pos)), EPS)
+    speed = max(float(args.direct_speed), EPS)
+    _, lead_t_go = lead_intercept_direction(rel_pos, target_vel, speed)
+    if lead_t_go <= EPS:
+        lead_t_go = distance / speed
+
+    close_t_go = distance / max(float(args.direct_close_speed), EPS)
+    if distance <= args.direct_close_distance:
+        lead_t_go = min(lead_t_go, close_t_go)
+
+    t_go = float(np.clip(lead_t_go, args.direct_min_tgo, args.direct_max_tgo))
+
+    # Sabit ivme ile t_go sonunda hedefle ayni noktada olma denklemi:
+    # 0 = rel_pos + rel_vel*t - 0.5*rocket_accel*t^2
+    # rocket_accel = 2*(rel_pos + rel_vel*t)/t^2
+    required_total_accel = 2.0 * (rel_pos + (rel_vel * t_go)) / max(t_go * t_go, EPS)
+    applied_accel = required_total_accel - gravity
+    applied_accel = applied_accel - (rocket_vel * args.direct_velocity_damping)
+    applied_accel, saturated = clamp_magnitude(applied_accel, args.direct_max_accel)
+
+    look_vec = rel_pos
+    if np.linalg.norm(look_vec) <= EPS:
+        look_vec = rocket_vel
+    look_dir = unit_or_zero(look_vec)
+    if np.linalg.norm(look_dir) <= EPS:
+        look_dir = np.asarray([1.0, 0.0, 0.0], dtype=np.float32)
+
+    action = [
+        DIRECT_ACTION_MARKER,
+        float(applied_accel[0]),
+        float(applied_accel[1]),
+        float(applied_accel[2]),
+        float(look_dir[0]),
+        float(look_dir[1]),
+        float(look_dir[2]),
+    ]
+
+    debug = {
+        "pn_clock12_net": 0.0,
+        "pn_clock3_net": 0.0,
+        "pn_closing_speed": max(-float(np.dot(rel_vel, unit_or_zero(rel_pos))), 0.0),
+        "pn_los_rate_mag": 0.0,
+        "pn_lateral_mag": 0.0,
+        "pn_accel_limit": args.direct_max_accel,
+        "pn_limited_accel_mag": float(np.linalg.norm(applied_accel)),
+        "pn_accel_saturated": int(bool(saturated)),
+        "gross_accel": args.direct_max_accel,
+        "gravity_comp_accel": float(np.linalg.norm(gravity)),
+        "lead_t_go": t_go,
+        "lead_dir_dot_los": 1.0,
+        "desired_accel_clock12": 0.0,
+        "desired_accel_clock3": 0.0,
+        "velocity_error_mag": float(np.linalg.norm(rel_vel)),
+        "velocity_correction_mag": float(np.linalg.norm(required_total_accel)),
+        "velocity_correction_saturated": int(bool(saturated)),
+        "loft_factor": 0.0,
+        "loft_accel_mag": 0.0,
+        "direct_t_go": t_go,
+        "direct_required_accel_mag": float(np.linalg.norm(required_total_accel)),
+        "direct_applied_accel_mag": float(np.linalg.norm(applied_accel)),
+        "direct_accel_saturated": int(bool(saturated)),
+        "direct_look_dot_target": float(np.dot(look_dir, unit_or_zero(rel_pos))),
+        "lead_weight": 0.0,
+        "altitude_guard_weight": 0.0,
+        "rocket_vy": float(rocket_vel[1]) if len(rocket_vel) >= 2 else 0.0,
+        "mode": args.mode,
+    }
+    return action, debug
+
+
 def build_pn_action(info, args):
     """
     PN (Proportional Navigation / oransal gudum) komutunu hesaplar.
@@ -123,6 +201,9 @@ def build_pn_action(info, args):
     distance = max(float(np.linalg.norm(rel_pos)), EPS)
     los_dir = unit_or_zero(rel_pos)
     closing_speed = max(-float(np.dot(rel_vel, los_dir)), 0.0)
+
+    if args.mode == "direct":
+        return build_direct_guidance_action(info, args, rel_pos, rel_vel, rocket_vel, target_vel, gravity)
 
     # LOS rate: hedef gorus cizgisinin uzayda ne kadar hizli dondgunu anlatir.
     los_rate = np.cross(rel_pos, rel_vel) / max(distance * distance, EPS)
@@ -320,6 +401,11 @@ def append_row(writer, episode_index, info, debug, args):
             "velocity_correction_saturated": debug.get("velocity_correction_saturated"),
             "loft_factor": debug.get("loft_factor"),
             "loft_accel_mag": debug.get("loft_accel_mag"),
+            "direct_t_go": debug.get("direct_t_go"),
+            "direct_required_accel_mag": debug.get("direct_required_accel_mag"),
+            "direct_applied_accel_mag": debug.get("direct_applied_accel_mag"),
+            "direct_accel_saturated": debug.get("direct_accel_saturated"),
+            "direct_look_dot_target": debug.get("direct_look_dot_target"),
             "lead_weight": debug.get("lead_weight"),
             "altitude_guard_weight": debug.get("altitude_guard_weight"),
             "rocket_vy": debug.get("rocket_vy"),
@@ -344,6 +430,13 @@ def append_row(writer, episode_index, info, debug, args):
             "loft_agl": args.loft_agl,
             "loft_fade_start": args.loft_fade_start,
             "loft_fade_end": args.loft_fade_end,
+            "direct_speed": args.direct_speed,
+            "direct_close_speed": args.direct_close_speed,
+            "direct_close_distance": args.direct_close_distance,
+            "direct_min_tgo": args.direct_min_tgo,
+            "direct_max_tgo": args.direct_max_tgo,
+            "direct_max_accel": args.direct_max_accel,
+            "direct_velocity_damping": args.direct_velocity_damping,
             "lead_fade_start": args.lead_fade_start,
             "lead_fade_end": args.lead_fade_end,
             "altitude_guard": int(bool(args.altitude_guard)),
@@ -443,6 +536,13 @@ def append_summary_row(writer, episode_index, start_info, final_info, best_info,
             "loft_agl": args.loft_agl,
             "loft_fade_start": args.loft_fade_start,
             "loft_fade_end": args.loft_fade_end,
+            "direct_speed": args.direct_speed,
+            "direct_close_speed": args.direct_close_speed,
+            "direct_close_distance": args.direct_close_distance,
+            "direct_min_tgo": args.direct_min_tgo,
+            "direct_max_tgo": args.direct_max_tgo,
+            "direct_max_accel": args.direct_max_accel,
+            "direct_velocity_damping": args.direct_velocity_damping,
             "lead_fade_start": args.lead_fade_start,
             "lead_fade_end": args.lead_fade_end,
             "altitude_guard": int(bool(args.altitude_guard)),
@@ -515,6 +615,11 @@ def run(args):
             "velocity_correction_saturated",
             "loft_factor",
             "loft_accel_mag",
+            "direct_t_go",
+            "direct_required_accel_mag",
+            "direct_applied_accel_mag",
+            "direct_accel_saturated",
+            "direct_look_dot_target",
             "lead_weight",
             "altitude_guard_weight",
             "rocket_vy",
@@ -539,6 +644,13 @@ def run(args):
             "loft_agl",
             "loft_fade_start",
             "loft_fade_end",
+            "direct_speed",
+            "direct_close_speed",
+            "direct_close_distance",
+            "direct_min_tgo",
+            "direct_max_tgo",
+            "direct_max_accel",
+            "direct_velocity_damping",
             "lead_fade_start",
             "lead_fade_end",
         "altitude_guard",
@@ -632,6 +744,13 @@ def run(args):
         "loft_agl",
         "loft_fade_start",
         "loft_fade_end",
+        "direct_speed",
+        "direct_close_speed",
+        "direct_close_distance",
+        "direct_min_tgo",
+        "direct_max_tgo",
+        "direct_max_accel",
+        "direct_velocity_damping",
         "lead_fade_start",
         "lead_fade_end",
         "altitude_guard",
@@ -695,7 +814,8 @@ def run(args):
                             f"cmd12={debug['pn_clock12_net']:.2f} cmd3={debug['pn_clock3_net']:.2f} "
                             f"guard={debug['altitude_guard_weight']:.2f} "
                             f"alim={debug['pn_accel_limit']:.1f} amag={debug['pn_limited_accel_mag']:.1f} "
-                            f"verr={debug['velocity_error_mag']:.1f} loft={debug['loft_factor']:.2f}"
+                            f"verr={debug['velocity_error_mag']:.1f} loft={debug['loft_factor']:.2f} "
+                            f"tgo={debug.get('direct_t_go', debug.get('lead_t_go', 0.0)):.2f}"
                         )
 
                     # Gorsel izleme icin istege bagli yavaslatma.
@@ -745,7 +865,7 @@ def parse_args():
     parser.add_argument("--print-every", type=int, default=50)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
     parser.add_argument("--summary-output", default=None)
-    parser.add_argument("--mode", choices=["blend", "pn", "pursuit", "accel"], default="blend")
+    parser.add_argument("--mode", choices=["blend", "pn", "pursuit", "accel", "direct"], default="blend")
     parser.add_argument("--navigation-gain", type=float, default=4.0)
     parser.add_argument("--pn-sign", type=float, choices=[-1.0, 1.0], default=1.0)
     parser.add_argument("--turn-strength", type=float, default=1.2)
@@ -766,6 +886,13 @@ def parse_args():
     parser.add_argument("--loft-agl", type=float, default=45.0)
     parser.add_argument("--loft-fade-start", type=float, default=260.0)
     parser.add_argument("--loft-fade-end", type=float, default=120.0)
+    parser.add_argument("--direct-speed", type=float, default=85.0)
+    parser.add_argument("--direct-close-speed", type=float, default=65.0)
+    parser.add_argument("--direct-close-distance", type=float, default=90.0)
+    parser.add_argument("--direct-min-tgo", type=float, default=0.35)
+    parser.add_argument("--direct-max-tgo", type=float, default=7.5)
+    parser.add_argument("--direct-max-accel", type=float, default=90.0)
+    parser.add_argument("--direct-velocity-damping", type=float, default=0.0)
     parser.add_argument("--lead-fade-start", type=float, default=95.0)
     parser.add_argument("--lead-fade-end", type=float, default=45.0)
     parser.add_argument("--thrust", type=float, default=700.0)

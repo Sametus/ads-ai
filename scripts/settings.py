@@ -23,8 +23,8 @@ TOTAL_UPDATES = 10000
 SAVE_EVERY_UPDATES = 20
 
 MODELS_DIR = "models"
-MODEL_PREFIX = "ppo_v10_model"
-STATE_PREFIX = "ppo_v10_state"
+MODEL_PREFIX = "ppo_v12_direct_model"
+STATE_PREFIX = "ppo_v12_direct_state"
 
 
 def as_float32(x):

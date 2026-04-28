@@ -105,11 +105,27 @@ baslar.
 - `--max-steps` artik env terminalini de gunceller; 300m testleri 700 stepte yanlislikla kesilmez.
 - Beklenen etki: 300m testinde miss distance azalacak; roket hedefi sadece takip etmek yerine trajectory hattini da kesise yaklastiracak.
 
+## 1.18. V11.0.18 - Direct Guidance Baseline
+
+- Clock/torque zinciri hala 300m hedefi temiz vuramadigi icin dogrudan dunya ivmesi baseline'i eklendi.
+- Direct action paketi: `[-7777, accel_x, accel_y, accel_z, look_x, look_y, look_z]`.
+- Unity direct mode'da normal thrust/clock action yolunu bypass eder, `ForceMode.Acceleration` uygular.
+- Roket burnu hedefe kilitlenir ve angular velocity sifirlanir; bu testte roll dinamikleri bilincli olarak devre disidir.
+- Basari yorumu: Direct mode vurup clock/torque mode vuramazsa action uygulama mimarisi RL icin fazla dolaylidir. Sonraki RL action tasarimi direct acceleration veya desired-velocity komutuna yaklastirilmalidir.
+
 ## 2. V11.1 - Klasik Gudum Verisi Toplama
 
 - PN basarili olursa ayni script daha fazla episode ile calistirilir.
 - Ucuslar `logs/pn_guidance_test.csv` icinde saklanir.
 - Bu veri, modelin hangi durumda hangi yone donmesi gerektigini anlamak icin kullanilir.
+
+## 6. V12.0.0 - RL Direct Acceleration
+
+- Direct baseline hedefi vurdugu icin RL action seti direct acceleration olarak yenilendi.
+- Yeni action: `accel_right`, `accel_up`, `accel_forward`.
+- Yeni state: hedef yonu, relative velocity, rocket velocity, distance, closing, theta, AGL ve altitude error.
+- PPO korunur; once action/state sade mimarisinin egitilebilirligi test edilir.
+- Bu calisirsa sonraki algoritma adimi SAC veya TD3 olur. SAC kesif icin, TD3 deterministic continuous control icin adaydir.
 
 ## 3. V11.2 - Ogretili Baslangic
 

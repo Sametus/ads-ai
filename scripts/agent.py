@@ -11,25 +11,28 @@ from tensorflow.keras import Model  # type: ignore
 from tensorflow.keras.layers import Dense, Input  # type: ignore
 from tensorflow.keras.optimizers import Adam  # type: ignore
 
-from env import ACTION_KEYS, STATE_KEYS, TURN_DIRECTION_COUNT
+from env import ACTION_KEYS, STATE_KEYS
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 LOG_2PI = np.log(2.0 * np.pi).astype(np.float32)
 
 
 def atanh(x):
+    """Tanh ile sinirlanmis action'i tekrar Gaussian uzayina alir."""
     eps = 1e-6
     x = tf.clip_by_value(x, -1.0 + eps, 1.0 - eps)
     return 0.5 * tf.math.log((1.0 + x) / (1.0 - x))
 
 
 def gaussian_log_prob(x, mu, log_std):
+    """Continuous action icin Gaussian log olasiligini hesaplar."""
     var = tf.exp(2.0 * log_std)
     logp = -0.5 * (((x - mu) ** 2) / (var + 1e-8) + 2.0 * log_std + LOG_2PI)
     return tf.reduce_sum(logp, axis=-1)
 
 
 def gaussian_entropy(log_std):
+    """Action dagiliminin kesif miktarini olcer."""
     return tf.reduce_sum(log_std + 0.5 * (LOG_2PI + 1.0), axis=-1)
 
 
@@ -37,23 +40,25 @@ class PPOAgent:
     def __init__(self):
         self.state_size = len(STATE_KEYS)
         self.action_size = len(ACTION_KEYS)
-        self.direction_count = TURN_DIRECTION_COUNT
-        self.lr = 2.5e-5
-        self.gamma = 0.997
-        self.gae_lambda = 0.97
-        self.clip_eps = 0.08
+
+        # V12: action artik thrust + discrete clock degil, 3 eksenli continuous acceleration.
+        # PPO korunuyor; once action mimarisini sade ve ogrenilebilir hale getiriyoruz.
+        self.lr = 7.5e-5
+        self.gamma = 0.995
+        self.gae_lambda = 0.95
+        self.clip_eps = 0.12
         self.vf_coef = 0.5
-        self.ent_coef = 0.006
+        self.ent_coef = 0.01
         self.epochs = 4
         self.batch_size = 256
         self.max_grad_norm = 0.5
-        self.target_kl = 0.006
+        self.target_kl = 0.015
 
         self.model = self.buildModel()
         self.log_std = tf.Variable(
-            tf.zeros((1,), dtype=tf.float32),
+            tf.ones((self.action_size,), dtype=tf.float32) * -0.25,
             trainable=True,
-            name="thrust_log_std",
+            name="action_log_std",
         )
         self.opt = Adam(learning_rate=self.lr)
         self.model(tf.zeros((1, self.state_size), tf.float32))
@@ -64,41 +69,32 @@ class PPOAgent:
         x = Dense(512, activation="tanh")(x)
         x = Dense(512, activation="tanh")(x)
 
-        thrust_mu = Dense(1, activation=None, name="thrust_mu")(x)
-        direction_logits = Dense(self.direction_count, activation=None, name="direction_logits")(x)
+        action_mu = Dense(self.action_size, activation=None, name="action_mu")(x)
         v = Dense(1, activation=None, name="v")(x)
 
-        return Model(inp, [thrust_mu, direction_logits, v])
+        return Model(inp, [action_mu, v])
 
     def value(self, state):
         s = tf.convert_to_tensor(state[None, :], tf.float32)
-        _, _, v = self.model(s)
+        _, v = self.model(s)
         return float(tf.squeeze(v, axis=0).numpy()[0])
 
     def act(self, state):
         s = tf.convert_to_tensor(state[None, :], tf.float32)
-        thrust_mu, direction_logits, v = self.model(s)
-        thrust_mu = tf.squeeze(thrust_mu, axis=0)
+        action_mu, v = self.model(s)
+        action_mu = tf.squeeze(action_mu, axis=0)
         v = float(tf.squeeze(v, axis=0).numpy()[0])
 
         std = tf.exp(self.log_std)
-        eps = tf.random.normal((1,))
-        pre_tanh = thrust_mu + std * eps
-        thrust_action = tf.tanh(pre_tanh)
+        eps = tf.random.normal((self.action_size,))
+        pre_tanh = action_mu + std * eps
+        action = tf.tanh(pre_tanh)
 
-        direction_id = tf.random.categorical(direction_logits, 1)[0, 0]
-        direction_logp_all = tf.nn.log_softmax(direction_logits, axis=-1)
-        direction_logp = tf.gather(direction_logp_all[0], direction_id)
+        logp_gauss = gaussian_log_prob(pre_tanh[None, :], action_mu[None, :], self.log_std[None, :])[0]
+        tanh_correction = tf.reduce_sum(tf.math.log(1.0 - action * action + 1e-6))
+        logp = float((logp_gauss - tanh_correction).numpy())
 
-        thrust_logp_gauss = gaussian_log_prob(pre_tanh[None, :], thrust_mu[None, :], self.log_std[None, :])[0]
-        thrust_correction = tf.reduce_sum(tf.math.log(1.0 - thrust_action * thrust_action + 1e-6))
-        logp = float((thrust_logp_gauss - thrust_correction + direction_logp).numpy())
-
-        action = np.asarray(
-            [float(thrust_action.numpy()[0]), float(direction_id.numpy())],
-            dtype=np.float32,
-        )
-        return action, logp, v
+        return action.numpy().astype(np.float32), logp, v
 
     def calculateGAE(self, rewards, dones, values, last_value):
         T = len(rewards)
@@ -116,27 +112,17 @@ class PPOAgent:
         return adv, ret
 
     def train_step(self, obs, act, old_logp, adv, ret):
-        thrust_act = act[:, 0:1]
-        direction_ids = tf.cast(
-            tf.clip_by_value(tf.round(act[:, 1]), 0.0, float(self.direction_count - 1)),
-            tf.int32,
-        )
-
         with tf.GradientTape() as tape:
-            thrust_mu, direction_logits, v = self.model(obs)
+            action_mu, v = self.model(obs)
             v = tf.squeeze(v, axis=-1)
 
-            pre_tanh = atanh(thrust_act)
-            thrust_logp_gauss = gaussian_log_prob(pre_tanh, thrust_mu, self.log_std[None, :])
-            thrust_correction = tf.reduce_sum(
-                tf.math.log(1.0 - thrust_act * thrust_act + 1e-6),
+            pre_tanh = atanh(act)
+            logp_gauss = gaussian_log_prob(pre_tanh, action_mu, self.log_std[None, :])
+            tanh_correction = tf.reduce_sum(
+                tf.math.log(1.0 - act * act + 1e-6),
                 axis=-1,
             )
-            thrust_logp = thrust_logp_gauss - thrust_correction
-
-            direction_logp_all = tf.nn.log_softmax(direction_logits, axis=-1)
-            direction_logp = tf.gather(direction_logp_all, direction_ids, batch_dims=1)
-            logp = thrust_logp + direction_logp
+            logp = logp_gauss - tanh_correction
 
             ratio = tf.exp(logp - old_logp)
             surr1 = ratio * adv
@@ -144,12 +130,7 @@ class PPOAgent:
             policy_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
 
             value_loss = 0.5 * tf.reduce_mean(tf.square(ret - v))
-
-            direction_probs = tf.nn.softmax(direction_logits, axis=-1)
-            direction_entropy = -tf.reduce_sum(direction_probs * direction_logp_all, axis=-1)
-            thrust_entropy = gaussian_entropy(self.log_std[None, :])
-            ent = tf.reduce_mean(direction_entropy + thrust_entropy)
-
+            ent = tf.reduce_mean(gaussian_entropy(self.log_std[None, :]))
             loss = policy_loss + self.vf_coef * value_loss - self.ent_coef * ent
 
         vars_ = self.model.trainable_variables + [self.log_std]

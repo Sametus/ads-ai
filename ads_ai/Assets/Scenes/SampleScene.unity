@@ -6332,6 +6332,11 @@ MonoBehaviour:
   clockTurnRateTarget: 2.8
   clockTurnRateControllerGain: 1.8
   maxPitchYawTorqueCommand: 6
+  directActionMarker: -7777
+  directAccelLimit: 90
+  directMaxSpeed: 140
+  directLookRateDeg: 720
+  directZeroAngularVelocity: 1
   targetHeightOffset: 0
   rollStabilizationGain: 25
   rollDampingGain: 20
