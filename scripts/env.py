@@ -85,18 +85,19 @@ TURN_DIRECTION_VECTORS = np.asarray(
 TURN_DIRECTION_COUNT = len(TURN_DIRECTION_NAMES)
 DISCRETE_TURN_STRENGTH = 1.2
 
-# Direct RL action artik motor torku degil, guidance frame icinde istenen ivmedir.
-# Ilk PPO action'lari rastgele oldugu icin limiti baseline testinden daha dusuk tutuyoruz.
+# Direct RL action artik serbest dunya ivmesi degil.
+# Ajan hedef hattina gore kucuk aim offset (sag/yukari sapma) ve pozitif ileri ivme secer.
+# Boylece roket fiziksel olarak burnunun tersine veya 90 derece yanina itilmez.
 DIRECT_ACTION_MAX_ACCEL = 65.0
+DIRECT_ACTION_MIN_ACCEL = 38.0
+DIRECT_ACTION_AIM_OFFSET = 0.35
 DIRECT_ACTION_MARKER = -7777.0
 DIRECT_LAUNCH_SAFE_AGL = 8.0
 DIRECT_LAUNCH_SAFE_STEPS = 80
-DIRECT_LAUNCH_MIN_UP_ACCEL = 42.0
-DIRECT_LAUNCH_MIN_FORWARD_ACCEL = 8.0
-DIRECT_LAUNCH_MAX_SIDE_ACCEL = 28.0
+DIRECT_LAUNCH_UP_BIAS = 0.75
 
 ACTION_KEYS = (
-    ["accel_right", "accel_up", "accel_forward"]
+    ["aim_right", "aim_up", "forward_accel"]
     if CONTROL_MODE == "direct_accel"
     else ["thrust", "turn_direction"]
 )
@@ -105,6 +106,7 @@ PYTHON_STEP_LOG_KEYS = [
     "episode_return_so_far",
     "action_logp",
     "value_pred",
+    "action_source",
     "action_norm_0",
     "action_norm_1",
     "action_norm_2",
@@ -346,7 +348,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v12_0_0_phase_1_direct_accel_140_160",
+    "name": "v15_0_4_phase_1_sac_forward_damped_140_160",
     "spawn_radius_min": 140.0,
     "spawn_radius_max": 160.0,
     "heading_offset_min": -5.0,
@@ -414,8 +416,8 @@ ACTIVE_PHASE_CONFIG = {
     "late_floor_agl": 28.0,
     "late_floor_step": 160,
     "late_floor_penalty_gain": 0.80,
-    "min_agl": 0.18,
-    "low_agl_grace_steps": 100,
+    "min_agl": 0.60,
+    "low_agl_grace_steps": 80,
     "collision_penalty": -150.0,
     "low_altitude_penalty": -180.0,
     "high_altitude_penalty": -120.0,
@@ -1355,7 +1357,7 @@ class Env:
         """
         Klasik gudum / scripted controller testleri icin dogrudan Unity action'i gonderir.
 
-        Bu metot PPO action normalizasyonunu kullanmaz. Boylece PN gibi algoritmalar,
+        Bu metot RL action normalizasyonunu kullanmaz. Boylece PN gibi algoritmalar,
         Unity'nin bekledigi fiziksel komutlari dogrudan test edebilir.
         Standart paket: [thrust, clock_12, clock_6, clock_3, clock_9].
         Direct paket: [-7777, accel_x, accel_y, accel_z, look_x, look_y, look_z].
@@ -1476,7 +1478,7 @@ class Env:
         ]
 
     def denormalize_direct_accel_action(self, action):
-        """RL'in [-1,1] acceleration action'ini Unity direct packet'ine cevirir."""
+        """RL action'ini hedefe bakan, ileri ivmeli Unity direct packet'ine cevirir."""
         a = np.asarray(action, dtype=np.float32).reshape(-1)
         if len(a) < 3:
             a = np.pad(a, (0, 3 - len(a)), mode="constant")
@@ -1488,9 +1490,21 @@ class Env:
         up_ref = self._safe_unit(self._telemetry_vec(telemetry, "guidance_up_world"), np.array([0.0, 1.0, 0.0]))
         forward_ref = self._safe_unit(self._telemetry_vec(telemetry, "guidance_forward_world"), np.array([0.0, 0.0, 1.0]))
         rel_pos = self._telemetry_vec(telemetry, "rel_pos_world")
-        look_dir = self._safe_unit(rel_pos, forward_ref)
+        target_dir = self._safe_unit(rel_pos, forward_ref)
 
-        accel_cmd = np.asarray(a, dtype=np.float32) * DIRECT_ACTION_MAX_ACCEL
+        # action[0] ve action[1] artik serbest ivme degil, hedef bakisina eklenen kucuk sapmadir.
+        # Bu sayede ajan manevra ogrenebilir ama roketi fizik disi sekilde yan/geri itemez.
+        aim_offset = (
+            right_ref * float(a[0]) * DIRECT_ACTION_AIM_OFFSET
+            + up_ref * float(a[1]) * DIRECT_ACTION_AIM_OFFSET
+        )
+        look_dir = self._safe_unit(target_dir + aim_offset, target_dir)
+
+        # action[2] ileri ivme siddetidir. Negatif deger bile geri itki degil, daha dusuk ileri itki anlamina gelir.
+        accel_mag = DIRECT_ACTION_MIN_ACCEL + ((float(a[2]) + 1.0) * 0.5) * (
+            DIRECT_ACTION_MAX_ACCEL - DIRECT_ACTION_MIN_ACCEL
+        )
+
         states = raw_state.get("states", {})
         agl = float(states.get("agl", 0.0))
 
@@ -1501,28 +1515,12 @@ class Env:
         launch_guard = float(launch_progress < 1.0)
 
         if launch_guard > 0.0:
-            # Kalkista PPO henuz rastgele action uretir. Bu filtre sadece yere vurmayi engeller;
-            # hedefe gitme kararini yine agent'in sag/ileri/yukari ivme secimi belirler.
-            min_up = (1.0 - launch_progress) * DIRECT_LAUNCH_MIN_UP_ACCEL
-            min_forward = (1.0 - launch_progress) * DIRECT_LAUNCH_MIN_FORWARD_ACCEL
-            side_limit = DIRECT_LAUNCH_MAX_SIDE_ACCEL + (
-                DIRECT_ACTION_MAX_ACCEL - DIRECT_LAUNCH_MAX_SIDE_ACCEL
-            ) * launch_progress
+            # Kalkista hedef hatti cok yatay kalirsa roket yere surunebilir.
+            # Gecici yukari bias burnu hedef hattindan koparmadan kalkisi guvenli hale getirir.
+            up_bias = (1.0 - launch_progress) * DIRECT_LAUNCH_UP_BIAS
+            look_dir = self._safe_unit(look_dir + up_ref * up_bias, look_dir)
 
-            accel_cmd[1] = max(float(accel_cmd[1]), float(min_up))
-            accel_cmd[2] = max(float(accel_cmd[2]), float(min_forward))
-
-            side_mag = float(np.linalg.norm([accel_cmd[0], accel_cmd[2]]))
-            if side_mag > side_limit:
-                side_scale = float(side_limit / max(side_mag, 1e-6))
-                accel_cmd[0] *= side_scale
-                accel_cmd[2] *= side_scale
-
-        accel_world = (
-            right_ref * float(accel_cmd[0])
-            + up_ref * float(accel_cmd[1])
-            + forward_ref * float(accel_cmd[2])
-        )
+        accel_world = look_dir * float(accel_mag)
         accel_world = self._clamp_magnitude(accel_world, DIRECT_ACTION_MAX_ACCEL)
 
         self.last_action_info = {
@@ -1538,9 +1536,9 @@ class Env:
             "direct_accel_world_x": float(accel_world[0]),
             "direct_accel_world_y": float(accel_world[1]),
             "direct_accel_world_z": float(accel_world[2]),
-            "direct_accel_cmd_right": float(accel_cmd[0]),
-            "direct_accel_cmd_up": float(accel_cmd[1]),
-            "direct_accel_cmd_forward": float(accel_cmd[2]),
+            "direct_accel_cmd_right": float(a[0] * DIRECT_ACTION_AIM_OFFSET),
+            "direct_accel_cmd_up": float(a[1] * DIRECT_ACTION_AIM_OFFSET),
+            "direct_accel_cmd_forward": float(accel_mag),
             "direct_launch_guard": launch_guard,
         }
 

@@ -204,6 +204,8 @@ public class Env : MonoBehaviour
     public float directMaxSpeed = 140f;
     public float directLookRateDeg = 720f;
     public bool directZeroAngularVelocity = true;
+    public float directVelocityAlignBlend = 0.18f;
+    public float directBackwardVelocityDamp = 0.55f;
 
     [Header("Guidance Stabilization")]
     public float targetHeightOffset = 0f;
@@ -238,6 +240,9 @@ public class Env : MonoBehaviour
     [Header("Particle FX (Opsiyonel)")]
     public ParticleSystem rocketExhaustFx;
     public ParticleSystem targetExhaustFx;
+    public bool alignRocketExhaustToRocketPoint = true;
+    public bool rocketExhaustWorldSimulation = true;
+    public float rocketExhaustBackOffset = 0.42f;
 
     private Connector connector;
 
@@ -287,6 +292,7 @@ public class Env : MonoBehaviour
         fixedTargetY = target.position.y + targetHeightOffset;
         fixedTargetRotX = target.eulerAngles.x;
         ResetGuidanceCache();
+        ConfigureParticleFX();
 
 #if UNITY_6000_0_OR_NEWER
         Physics.simulationMode = SimulationMode.Script;
@@ -580,6 +586,34 @@ public class Env : MonoBehaviour
 
         rocketRb.AddForce(accelWorld, ForceMode.Acceleration);
         AlignRocketPointToDirectLook();
+        DampenDirectSideSlip();
+    }
+
+    private void DampenDirectSideSlip()
+    {
+        Vector3 lookWorld = currentDirectLookWorld.sqrMagnitude > 1e-8f
+            ? currentDirectLookWorld.normalized
+            : rocketPoint.forward.normalized;
+
+        if (lookWorld.sqrMagnitude <= 1e-8f)
+            return;
+
+        Vector3 velocityWorld = rocketRb.linearVelocity;
+        float forwardSpeed = Vector3.Dot(velocityWorld, lookWorld);
+        Vector3 forwardVelocity = lookWorld * Mathf.Max(0f, forwardSpeed);
+        Vector3 sideVelocity = velocityWorld - (lookWorld * forwardSpeed);
+
+        // Direct action roketi hedefe bakan bir gudum testine ceviriyor.
+        // Bu nedenle burnun tersine/yanina tasinan hizlari tamamen fiziksel serbestlik olarak birakmiyoruz;
+        // aksi halde roket burnu donse bile eski hizla geri geri veya yan yan kaymaya devam ediyor.
+        float sideBlend = Mathf.Clamp01(directVelocityAlignBlend);
+        float backwardBlend = forwardSpeed < 0f ? Mathf.Clamp01(directBackwardVelocityDamp) : sideBlend;
+        Vector3 correctedVelocity = forwardVelocity + (sideVelocity * (1f - sideBlend));
+
+        if (forwardSpeed < 0f)
+            correctedVelocity += lookWorld * forwardSpeed * (1f - backwardBlend);
+
+        rocketRb.linearVelocity = correctedVelocity;
     }
 
     private void AlignRocketPointToDirectLook()
@@ -609,6 +643,19 @@ public class Env : MonoBehaviour
             rocketRb.angularVelocity = Vector3.zero;
             lastSuppressedRollRate = 0f;
         }
+    }
+
+    private void ConfigureParticleFX()
+    {
+        if (rocketExhaustFx == null)
+            return;
+
+        // Duman onceki framelerde dogdugu yerde kalmali; roket dondukce eski dumanin birlikte donmesi
+        // yan/geri ucus hissini abartiyor. World simulation yeni parcaciklari emitere uydurur, eskileri dondurmez.
+        ParticleSystem.MainModule main = rocketExhaustFx.main;
+        main.simulationSpace = rocketExhaustWorldSimulation
+            ? ParticleSystemSimulationSpace.World
+            : ParticleSystemSimulationSpace.Local;
     }
 
     private Quaternion BuildRollStableDirectRotation(Vector3 lookWorld)
@@ -1226,6 +1273,8 @@ public class Env : MonoBehaviour
     {
         if (rocketExhaustFx != null)
         {
+            AlignRocketExhaustFX();
+
             bool shouldPlayRocketFx = currentThrust > 0.1f
                 || (currentDirectGuidanceMode && currentDirectAccelWorld.sqrMagnitude > 0.01f);
             if (shouldPlayRocketFx)
@@ -1243,6 +1292,25 @@ public class Env : MonoBehaviour
         {
             targetExhaustFx.Play();
         }
+    }
+
+    private void AlignRocketExhaustFX()
+    {
+        if (!alignRocketExhaustToRocketPoint || rocketExhaustFx == null || rocketPoint == null)
+            return;
+
+        Vector3 forward = rocketPoint.forward.sqrMagnitude > 1e-8f
+            ? rocketPoint.forward.normalized
+            : rocket.transform.forward.normalized;
+        Vector3 up = rocketPoint.up.sqrMagnitude > 1e-8f
+            ? rocketPoint.up.normalized
+            : Vector3.up;
+
+        // Particle sistemi local +Z yonune emis yapiyor kabul edilir; egzoz bunun tersine,
+        // yani roket burnunun arkasina bakmalidir.
+        Transform fxTransform = rocketExhaustFx.transform;
+        fxTransform.position = rocketPoint.position - forward * Mathf.Max(0f, rocketExhaustBackOffset);
+        fxTransform.rotation = Quaternion.LookRotation(-forward, up);
     }
 
     private void OnApplicationQuit()

@@ -1,14 +1,12 @@
-import glob
-import gzip
 import os
-import pickle
-import re
 import warnings
 
 import numpy as np
 
 from cuda_bootstrap import configure_conda_cuda_dlls
 
+# TensorFlow import edilmeden once CUDA/cuDNN DLL yollarini ekliyoruz.
+# Bu satir olmazsa rl_codes ortaminda DLL'ler mevcut olsa bile GPU gorunmeyebilir.
 configure_conda_cuda_dlls()
 
 import tensorflow as tf
@@ -18,20 +16,36 @@ warnings.filterwarnings("ignore")
 IP = "127.0.0.1"
 PORT = 5005
 
-ROLLOUT_LEN = 1200
-TOTAL_UPDATES = 10000
-SAVE_EVERY_UPDATES = 20
-
 MODELS_DIR = "models"
-MODEL_PREFIX = "ppo_v12_direct_model"
-STATE_PREFIX = "ppo_v12_direct_state"
+
+# V15 aktif egitim hatti sadece SAC'tir.
+# Eski egitim hatlarina ait checkpoint isimleri bilincli olarak bu surumden cikarildi.
+SAC_MODEL_PREFIX = "sac_v15_forward_damped"
+SAC_TOTAL_STEPS = 250000
+SAC_BATCH_SIZE = 64
+SAC_REPLAY_SIZE = 200000
+SAC_START_TRAINING_STEPS = 12000
+SAC_TRAIN_EVERY_STEPS = 32
+SAC_UPDATES_PER_STEP = 1
+SAC_SAVE_EVERY_STEPS = 5000
+SAC_LOG_EVERY_STEPS = 500
+SAC_GAMMA = 0.995
+SAC_TAU = 0.005
+SAC_ACTOR_LR = 3.0e-5
+SAC_CRITIC_LR = 1.0e-4
+SAC_ALPHA_LR = 3.0e-5
+SAC_INITIAL_ALPHA = 0.25
+SAC_REWARD_SCALE = 0.02
+SAC_HIDDEN_UNITS = 96
 
 
 def as_float32(x):
+    """Sayisal veriyi TensorFlow/Numpy icin standart float32 formuna cevirir."""
     return np.asarray(x, dtype=np.float32)
 
 
 def setup_gpu():
+    """GPU varsa memory growth acar; yoksa CPU ile devam eder."""
     gpus = tf.config.experimental.list_physical_devices("GPU")
 
     if gpus:
@@ -49,87 +63,5 @@ def setup_gpu():
 
 
 def ensure_model_dir():
+    """SAC checkpoint klasorunu olusturur."""
     os.makedirs(MODELS_DIR, exist_ok=True)
-
-
-def model_path(update_id):
-    return os.path.join(MODELS_DIR, f"{MODEL_PREFIX}_up{update_id}.keras")
-
-
-def state_path(update_id):
-    return os.path.join(MODELS_DIR, f"{STATE_PREFIX}_up{update_id}.pkl.gz")
-
-
-def save_agent_state(agent, path, extra=None):
-    state = {
-        "log_std": agent.log_std.numpy().tolist()
-    }
-
-    if extra is not None:
-        state.update(extra)
-
-    tmp_path = path + ".tmp"
-
-    with gzip.open(tmp_path, "wb") as f:
-        pickle.dump(state, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    os.replace(tmp_path, path)
-
-
-def load_agent_state(agent, path):
-    if not os.path.exists(path):
-        return {}
-
-    with gzip.open(path, "rb") as f:
-        state = pickle.load(f)
-
-    if "log_std" in state:
-        agent.log_std.assign(np.array(state["log_std"], dtype=np.float32))
-
-    return state
-
-
-def latest_index(pattern, regex=r"_up(\d+)\.keras$"):
-    files = glob.glob(pattern)
-
-    if not files:
-        return None
-
-    nums = []
-
-    for p in files:
-        match = re.search(regex, os.path.basename(p))
-        if match:
-            nums.append(int(match.group(1)))
-
-    return max(nums) if nums else None
-
-
-def load_checkpoint(agent):
-    start_update = 0
-    checkpoint_update = latest_index(os.path.join(MODELS_DIR, f"{MODEL_PREFIX}_up*.keras"))
-
-    if checkpoint_update is not None:
-        print(f"Kayitli model bulundu: Update {checkpoint_update}. Yukleniyor...")
-        try:
-            agent.model = tf.keras.models.load_model(
-                model_path(checkpoint_update),
-                compile=False
-            )
-            load_agent_state(agent, state_path(checkpoint_update))
-            start_update = checkpoint_update + 1
-            print(f">>> Basarili! Update {start_update} seviyesinden devam ediliyor")
-        except Exception as e:
-            print(f"HATA: Model yuklenemedi. Sifirdan baslaniyor. {e}")
-            start_update = 0
-
-    return start_update
-
-
-def save_checkpoint(agent, update_id):
-    agent.model.save(model_path(update_id))
-    save_agent_state(
-        agent,
-        state_path(update_id),
-        extra={"update": update_id}
-    )

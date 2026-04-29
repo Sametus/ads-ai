@@ -1,12 +1,13 @@
 # ADS-AI Hava Savunma RL Projesi
 
-ADS-AI, Unity fizik simülasyonu içinde hareket eden bir roketin yaklaşan hedefi vurmayı öğrenmesi için geliştirilen reinforcement learning (pekiştirmeli öğrenme) projesidir. Unity sahnesi fizik, geometri ve telemetry üretir; Python tarafı bu verileri state haline getirir, reward hesaplar ve PPO tabanlı ajan ile action üretir.
+ADS-AI, Unity fizik simülasyonu içinde hareket eden bir roketin yaklaşan hedefi vurmayı öğrenmesi için geliştirilen reinforcement learning (pekiştirmeli öğrenme) projesidir. Unity sahnesi fizik, geometri ve telemetry üretir; Python tarafı bu verileri state haline getirir, reward hesaplar ve güncel sürümde SAC tabanlı ajan ile action üretir.
 
 Bu README, projeyi ilk kez inceleyen bir kişinin kodu, deney geçmişini, mevcut başarısızlık noktalarını ve sonraki inceleme alanlarını hızlıca anlaması için hazırlanmıştır.
 
 ## Mevcut Durum
 
-- Güncel takip edilen sürüm: `v12.0.1`.
+- Güncel takip edilen sürüm: `v15.0.4`.
+- Aktif eğitim hattı sadece SAC'tir; PPO, teacher collect ve pretrain dosyaları güncel runtime'dan kaldırılmıştır.
 - Son commit baz çizgisi: V10 hibrit discrete clock-direction denemesi başarısız olarak arşivlendi.
 - V11, PPO eğitimine devam etmeden önce klasik güdüm algoritmasıyla sahnenin fiziksel olarak vurulabilir olup olmadığını ölçen sağlık testi aşamasıdır.
 - Daha önceki pretrain denemesi kalıcı çözüm olarak tutulmadı; ilgili pretrain/geçici analiz dosyaları çalışma ağacından temizlendi.
@@ -48,6 +49,12 @@ Son bilinen V10 sonucu:
 - V11.0.18 notu: Test için `--mode direct` eklendi. Bu mod clock/torque action zincirini bypass eder; Python dünya uzayında gerekli ivmeyi hesaplar, Unity bu ivmeyi doğrudan uygular ve roket burnunu hedefe kilitler. Amaç RL değil, sahnede vurmanın mümkün olduğunu kesin göstermek.
 - V12.0.0 notu: RL action mimarisi direct acceleration olarak sadeleştirildi. Ajan artık `thrust + discrete clock` seçmez; `accel_right`, `accel_up`, `accel_forward` continuous action üretir. Python bu action'ı Unity direct packet formatına çevirir.
 - V12.0.1 notu: Direct RL kalkış güvenliği eklendi. Reset sonrası ilk state saklanır, yerdeyken rastgele action'ın roketi yana/aşağı çarpması engellenir, direct look rotasyonu gravity-up referansı ile roll-free hale getirilir ve console log renkleri korunur.
+- V13.0.0 notu: Uzman önerisine uygun olarak doğrudan random PPO yerine öğretmen destekli eğitim hattı eklendi. Önce `teacher_collect.py` çalışan direct controller ile veri toplar, sonra `teacher_pretrain.py` policy ağını bu action'lara yaklaştırır, en son `train.py` PPO fine-tune yapar.
+- V14.0.0 notu: PPO fine-tune sırasında action dağılımı `forward≈1` ve pozitif `up` kanalına çökünce off-policy SAC deneme hattı eklendi. SAC, replay buffer sayesinde iyi teacher adımlarını tek rollout sonunda atmadan tekrar tekrar kullanır. Yeni komut: `python scripts/train_sac.py`.
+- V15.0.0 notu: PPO ve teacher/pretrain aktif koddan kaldırıldı. `scripts/train.py` artık sadece SAC çalıştırır ve ajan sıfırdan, kendi stochastic actor'ü ile başlar.
+- V15.0.2 notu: SAC canlı training logları için `scripts/plot_sac_report.py` eklendi. Bu script PPO dönemindeki faz grafiklerine benzer şekilde success, radius, reset haritası, action diagnostik ve hit pozisyonu PNG'leri üretir.
+- V15.0.3 notu: SAC direct action artık serbest dünya ivmesi uygulamaz. Ajan hedef bakışına küçük sağ/yukarı sapma ve pozitif ileri ivme seçer; Unity egzoz efekti de `rocketPoint` arkasına hizalanır.
+- V15.0.4 notu: Unity donmasını azaltmak için SAC update daha geç ve seyrek başlar. Direct mode'da burun tersine/yanına taşınan hız bileşenleri yumuşak sönümlenir.
 
 Bu proje şu an "tamamlanmış başarılı model" durumunda değildir. Kod ve loglar, sonraki teknik inceleme için korunmuş araştırma/deney ortamıdır.
 
@@ -75,12 +82,13 @@ ads_ai/
     Assets/Scripts/Connector.cs TCP/JSON iletişim katmanı
     Assets/Scenes/             Unity sahneleri
   scripts/                     Python RL kodları
-    train.py                   PPO training döngüsü
+    train.py                   SAC off-policy training döngüsü
     test.py                    Kaydedilmiş model ile test
-    agent.py                   PPO actor-critic modeli
+    sac_agent.py               SAC actor/critic ve replay buffer
     env.py                     Python Env wrapper, reward, state/action
     settings.py                Port, rollout, checkpoint ayarları
     log.py                     CSV ve terminal logları
+    plot_sac_report.py         SAC canlı training grafik üretimi
     plot_phase_report.py       Statik grafik üretimi
     plot_phase_report_plotly.py Plotly HTML grafik üretimi
   archives/                    Faz/sürüm arşivleri
@@ -97,12 +105,12 @@ ads_ai/
 2. Unity hedefi ve roketi resetler.
 3. Unity state ve telemetry paketini Python'a yollar.
 4. Python state'i normalize eder.
-5. PPO ajan action üretir.
-6. Python action'ı Unity'nin beklediği thrust/clock torque kanallarına çevirir.
+5. SAC ajan action üretir.
+6. Python action'ı aktif mimariye göre Unity direct-acceleration paketine çevirir.
 7. Unity action'ı uygular ve yalnızca Python step isteği geldiğinde `Physics.Simulate` ile bir fizik adımı ilerler.
 8. Python reward ve terminal koşullarını hesaplar.
-9. Training loop rollout buffer'ına transition yazar.
-10. `ROLLOUT_LEN` kadar step dolunca PPO update yapılır.
+9. SAC training loop replay buffer'a transition yazar.
+10. Replay buffer yeterli veriye ulaşınca SAC mini-batch update yapar.
 
 Bu tasarımda Unity gerçek zamanlı olarak serbest akmaz; fizik adımı Python step döngüsü tarafından kontrol edilir.
 
@@ -120,7 +128,7 @@ Bu README güncellenirken yerel `rl_codes` conda ortamında doğrulanan sürüml
 | Unity Editor | `6000.3.2f1` | `ads_ai/ProjectSettings/ProjectVersion.txt` içinde kayıtlı |
 | Unity revision | `6000.3.2f1 (a9779f353c9b)` | Aynı dosyada kayıtlı |
 | Python | `3.7.16` | `C:\Users\husey\miniconda3\envs\rl_codes\python.exe` |
-| TensorFlow | `2.10.1` | PPO modeli ve checkpoint yükleme/kaydetme için gerekli |
+| TensorFlow | `2.10.1` | SAC modeli ve checkpoint yükleme/kaydetme için gerekli |
 | Keras | `2.10.0` | TensorFlow bağımlılığı olarak kullanılıyor |
 | NumPy | `1.21.6` | State/action/reward hesapları |
 | Pandas | `1.3.5` | CSV log ve analiz okuma |
@@ -258,50 +266,51 @@ Temel runtime ayarları burada tutulur:
 ```python
 IP = "127.0.0.1"
 PORT = 5005
-ROLLOUT_LEN = 1200
-TOTAL_UPDATES = 10000
-SAVE_EVERY_UPDATES = 20
-MODEL_PREFIX = "ppo_v10_model"
-STATE_PREFIX = "ppo_v10_state"
+SAC_MODEL_PREFIX = "sac_v15_forward_damped"
+SAC_TOTAL_STEPS = 250000
+SAC_BATCH_SIZE = 64
+SAC_REPLAY_SIZE = 200000
+SAC_START_TRAINING_STEPS = 12000
+SAC_TRAIN_EVERY_STEPS = 32
+SAC_SAVE_EVERY_STEPS = 5000
 ```
 
-Checkpoint seçimi otomatik yapılır. `models/` içindeki en yüksek update numarasına sahip model bulunursa yüklenir; model yoksa eğitim sıfırdan başlar.
+Checkpoint seçimi otomatik yapılır. `models/` içindeki en yüksek SAC step numarasına sahip actor bulunursa yüklenir; model yoksa eğitim sıfırdan başlar.
 
 ### `scripts/train.py`
 
 Training döngüsü:
 
 - Unity bağlantısını açar.
-- PPO ajanı kurar.
-- Checkpoint varsa yükler.
-- `ROLLOUT_LEN` kadar step toplar.
-- PPO update yapar.
-- `SAVE_EVERY_UPDATES` aralığıyla model kaydeder.
+- `SACAgent` actor/critic ağlarını kurar.
+- Checkpoint varsa yükler, yoksa sıfırdan başlar.
+- İlk step'ten itibaren action SAC actor tarafından üretilir; teacher/pretrain yoktur.
+- Her transition replay buffer'a yazılır.
+- Replay buffer `SAC_START_TRAINING_STEPS` eşiğini geçince SAC update yapar.
+- `SAC_SAVE_EVERY_STEPS` aralığıyla actor/critic checkpoint kaydeder.
 
-Önemli not: Rollout step bazlıdır, episode bazlı değildir. Bir episode erken `success` ile biterse rollout kesilmez; ortam resetlenir ve aynı update içinde yeni episode'lardan step toplanmaya devam edilir.
+### `scripts/sac_agent.py`
 
-### `scripts/agent.py`
+SAC ajanı:
 
-PPO ajanı:
-
-- 3 katmanlı MLP.
-- Her hidden layer: `512`, aktivasyon: `tanh`.
+- Actor ve iki ayrı critic ağı içerir.
+- Replay buffer ile geçmiş transition'ları tekrar kullanır.
+- Target critic ağları `SAC_TAU` ile yumuşak güncellenir.
 - Çıkışlar:
-  - Continuous thrust mean.
-  - Discrete direction logits.
-  - Value estimate.
+  - Actor: `aim_right`, `aim_up`, `forward_accel` anlamına gelen 3 continuous action üretir.
+  - Critic: state/action çifti için Q değeri.
 
-Temel PPO parametreleri:
+Temel SAC parametreleri:
 
 ```text
-lr = 2.5e-5
-gamma = 0.997
-gae_lambda = 0.97
-clip_eps = 0.08
-ent_coef = 0.006
-epochs = 4
-batch_size = 256
-target_kl = 0.006
+SAC_ACTOR_LR = 3.0e-5
+SAC_CRITIC_LR = 1.0e-4
+SAC_ALPHA_LR = 3.0e-5
+SAC_INITIAL_ALPHA = 0.25
+SAC_GAMMA = 0.995
+SAC_TAU = 0.005
+SAC_REWARD_SCALE = 0.02
+SAC_BATCH_SIZE = 64
 ```
 
 ### `scripts/env.py`
@@ -318,68 +327,57 @@ Python Env wrapper:
 
 ## State Tasarımı
 
-Güncel V10 state boyutu `23`'tür:
+Güncel direct-acceleration state boyutu `16`'dır:
 
 | Alan | Açıklama |
 |---|---|
 | `distance` | Roket-hedef mesafesi |
-| `theta_rad` | Roket burnu ile hedef doğrultusu arasındaki genel açı |
-| `alpha_rad` | Gravity referanslı dikey signed angle |
-| `beta_rad` | Gravity referanslı yatay signed angle |
-| `target_clock_12/6/3/9` | Hedefin roket burnu etrafındaki clock frame yönü |
+| `rel_dir_right/up/forward` | Hedef yönünün guidance frame bileşenleri |
+| `rel_vel_right/up/forward` | Hedef-roket göreli hızının guidance frame bileşenleri |
+| `rocket_vel_right/up/forward` | Roket hızının guidance frame bileşenleri |
 | `closing_speed` | Hedefe yaklaşma hızı |
-| `rel_vel_clock_12/6/3/9` | Clock frame içinde göreli hız bileşenleri |
-| `rel_vel_forward` | Roket burnu doğrultusundaki göreli hız |
-| `turn_rate_clock_12/6/3/9` | Roket burnunun clock frame yönlerindeki dönüş hızı |
-| `turn_rate_roll` | Burnun ileri ekseni etrafındaki roll hızı |
-| `clock_validity` | Clock frame'in ne kadar güvenilir olduğu |
-| `forward_up_dot` | Roket burnu ile gravity-up ilişkisi |
+| `theta_rad` | Roket burnu ile hedef doğrultusu arasındaki genel açı |
 | `agl` | Above ground level, yerden yükseklik |
 | `alt_error` | Hedef ile roket arasındaki irtifa farkı |
+| `target_speed` | Hedef hızı |
+| `rocket_speed` | Roket hızı |
 
 Normalizasyon:
 
 - Mesafe, hız ve irtifa gibi değerler `tanh` ile sıkıştırılır.
 - Açılar radyan olarak taşınır.
-- Clock kanalları `0..1` aralığında tutulur.
+- Direct state içinde clock kanalları aktif observation değildir; eski clock alanları log/diagnostic için korunabilir.
 
 ## Action Tasarımı
 
-V10 action boyutu `2`'dir:
+V15.0.3 sonrası aktif action boyutu `3`'tür:
 
 | Action | Açıklama |
 |---|---|
-| `thrust` | Continuous değer, `[-1, 1]` aralığından gerçek thrust aralığına çevrilir |
-| `turn_direction` | Discrete/categorical clock yön sınıfı |
+| `aim_right` | Hedef bakış yönüne sağ/sol sapma ekler, `[-1, 1]` |
+| `aim_up` | Hedef bakış yönüne gravity-up/down sapma ekler, `[-1, 1]` |
+| `forward_accel` | Pozitif ileri ivme büyüklüğünü seçer; negatif değer geri itki değil düşük ileri itki demektir |
 
-Discrete yön sınıfları:
-
-| ID | Yön |
-|---|---|
-| `0` | `hold` |
-| `1` | `clock_12` |
-| `2` | `clock_12_3` |
-| `3` | `clock_3` |
-| `4` | `clock_3_6` |
-| `5` | `clock_6` |
-| `6` | `clock_6_9` |
-| `7` | `clock_9` |
-| `8` | `clock_9_12` |
-
-Python bu discrete yönü şu Unity action kanallarına genişletir:
+Python bu normalized action'ı önce hedef bakış yönüne küçük sapma olarak ekler:
 
 ```text
-[thrust, clock_12_cmd, clock_6_cmd, clock_3_cmd, clock_9_cmd]
+look_dir = normalize(target_dir + right_ref * aim_right + up_ref * aim_up)
 ```
 
-Unity tarafında zıt kanallar netleştirilir:
+Sonra yalnızca bu bakış yönünde pozitif ileri ivme üretir:
 
 ```text
-clock12Net = clock_12_cmd - clock_6_cmd
-clock3Net  = clock_3_cmd  - clock_9_cmd
+accel_mag = lerp(DIRECT_ACTION_MIN_ACCEL, DIRECT_ACTION_MAX_ACCEL, (forward_accel + 1) / 2)
+accel_world = look_dir * accel_mag
 ```
 
-Bu net komut, roket burnu etrafında gravity referanslı clock frame ile torque'a çevrilir.
+Unity'ye giden direct packet:
+
+```text
+[-7777, accel_x, accel_y, accel_z, look_x, look_y, look_z]
+```
+
+`-7777` marker'ı Unity tarafında eski thrust/clock torque yolunu bypass eder. Unity dünya ivmesini uygular ve roket burnunu aynı `look_dir` yönüne hizalar. Bu kısıt, roketin burnu başka yöne bakarken yanlamasına veya geri geri itilmesini engellemek için eklendi.
 
 ## Reward Tasarımı
 
@@ -393,10 +391,7 @@ Ana bileşenler:
 - Closing speed.
 - Theta progress.
 - Alpha/beta progress.
-- Target clock yönüne dönüş.
-- Clock action alignment.
-- Wrong-channel penalty.
-- Coactivation penalty.
+- Direct mode'da eski clock reward bileşenlerinin çoğu sıfırlanır veya sadece diagnostic/log amacıyla kalır.
 - Near-success bonus.
 - Reverse/wrong-way penalty.
 - Roll ve angular velocity cezası.
@@ -440,7 +435,7 @@ logs/update_log.csv
 
 `update_log.csv`:
 
-- Her PPO update sonrası loss, entropy, KL, clip fraction ve learning rate içerir.
+- Her SAC update/log aralığı sonrası loss, entropy, alpha ve learning rate içerir.
 
 Kalıcı analiz için önemli loglar faz bitişinde `archives/` altına taşınmalıdır.
 
@@ -450,6 +445,12 @@ Statik grafik scripti:
 
 ```powershell
 python scripts/plot_phase_report.py
+```
+
+SAC canlı training grafik scripti:
+
+```powershell
+python scripts/plot_sac_report.py --phase-contains v15_0_4 --out-dir logs\plots
 ```
 
 Plotly interaktif grafik scripti:
@@ -466,6 +467,8 @@ Bu scriptler faz raporlarında genellikle şu grafikleri üretmek için kullanı
 - Radius/outcome polar grafik.
 - Faz sınırlarıyla radius-success planı.
 - Clock action alignment analizleri.
+- SAC action/direct acceleration diagnostikleri.
+- Success varsa hedefin vurulduğu dünya konumları.
 
 ## Nasıl Çalıştırılır
 
@@ -591,7 +594,7 @@ Sonraki incelemede özellikle şu başlıklar kontrol edilmelidir:
 5. Reward breakdown kolonlarında success'e yaklaşan step'lerde hangi bileşenlerin pozitif/negatif olduğunu ölç.
 6. Action distribution ile target clock direction eşleşmesini analiz et.
 7. Önce scripted baseline ile hedefe yönelme mümkün mü test et.
-8. Baseline mümkünse PPO reward/action tasarımını baseline davranışına göre yeniden sadeleştir.
+8. Baseline mümkünse aktif SAC reward/action tasarımını baseline davranışına göre yeniden sadeleştir.
 
 ## Temizlik Notu
 
@@ -614,7 +617,7 @@ Bunlar runtime/deneme çıktısı olduğu için kalıcı teknik incelemede arşi
 ## Kısa Komut Özeti
 
 ```powershell
-# Training
+# V15 SAC-only training
 python scripts/train.py
 
 # Test
@@ -634,6 +637,9 @@ python scripts/pn_guidance_test.py --mode accel --episodes 5 --radius-min 280 --
 
 # Direct-guidance hedef vurma testi
 python scripts/pn_guidance_test.py --mode direct --episodes 5 --radius-min 280 --radius-max 300 --target-y 50 --terminal-max-altitude 240 --max-steps 1000 --output logs/pn_direct_v11018_r280_300.csv
+
+# SAC canlı training PNG raporu
+python scripts/plot_sac_report.py --phase-contains v15_0_4 --out-dir logs\plots
 
 # Statik faz raporu
 python scripts/plot_phase_report.py

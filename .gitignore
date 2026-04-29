@@ -17,6 +17,7 @@ ads_ai/.vs/
 # Runtime artifacts and local tooling
 /logs/
 /models/
+/teacher_data/
 /.cursor/
 scripts/__pycache__/
 **/__pycache__/

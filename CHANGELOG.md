@@ -700,3 +700,70 @@
 > - **Unity Duzeltmesi**: `Env.cs` direct look rotasyonu artik sadece `FromToRotation` ile burun hizalamaz. Gravity-up referansli `LookRotation` kullanilir; boylece direct mode'da govde roll'u keyfi kalmaz. Reset aninda direct action cache'i ve roket rigidbody poz/rot degerleri de temizlenir.
 > - **Console / Log Duzeltmesi**: `scripts/log.py` episode final satirlarinda onceki renkli terminal mantigi korunur. Step ve reset satirlari bilerek renksiz birakildi. Reset satiri artik `Target Pos` yaninda `Rocket Pos` da yazar; boylece konsoldaki target reset konumu roket rampadan ayrildi sanilmaz. `clock_validity` duplicate CSV header'i kaldirildi.
 > - **Beklenen Etki**: V12.0.1 ile roket kalkista yerde takla/yan carpma yapmamali, Scene view'daki direct look cizgileri roll gibi yorumlanacak sekilde donmemeli ve ilk episode'lar en azindan fiziksel olarak okunabilir hale gelmelidir.
+
+# v13.0 surum ailesi
+
+> ## v13.0.0 - Teacher-Guided Warm Start
+>
+> - **Mimari Karar**: Uzman onerisine gore random PPO ile devam etmek yerine once direct guidance controller ogretmen yapildi. V11 direct test hedefi vurdugu icin bu controller artik veri toplama kaynagi olarak kullanilir.
+> - **Yeni Moduller**: `scripts/teacher_policy.py` eklendi. Bu dosya direct guidance formulu ile 3 boyutlu RL action'i uretir: `accel_right`, `accel_up`, `accel_forward`.
+> - **Veri Toplama**: `scripts/teacher_collect.py` eklendi. Unity Play moddayken episode kosar, basarili episode'lardan state/action ciftleri toplar ve `teacher_data/v13_teacher_direct_140_160.npz` dosyasina yazar.
+> - **Pretrain**: `scripts/teacher_pretrain.py` eklendi. PPO actor agini ogretmen action'larini taklit edecek sekilde behavior cloning ile egitir ve `models/ppo_v13_teacher_direct_model_up0.keras` checkpoint'ini olusturur.
+> - **Training Guvenligi**: `scripts/train.py`, V13 teacher checkpoint yoksa baslamaz. Boylece model tekrar sifirdan random action ile yerde surunme/roll pattern'i uretmez.
+> - **Settings**: `MODEL_PREFIX` `ppo_v13_teacher_direct_model`, `STATE_PREFIX` `ppo_v13_teacher_direct_state` oldu. Teacher data runtime cikti oldugu icin `.gitignore` icine `/teacher_data/` eklendi.
+> - **Dokumantasyon**: `docs/v13_expert_plan.md` eklendi. V13 komut sirasini ve basari kriterini aciklar.
+
+# v14.0 surum ailesi
+
+> ## v14.0.0 - SAC Off-Policy Direct Acceleration Trial
+>
+> - **Deney Karari**: V13 kisa PPO fine-tune loglarinda policy `forward≈1.0` ve pozitif `up` kanalina coktu. Roket hedefe baksa bile mesafe buyuyup `high_altitude` terminali baskin geldi. Bu nedenle ayni direct acceleration action uzayinda PPO yerine SAC denenecek.
+> - **Yeni Agent**: `scripts/sac_agent.py` eklendi. Dosya replay buffer, SAC actor, iki critic, target critic, otomatik entropy katsayisi ve checkpoint save/load mantigini icerir.
+> - **Yeni Train Loop**: `scripts/train_sac.py` eklendi. Bu dongu PPO rollout yerine replay buffer kullanir; ilk adimlarda teacher action'larini kucuk noise ile buffer'a koyar, sonra SAC policy action uretir.
+> - **Teacher Warm-Start**: SAC checkpoint yoksa actor, `teacher_data/v13_teacher_direct_140_160.npz` dosyasindan kisa behavior cloning ile isinir. Bu, random direct acceleration'in roketi kalkista bozmasini azaltmak icindir.
+> - **Checkpoint Ayrimi**: SAC checkpoint'leri PPO'dan ayri tutulur: `sac_v14_direct_actor_step*.keras`, `sac_v14_direct_q1_step*.keras`, `sac_v14_direct_q2_step*.keras`.
+> - **Parametreler**: `SAC_REPLAY_SIZE=200000`, `SAC_BATCH_SIZE=256`, `SAC_REWARD_SCALE=0.02`, `SAC_INITIAL_ALPHA=0.20`, `SAC_ACTOR_LR=3e-5`, `SAC_CRITIC_LR=1e-4`, `SAC_TEACHER_WARMUP_STEPS=2500`, `SAC_TEACHER_NOISE=0.025`.
+> - **Dokumantasyon**: `docs/v14_sac_plan.md` eklendi. Bu dosya SAC denemesinin amacini, komut akisini ve ilk loglarda hangi sinyallere bakilacagini aciklar.
+
+# v15.0 surum ailesi
+
+> ## v15.0.0 - SAC-Only Scratch Training
+>
+> - **Mimari Karar**: Aktif egitim hatti sadece SAC olacak sekilde sadeleştirildi. PPO agent, PPO train loop, teacher collect ve pretrain dosyalari aktif koddan kaldirildi.
+> - **Train Komutu**: `scripts/train.py` artik dogrudan SAC training dongusudur. Ayri `train_sac.py` dosyasi kaldirildi.
+> - **Pretrain Karari**: SAC icin teacher warm-start, behavior cloning ve teacher replay warmup kullanilmiyor. Ajan sifirdan baslar ve ilk step'ten itibaren kendi stochastic SAC actor'u ile action uretir.
+> - **Checkpoint Ayrimi**: Aktif checkpoint prefix'i `sac_v15_direct_scratch` oldu. Boylece onceki PPO/V13/V14 modelleri otomatik yuklenmez.
+> - **Settings Sadelestirme**: `settings.py` icinden PPO model prefix/state prefix, PPO checkpoint yardimcilari ve teacher/pretrain parametreleri cikarildi.
+> - **Test Komutu**: `scripts/test.py` SAC actor checkpoint'i yukleyecek sekilde guncellendi.
+> - **Dokumantasyon**: `docs/v15_sac_only_plan.md` eklendi. Ilk train loglarinda izlenecek action/entropy/terminal sinyalleri not edildi.
+>
+> ## v15.0.1 - SAC Runtime Responsiveness and Ground-Skim Terminal
+>
+> - **FPS Kok Neden**: SAC ilk update'i `1024` stepte basliyor ve her stepte gradient update deniyordu. Unity fizik adimi Python step'ini bekledigi icin bu, Play mode'da agir FPS/donma hissi uretti.
+> - **SAC Hafifletme**: `SAC_START_TRAINING_STEPS=4096`, `SAC_TRAIN_EVERY_STEPS=8`, `SAC_BATCH_SIZE=128`, `SAC_HIDDEN_UNITS=128` yapildi. Replay buffer yine kullanilir, fakat training her Unity step'ini bloke etmez.
+> - **Ground-Skim Kok Neden**: Loglarda roket yerde surunurken `AGL` `0.20-0.45m` bandinda kaldi, `grounded_flag=0` geldi ve eski `min_agl=0.18` terminali kacirdi.
+> - **Terminal Duzeltmesi**: Aktif fazda `min_agl=0.60`, `low_agl_grace_steps=80` yapildi. Roket kalkistan sonra yerde surunurse episode erken `low_agl` ile biter.
+>
+> ## v15.0.2 - SAC Live Plot Report Tooling
+>
+> - **Yeni Grafik Scripti**: `scripts/plot_sac_report.py` eklendi. Bu script SAC/V15 loglarini training devam ederken okuyup PNG raporlari uretir.
+> - **Standart Grafikler**: `summary`, `success_rug`, `reset_radius_phase_plan`, `reset_map`, `action_diagnostics` ve `hit_positions` grafikleri tek komutla uretilir.
+> - **Canli Log Guvenligi**: `step_log.csv` buyuk oldugu icin chunk/stride ile okunur; training ayni anda CSV yazarken olusabilecek yarim satirlar atlanir.
+> - **Okunabilir Faz Plani**: Radius grafiğinde outcome renkleri, success rate cizgisi, faz/surum bandi, `n` ve `S%` etiketleri standart hale getirildi.
+>
+> ## v15.0.3 - Forward-Aligned Direct SAC Action and Exhaust Fix
+>
+> - **Kok Neden**: Canli loglarda roket hizinin burun yonundeki bileseni satirlarin yaklasik `%48`inde negatife dustu. Bu, V15 direct acceleration action'inin roket govdesinden bagimsiz dunya ivmesi uyguladigini gosterdi.
+> - **Action Duzeltmesi**: `scripts/env.py` icinde SAC action semantigi degistirildi. `action[0]` ve `action[1]` hedef bakisina sag/yukari aim offset ekler; `action[2]` yalnizca pozitif ileri ivme buyuklugu secer.
+> - **Fiziksel Kisit**: Unity'ye giden direct accel artik hedefe bakan `look_dir` boyunca pozitif ivme olarak hesaplanir. Boylece roket burnu baska yere bakarken yan/geri ivme uygulanmaz.
+> - **Kalkis Guvenligi**: Eski serbest `min_up/min_forward/side_limit` filtresi yerine kalkis boyunca hedef bakis yonune yumusak gravity-up bias eklenir.
+> - **Egzoz Duzeltmesi**: `Env.cs` icinde rocket exhaust her step `rocketPoint` arkasina ve `-rocketPoint.forward` yonune hizalanir. Particle simulation space world yapilarak eski dumanin roketle birlikte yapay sekilde donmesi engellenir.
+> - **Checkpoint Ayrimi**: Action anlami degistigi icin model prefix'i `sac_v15_forward_aligned`, aktif faz adi `v15_0_3_phase_1_sac_forward_aligned_140_160` yapildi. Eski V15 direct-scratch checkpoint'leri bu run'a otomatik yuklenmez.
+>
+> ## v15.0.4 - Unity Responsiveness and Side-Slip Damping
+>
+> - **Donma Teshisi**: `update_log.csv` incelendiginde `4096` step sonrasi SAC gradient update baslayinca 250 step suresi belirgin sekilde uzadi. Unity fizik adimi Python'u bekledigi icin Play mode donuyormus gibi gorundu.
+> - **SAC Hafifletme**: `SAC_START_TRAINING_STEPS=12000`, `SAC_TRAIN_EVERY_STEPS=32`, `SAC_BATCH_SIZE=64`, `SAC_HIDDEN_UNITS=96`, `SAC_LOG_EVERY_STEPS=500` yapildi. Ilk gozlem safhasi daha akici kalir, update bloklari daha seyrek calisir.
+> - **Hiz Sondurme**: `Env.cs` direct mode icine `DampenDirectSideSlip()` eklendi. Roket burnu hedefe donse bile onceki hiz nedeniyle yan/geri kayma suruyordu; yan hiz yumusak azaltildi, geri hiz daha sert sonduruldu.
+> - **Aim Limit**: `DIRECT_ACTION_AIM_OFFSET=0.35` yapildi. Ajan hedef bakisindan tamamen kopamaz; ilk random SAC action'lari akrobatik/yanlayarak ucus uretmemelidir.
+> - **Yeni Prefix/Faz**: Action ve runtime davranisi degistigi icin checkpoint prefix'i `sac_v15_forward_damped`, faz adi `v15_0_4_phase_1_sac_forward_damped_140_160` oldu.

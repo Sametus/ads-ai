@@ -1,169 +1,136 @@
-# Train
-
-#################  IMPORTS  ##################
-
-import numpy as np
-
 import log
 import settings
-
 from env import Env
-from agent import PPOAgent
+from sac_agent import ReplayBuffer, SACAgent
 
-#################  MAIN RUNTIME  #############
+
+def sac_update_id(global_step):
+    """CSV loglar update_id bekledigi icin SAC global step'i okunur hale getirir."""
+    return max(1, int(global_step))
+
 
 if __name__ == "__main__":
-
-    #################   AYARLAR  #################
-
-    # GPU
     settings.setup_gpu()
-
-    # Model
     settings.ensure_model_dir()
-
-    # Log
     log.ensure_log_files()
 
-    ################  OBJECTS  #####################
+    agent = SACAgent()
+    start_step = agent.load_checkpoint()
+    if start_step == 0:
+        print("[SAC] Checkpoint yok; egitim sifirdan basliyor.")
 
-    # Enviroment
     env = Env(settings.IP, settings.PORT)
+    replay = ReplayBuffer(agent.state_size, agent.action_size, settings.SAC_REPLAY_SIZE)
 
-    # Agent
-    agent = PPOAgent()
-
-
-    ###############  CHECKPOINT  ###################
-
-    start_update = settings.load_checkpoint(agent)
-
-    ###############  LOOP COUNTERS & FIRST RESET ################
-
-    episode_id = 0
     episode_return = 0.0
     episode_len = 0
     total_episode_count, total_success_count = log.load_success_counters()
-    raw_state, vector_state, state, start_info = env.reset()
+    _, _, state, start_info = env.reset()
     episode_id = env.episode_id
-
     log.print_reset_console(episode_id, start_info)
 
-    #############  UPDATE LOOP & ROLLOUT BUFFERS  ##############
+    last_train_logs = {
+        "loss": 0.0,
+        "policy_loss": 0.0,
+        "value_loss": 0.0,
+        "entropy": 0.0,
+        "kl": 0.0,
+        "clip_frac": float(agent.alpha.numpy()),
+        "alpha": float(agent.alpha.numpy()),
+    }
 
-    for update_id in range(start_update, settings.TOTAL_UPDATES):
+    for global_step in range(start_step, int(settings.SAC_TOTAL_STEPS)):
+        # Hazir baslangic yok: action ilk step'ten itibaren sifirdan baslayan SAC actor'unden gelir.
+        action, action_logp = agent.act(state, deterministic=False)
+        next_state, reward, done, info = env.step(action)
 
-        states = np.zeros((settings.ROLLOUT_LEN, agent.state_size), dtype=np.float32)
-        actions = np.zeros((settings.ROLLOUT_LEN, agent.action_size), dtype=np.float32)
-        old_logps = np.zeros((settings.ROLLOUT_LEN,), dtype=np.float32)
-        rewards = np.zeros((settings.ROLLOUT_LEN,), dtype=np.float32)
-        dones = np.zeros((settings.ROLLOUT_LEN,), dtype=np.float32)
-        values = np.zeros((settings.ROLLOUT_LEN,), dtype=np.float32)
-    
+        replay.add(state, action, reward, next_state, done)
 
-        ###############  ROLLOUT & STEP LOOP  #######################
+        episode_return += reward
+        episode_len += 1
 
-        for t in range(settings.ROLLOUT_LEN):
+        info["episode_return_so_far"] = float(episode_return)
+        info["action_logp"] = float(action_logp)
+        info["value_pred"] = 0.0
+        info["action_source"] = "sac_policy"
+        for action_index, action_value in enumerate(action):
+            info[f"action_norm_{action_index}"] = float(action_value)
+        info["action_direction_id"] = -1
+        info["action_direction_clock12"] = float(info.get("action_direction_clock12", 0.0))
+        info["action_direction_clock3"] = float(info.get("action_direction_clock3", 0.0))
 
-            action, logp, value = agent.act(state)
-            next_state, reward, done, info = env.step(action)
+        log.append_step_csv(sac_update_id(global_step + 1), info)
 
-            states[t] = state
-            actions[t] = action
-            old_logps[t] = logp
-            rewards[t] = reward
-            dones[t] = 1.0 if done else 0.0
-            values[t] = value
+        if info["step_id"] % log.STEP_PRINT_EVERY == 0:
+            log.print_step_console(sac_update_id(global_step + 1), info)
 
-            episode_return += reward
-            episode_len += 1
+        should_train = (
+            replay.size >= int(settings.SAC_START_TRAINING_STEPS)
+            and (global_step + 1) % int(settings.SAC_TRAIN_EVERY_STEPS) == 0
+        )
+        if should_train:
+            for _ in range(int(settings.SAC_UPDATES_PER_STEP)):
+                last_train_logs = agent.train_step(replay, settings.SAC_BATCH_SIZE)
 
-            info["episode_return_so_far"] = float(episode_return)
-            info["action_logp"] = float(logp)
-            info["value_pred"] = float(value)
-            # Action boyutu mimariye gore degisebilir.
-            # V12 direct-accel icin 3 continuous action logluyoruz; eski direction alanlari bos kalabilir.
-            for action_index, action_value in enumerate(action):
-                info[f"action_norm_{action_index}"] = float(action_value)
-            info["action_direction_id"] = int(action[1]) if len(action) == 2 else -1
-            info["action_direction_clock12"] = float(info.get("action_direction_clock12", 0.0))
-            info["action_direction_clock3"] = float(info.get("action_direction_clock3", 0.0))
+        if (global_step + 1) % int(settings.SAC_LOG_EVERY_STEPS) == 0:
+            log.append_update_csv(
+                sac_update_id(global_step + 1),
+                last_train_logs,
+                agent.gamma,
+                0.0,
+                settings.SAC_ACTOR_LR,
+            )
+            print(
+                "[SAC STEP {step}] loss={loss:.4f} actor={actor:.4f} "
+                "q={q:.4f} ent={ent:.4f} alpha={alpha:.4f} buffer={buffer}".format(
+                    step=global_step + 1,
+                    loss=last_train_logs.get("loss", 0.0),
+                    actor=last_train_logs.get("policy_loss", 0.0),
+                    q=last_train_logs.get("value_loss", 0.0),
+                    ent=last_train_logs.get("entropy", 0.0),
+                    alpha=last_train_logs.get("alpha", agent.alpha.numpy()),
+                    buffer=replay.size,
+                ),
+                flush=True,
+            )
 
-            log.append_step_csv(update_id+1, info)
-
-            if info["step_id"] % log.STEP_PRINT_EVERY == 0:
-                log.print_step_console(update_id + 1, info)
-            
-            if done:
-
-                total_episode_count += 1
-
-                if info["done_reason"] == "success":
-                    total_success_count += 1
-
-                log.append_episode_csv(
-                    update_id + 1,
-                    episode_id,
-                    episode_return,
-                    episode_len,
-                    info["done_reason"],
-                    start_info,
-                    info
-                )
-
-                log.print_episode_console(
-                    episode_id,
-                    episode_return,
-                    episode_len,
-                    info["done_reason"],
-                    start_info,
-                    info,
-                    total_success_count,
-                    total_episode_count
-                )
-
-                episode_return = 0.0
-                episode_len = 0
-                
-                
-                raw_state, vector_state, state, start_info = env.reset()
-                episode_id = env.episode_id
-
-                log.print_reset_console(episode_id, start_info)
-            
-            else:
-                state = next_state
-        
-        ###############  TRAINING MODEL  ################
+        if (global_step + 1) % int(settings.SAC_SAVE_EVERY_STEPS) == 0:
+            print(f"[SAC SAVE] step {global_step + 1}: checkpoint kaydediliyor.")
+            agent.save_checkpoint(global_step + 1)
 
         if done:
-            last_value = 0.0
+            total_episode_count += 1
+            if info["done_reason"] == "success":
+                total_success_count += 1
+
+            log.append_episode_csv(
+                sac_update_id(global_step + 1),
+                episode_id,
+                episode_return,
+                episode_len,
+                info["done_reason"],
+                start_info,
+                info,
+            )
+            log.print_episode_console(
+                episode_id,
+                episode_return,
+                episode_len,
+                info["done_reason"],
+                start_info,
+                info,
+                total_success_count,
+                total_episode_count,
+            )
+
+            episode_return = 0.0
+            episode_len = 0
+            _, _, state, start_info = env.reset()
+            episode_id = env.episode_id
+            log.print_reset_console(episode_id, start_info)
         else:
-            last_value = agent.value(state)
+            state = next_state
 
-        logs = agent.train(
-            states,
-            actions,
-            old_logps,
-            rewards,
-            dones,
-            values,
-            last_value
-        )
-
-        #################  MODEL SAVE  ###################
-        log.append_update_csv(update_id+1, logs, agent.gamma, agent.gae_lambda, agent.lr)
-        log.print_update_console(update_id+1, logs)
-        
-        if (update_id+ 1) % settings.SAVE_EVERY_UPDATES == 0:
-            print(f"[SAVE] Update {update_id+1}: Model Kaydediliyor...")
-            settings.save_checkpoint(agent, update_id+1)
-    
-    ###############  FINISH TRAINING  #####################
-    print("[FINAL SAVE] Eğitim tamamlandı. Son model kaydediliyor...")
-    settings.save_checkpoint(agent, settings.TOTAL_UPDATES)
-
+    print("[SAC FINAL SAVE] Egitim tamamlandi; son checkpoint kaydediliyor.")
+    agent.save_checkpoint(settings.SAC_TOTAL_STEPS)
     env.close()
-
-
-

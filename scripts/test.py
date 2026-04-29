@@ -1,104 +1,26 @@
-# test.py
-
-import os
 import numpy as np
-
-from cuda_bootstrap import configure_conda_cuda_dlls
-
-configure_conda_cuda_dlls()
-
-import tensorflow as tf
 
 import settings
 from env import Env
-from agent import PPOAgent
-
-
-############################
-# TEST AYARLARI
-############################
+from sac_agent import SACAgent
 
 TEST_EPISODES = 5
 STEP_PRINT_EVERY = 50
-
-# True ise policy mean kullanilir: a = tanh(mu)
-# False ise train.py'deki stochastic sampling mantigi kullanilir
 DETERMINISTIC_POLICY = True
 
-
-############################
-# MODEL YUKLEME
-############################
-
-def load_test_checkpoint(agent):
-    """
-    Test icin models klasorundeki en son modeli otomatik yukler.
-    """
-    update_id = settings.latest_index(
-        os.path.join(settings.MODELS_DIR, f"{settings.MODEL_PREFIX}_up*.keras")
-    )
-
-    if update_id is None:
-        raise FileNotFoundError(
-            f"'{settings.MODELS_DIR}' icinde test edilecek model bulunamadi."
-        )
-
-    model_fp = settings.model_path(update_id)
-    state_fp = settings.state_path(update_id)
-
-    if not os.path.exists(model_fp):
-        raise FileNotFoundError(f"Model dosyasi bulunamadi: {model_fp}")
-
-    print(f"[TEST] Model yukleniyor -> Update {update_id}")
-    agent.model = tf.keras.models.load_model(model_fp, compile=False)
-
-    if os.path.exists(state_fp):
-        settings.load_agent_state(agent, state_fp)
-        print(f"[TEST] Agent state yuklendi -> {state_fp}")
-    else:
-        print(f"[TEST] Uyari: state dosyasi yok, sadece model yuklendi -> {state_fp}")
-
-    return update_id
-
-
-############################
-# ACTION URETIMI
-############################
-
-def select_action(agent, state, deterministic=True):
-    """
-    deterministic=True:
-        action = tanh(mu)
-    deterministic=False:
-        train.py'deki stochastic sampling mantigi kullanilir
-    """
-    if deterministic:
-        s = tf.convert_to_tensor(state[None, :], dtype=tf.float32)
-        action_mu, v = agent.model(s)
-
-        action_mu = tf.squeeze(action_mu, axis=0)
-        v = float(tf.squeeze(v, axis=0).numpy()[0])
-
-        # V12 direct-accel modelinde tum action boyutlari continuous ve tanh ile sinirli.
-        action = tf.tanh(action_mu).numpy().astype(np.float32)
-        return action, v
-
-    action, _, v = agent.act(state)
-    return action, v
-
-
-############################
-# TEST MAIN
-############################
 
 if __name__ == "__main__":
     settings.setup_gpu()
     settings.ensure_model_dir()
 
     env = Env(settings.IP, settings.PORT)
-    agent = PPOAgent()
+    agent = SACAgent()
+    loaded_step = agent.load_checkpoint()
 
-    loaded_update = load_test_checkpoint(agent)
+    if loaded_step == 0 and not agent.loaded_checkpoint:
+        raise FileNotFoundError(
+            "Test icin SAC checkpoint bulunamadi. Once scripts\\train.py ile egitim baslat."
+        )
 
     total_returns = []
     total_lengths = []
@@ -106,7 +28,7 @@ if __name__ == "__main__":
 
     try:
         for ep in range(1, TEST_EPISODES + 1):
-            raw_state, vector_state, state, start_info = env.reset()
+            _, _, state, start_info = env.reset()
             episode_id = env.episode_id
 
             ep_return = 0.0
@@ -118,7 +40,7 @@ if __name__ == "__main__":
             print(
                 f"[TEST EP {ep}/{TEST_EPISODES}] "
                 f"episode_id={episode_id} | "
-                f"model_update={loaded_update}"
+                f"sac_step={loaded_step}"
             )
             print(
                 f"[RESET] Target Pos=({start_info['reset_px']:.2f}, "
@@ -128,12 +50,7 @@ if __name__ == "__main__":
             )
 
             while not done:
-                action, value = select_action(
-                    agent=agent,
-                    state=state,
-                    deterministic=DETERMINISTIC_POLICY
-                )
-
+                action, _ = agent.act(state, deterministic=DETERMINISTIC_POLICY)
                 next_state, reward, done, info = env.step(action)
 
                 ep_return += reward
@@ -145,22 +62,18 @@ if __name__ == "__main__":
                         f"[EP {episode_id:<4} | ST {info['step_id']:<4}] "
                         f"Dst={info['distance']:.2f} | "
                         f"Theta={info['theta_deg']:.2f}deg | "
-                        f"Alpha={info['alpha_deg']:.2f}deg | "
-                        f"Beta={info['beta_deg']:.2f}deg | "
                         f"Cls={info['closing_speed']:.2f} | "
                         f"AGL={info['agl']:.2f} | "
-                        f"AltE={info['alt_error']:.2f} | "
                         f"R={reward:.3f} | "
-                        f"V={value:.3f} | "
-                        f"Dir={info.get('turn_direction_name', 'n/a')}#{info.get('turn_direction_id', '')} | "
-                        f"Act=[{info['thrust']:.2f}, {info['clock_12_cmd']:.2f}, {info['clock_6_cmd']:.2f}, "
-                        f"{info['clock_3_cmd']:.2f}, {info['clock_9_cmd']:.2f}]"
+                        f"Action=[{action[0]:.3f}, {action[1]:.3f}, {action[2]:.3f}] | "
+                        f"Acc=[{info.get('direct_accel_world_x', 0.0):.1f}, "
+                        f"{info.get('direct_accel_world_y', 0.0):.1f}, "
+                        f"{info.get('direct_accel_world_z', 0.0):.1f}]"
                     )
 
                 state = next_state
 
             done_reason = final_info["done_reason"] if final_info is not None else "unknown"
-
             if done_reason == "success":
                 success_count += 1
 
@@ -177,14 +90,12 @@ if __name__ == "__main__":
                 f"final_distance={final_info['distance']:.2f} | "
                 f"final_agl={final_info['agl']:.2f} | "
                 f"final_theta={final_info.get('theta_deg', 0.0):.2f} | "
-                f"final_alpha={final_info.get('alpha_deg', 0.0):.2f} | "
-                f"final_beta={final_info.get('beta_deg', 0.0):.2f} | "
                 f"final_alignment={final_info.get('alignment', 0.0):.2f}"
             )
 
         print("=" * 80)
         print("[TEST SUMMARY]")
-        print(f"Model Update       : {loaded_update}")
+        print(f"SAC Step           : {loaded_step}")
         print(f"Episode Count      : {TEST_EPISODES}")
         print(f"Deterministic Mode : {DETERMINISTIC_POLICY}")
         print(f"Success Count      : {success_count}")
@@ -192,8 +103,6 @@ if __name__ == "__main__":
         print(f"Mean Return        : {np.mean(total_returns):.3f}")
         print(f"Std Return         : {np.std(total_returns):.3f}")
         print(f"Mean Episode Len   : {np.mean(total_lengths):.2f}")
-        print(f"Min Return         : {np.min(total_returns):.3f}")
-        print(f"Max Return         : {np.max(total_returns):.3f}")
 
     finally:
         env.close()
