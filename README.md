@@ -325,32 +325,38 @@ ads_ai/
     plot_sac_report.py         SAC training grafik üretimi
   archives/                    Eski faz/sürüm arşivleri
   docs/                        Notlar, analizler ve rapor taslakları
-  logs/                        Runtime logları, git'e alınmaz
-  models/                      Runtime checkpoint'leri, git'e alınmaz
+  logs/                        Güncel runtime logları, Git LFS ile paylaşılır
+  models/                      Güncel SAC checkpoint'leri, Git LFS ile paylaşılır
+  teacher_data/                 Eski teacher/pretrain verisi, Git LFS ile paylaşılır
   CHANGELOG.md                 Kronolojik sürüm notları
   VERSION                      Aktif repo sürümü
 ```
 
-## Repo Temizliği Notu
+## Repo ve Büyük Dosya Notu
 
-Unity ve IDE tarafından üretilen dosyalar artık git dışında tutulur:
+Uzmanın projeyi kendi bilgisayarında açabilmesi için Unity kaynak dosyaları repo içinde tutulur:
 
 ```text
+ads_ai/Assets/
+ads_ai/Packages/
+ads_ai/ProjectSettings/
 ads_ai/*.csproj
 ads_ai/*.sln
-ads_ai/*.slnx
-ads_ai/.vscode/
 ```
 
-Runtime çıktıları da git dışında tutulur:
+Şu klasörler bilinçli olarak repo dışında tutulur:
 
 ```text
-logs/
-models/
-teacher_data/
+ads_ai/Library/
+ads_ai/Temp/
+ads_ai/obj/
+ads_ai/.vs/
+ads_ai/UserSettings/
 ```
 
-Bu kararın sebebi özellikle `logs/step_log.csv` dosyasının tek başına yüzlerce MB'a çıkmasıdır. Ham loglar yerelde analiz için durabilir, fakat repo'ya commit edilmemelidir. Uzmanla paylaşmak için README'deki özet veya sıkıştırılmış/seçilmiş log örnekleri daha sağlıklıdır.
+Bunlar Unity/IDE tarafından yerel makinede yeniden üretilen cache ve kullanıcı ayarı dosyalarıdır. Projeyi çalıştırmak için gerekli kaynak değillerdir.
+
+Güncel `logs/`, `models/` ve `teacher_data/` klasörleri Git LFS ile paylaşılır. Bunun sebebi özellikle `logs/step_log.csv` dosyasının tek başına yüzlerce MB'a çıkmasıdır. Repoyu klonlayan kişinin büyük log/model dosyalarını eksiksiz alabilmesi için Git LFS kurulu olmalıdır.
 
 ## Kurulum
 

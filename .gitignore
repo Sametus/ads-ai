@@ -11,19 +11,13 @@ ads_ai/[Uu]ser[Ss]ettings/
 ads_ai/[Aa]ssets/**/[Pp]lugin[Yy]ourProject/
 ads_ai/[Aa]ssets/StreamingAssets/aa.meta
 
-# Ignore IDE / Unity generated project files
+# Ignore local IDE cache
 ads_ai/.vs/
 ads_ai/.vscode/
-ads_ai/*.csproj
-ads_ai/*.sln
-ads_ai/*.slnx
 /.vscode/
 /.idea/
 
-# Runtime artifacts and local tooling
-/logs/
-/models/
-/teacher_data/
+# Local tooling
 /.cursor/
 scripts/__pycache__/
 **/__pycache__/
