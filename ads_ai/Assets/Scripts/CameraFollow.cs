@@ -5,36 +5,45 @@ public class CameraFollow : MonoBehaviour
     [Header("Takip Edilecek Obje")]
     public Transform target;
 
-    [Header("Pozisyon Ayarlari")]
-    public float distance = 3.5f;
-    public float height = 4f;
-    public float sideOffset = 2f;
+    [Header("Dunya Sabit Kamera Offset")]
+    public float distance = 18f;
+    public float height = 10f;
+    public float sideOffset = -18f;
 
     [Header("Bakis Ayari")]
-    public Vector3 lookOffset = Vector3.zero;
+    public Vector3 lookOffset = new Vector3(0f, 1.5f, 0f);
 
     [Header("Gorsel Yumusatma")]
-    public float positionSmoothTime = 0.035f;
-    public float lookSmoothTime = 0.04f;
-    public float basisSmoothTime = 0.10f;
-    public float rotationSharpness = 36f;
+    public float positionSmoothTime = 0.025f;
+    public float lookSmoothTime = 0.06f;
+    public float rotationSharpness = 18f;
 
     [Header("Hizli Yakalama")]
-    public float lookAheadTime = 0.04f;
-    public float maxLookAheadDistance = 4f;
-    public float catchUpDistance = 1.5f;
-    public float fastPositionSmoothTime = 0.012f;
+    public float catchUpDistance = 2f;
+    public float fastPositionSmoothTime = 0.008f;
     public float snapDistance = 8f;
+
+    [Header("Kadraji Koru")]
+    public bool dynamicZoom = true;
+    public float baseFieldOfView = 46f;
+    public float fastFieldOfView = 62f;
+    public float zoomSpeedForFastFov = 110f;
+    public float baseOrthographicSize = 10f;
+    public float fastOrthographicSize = 18f;
+    public float zoomSmoothTime = 0.12f;
 
     private Vector3 positionVelocity = Vector3.zero;
     private Vector3 lookVelocity = Vector3.zero;
-    private Vector3 forwardVelocity = Vector3.zero;
-    private Vector3 upVelocity = Vector3.zero;
     private Vector3 smoothedLookTarget = Vector3.zero;
-    private Vector3 smoothedForward = Vector3.forward;
-    private Vector3 smoothedUp = Vector3.up;
     private Vector3 previousTargetPosition = Vector3.zero;
+    private float zoomVelocity = 0f;
+    private Camera cachedCamera;
     private bool initialized = false;
+
+    private void Awake()
+    {
+        cachedCamera = GetComponent<Camera>();
+    }
 
     private void LateUpdate()
     {
@@ -48,35 +57,13 @@ public class CameraFollow : MonoBehaviour
         if (!initialized)
         {
             initialized = true;
-            smoothedForward = target.forward;
-            smoothedUp = target.up;
             smoothedLookTarget = targetPosition + lookOffset;
-            transform.position = BuildDesiredPosition(targetPosition, smoothedForward, smoothedUp);
+            transform.position = BuildDesiredPosition(targetPosition);
         }
 
         previousTargetPosition = targetPosition;
 
-        Vector3 lookAheadOffset = Vector3.ClampMagnitude(
-            targetVelocity * Mathf.Max(0f, lookAheadTime),
-            Mathf.Max(0f, maxLookAheadDistance)
-        );
-        Vector3 followPosition = targetPosition + lookAheadOffset;
-
-        smoothedForward = Vector3.SmoothDamp(
-            smoothedForward,
-            target.forward,
-            ref forwardVelocity,
-            Mathf.Max(0.001f, basisSmoothTime)
-        ).normalized;
-
-        smoothedUp = Vector3.SmoothDamp(
-            smoothedUp,
-            target.up,
-            ref upVelocity,
-            Mathf.Max(0.001f, basisSmoothTime)
-        ).normalized;
-
-        Vector3 desiredPosition = BuildDesiredPosition(followPosition, smoothedForward, smoothedUp);
+        Vector3 desiredPosition = BuildDesiredPosition(targetPosition);
         float positionLag = Vector3.Distance(transform.position, desiredPosition);
         float catchUpSmoothTime = positionLag > Mathf.Max(0f, catchUpDistance)
             ? Mathf.Min(positionSmoothTime, fastPositionSmoothTime)
@@ -99,7 +86,7 @@ public class CameraFollow : MonoBehaviour
 
         smoothedLookTarget = Vector3.SmoothDamp(
             smoothedLookTarget,
-            followPosition + lookOffset,
+            targetPosition + lookOffset,
             ref lookVelocity,
             Mathf.Max(0.001f, lookSmoothTime)
         );
@@ -110,16 +97,43 @@ public class CameraFollow : MonoBehaviour
         Quaternion desiredRotation = Quaternion.LookRotation(lookDirection.normalized, Vector3.up);
         float rotationBlend = 1f - Mathf.Exp(-Mathf.Max(0f, rotationSharpness) * Time.deltaTime);
         transform.rotation = Quaternion.Slerp(transform.rotation, desiredRotation, rotationBlend);
+
+        UpdateZoom(targetVelocity.magnitude);
     }
 
-    private Vector3 BuildDesiredPosition(Vector3 anchorPosition, Vector3 followForward, Vector3 followUp)
+    private Vector3 BuildDesiredPosition(Vector3 anchorPosition)
     {
-        Vector3 desiredPosition =
-            anchorPosition
-            - followForward * distance
-            + followUp * sideOffset
-            + Vector3.up * height;
+        Vector3 desiredPosition = anchorPosition + new Vector3(sideOffset, height, -distance);
 
         return desiredPosition;
+    }
+
+    private void UpdateZoom(float targetSpeed)
+    {
+        if (!dynamicZoom || cachedCamera == null)
+            return;
+
+        float speedT = Mathf.Clamp01(targetSpeed / Mathf.Max(1f, zoomSpeedForFastFov));
+
+        if (cachedCamera.orthographic)
+        {
+            float desiredSize = Mathf.Lerp(baseOrthographicSize, fastOrthographicSize, speedT);
+            cachedCamera.orthographicSize = Mathf.SmoothDamp(
+                cachedCamera.orthographicSize,
+                desiredSize,
+                ref zoomVelocity,
+                Mathf.Max(0.001f, zoomSmoothTime)
+            );
+        }
+        else
+        {
+            float desiredFov = Mathf.Lerp(baseFieldOfView, fastFieldOfView, speedT);
+            cachedCamera.fieldOfView = Mathf.SmoothDamp(
+                cachedCamera.fieldOfView,
+                desiredFov,
+                ref zoomVelocity,
+                Mathf.Max(0.001f, zoomSmoothTime)
+            );
+        }
     }
 }

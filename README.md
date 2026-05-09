@@ -55,6 +55,7 @@ Son bilinen V10 sonucu:
 - V15.0.2 notu: SAC canlı training logları için `scripts/plot_sac_report.py` eklendi. Bu script PPO dönemindeki faz grafiklerine benzer şekilde success, radius, reset haritası, action diagnostik ve hit pozisyonu PNG'leri üretir.
 - V15.0.3 notu: SAC direct action artık serbest dünya ivmesi uygulamaz. Ajan hedef bakışına küçük sağ/yukarı sapma ve pozitif ileri ivme seçer; Unity egzoz efekti de `rocketPoint` arkasına hizalanır.
 - V15.0.4 notu: Unity donmasını azaltmak için SAC update daha geç ve seyrek başlar. Direct mode'da burun tersine/yanına taşınan hız bileşenleri yumuşak sönümlenir.
+- V15.0.7 notu: SAC öğrenmesini ölçmek için aktif training yolu `body_accel` yapıldı. Güçlü `direct guidance / doğrudan güdüm` baseline olarak durur; SAC ise hedefe otomatik kilitlenmeden roket gövde eksenlerinde ivme seçer.
 
 Bu proje şu an "tamamlanmış başarılı model" durumunda değildir. Kod ve loglar, sonraki teknik inceleme için korunmuş araştırma/deney ortamıdır.
 
@@ -266,7 +267,7 @@ Temel runtime ayarları burada tutulur:
 ```python
 IP = "127.0.0.1"
 PORT = 5005
-SAC_MODEL_PREFIX = "sac_v15_target500_y100"
+SAC_MODEL_PREFIX = "sac_v15_body_accel_target500_y100"
 SAC_TOTAL_STEPS = 250000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000
@@ -450,7 +451,7 @@ python scripts/plot_phase_report.py
 SAC canlı training grafik scripti:
 
 ```powershell
-python scripts/plot_sac_report.py --phase-contains v15_0_6 --out-dir logs\plots
+python scripts/plot_sac_report.py --phase-contains v15_0_7 --out-dir logs\plots
 ```
 
 Plotly interaktif grafik scripti:
@@ -639,7 +640,7 @@ python scripts/pn_guidance_test.py --mode accel --episodes 5 --radius-min 280 --
 python scripts/pn_guidance_test.py --mode direct --episodes 5 --radius-min 280 --radius-max 300 --target-y 50 --terminal-max-altitude 240 --max-steps 1000 --output logs/pn_direct_v11018_r280_300.csv
 
 # SAC canlı training PNG raporu
-python scripts/plot_sac_report.py --phase-contains v15_0_6 --out-dir logs\plots
+python scripts/plot_sac_report.py --phase-contains v15_0_7 --out-dir logs\plots
 
 # Statik faz raporu
 python scripts/plot_phase_report.py

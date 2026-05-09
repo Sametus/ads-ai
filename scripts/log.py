@@ -245,7 +245,7 @@ def append_update_csv(update_id, logs, gamma, lam, lr):
 
 
 def print_step_console(update_id, info):
-    if info.get("turn_direction_name") == "direct_accel":
+    if info.get("turn_direction_name") in ("direct_accel", "body_accel"):
         action_text = (
             f"Acc: [{info.get('direct_accel_world_x', 0.0):.1f}, "
             f"{info.get('direct_accel_world_y', 0.0):.1f}, "

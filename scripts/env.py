@@ -3,7 +3,7 @@ from datetime import datetime
 import connector
 import numpy as np
 
-CONTROL_MODE = "direct_accel"
+CONTROL_MODE = "body_accel"
 
 CLOCK_STATE_KEYS = [
     "distance",
@@ -50,7 +50,31 @@ DIRECT_STATE_KEYS = [
     "rocket_speed",
 ]
 
-STATE_KEYS = DIRECT_STATE_KEYS if CONTROL_MODE == "direct_accel" else CLOCK_STATE_KEYS
+BODY_ACCEL_STATE_KEYS = [
+    "distance",
+    "rel_dir_body_right",
+    "rel_dir_body_up",
+    "rel_dir_body_forward",
+    "rel_vel_body_right",
+    "rel_vel_body_up",
+    "rel_vel_body_forward",
+    "rocket_vel_body_right",
+    "rocket_vel_body_up",
+    "rocket_vel_body_forward",
+    "closing_speed",
+    "theta_rad",
+    "agl",
+    "alt_error",
+    "target_speed",
+    "rocket_speed",
+]
+
+STATE_KEYS = (
+    BODY_ACCEL_STATE_KEYS
+    if CONTROL_MODE == "body_accel"
+    else DIRECT_STATE_KEYS if CONTROL_MODE == "direct_accel"
+    else CLOCK_STATE_KEYS
+)
 
 SQRT_HALF = float(np.sqrt(0.5))
 
@@ -92,12 +116,21 @@ DIRECT_ACTION_MAX_ACCEL = 65.0
 DIRECT_ACTION_MIN_ACCEL = 38.0
 DIRECT_ACTION_AIM_OFFSET = 0.35
 DIRECT_ACTION_MARKER = -7777.0
+BODY_ACCEL_ACTION_MARKER = -6666.0
+BODY_ACCEL_LATERAL_MAX_ACCEL = 32.0
+BODY_ACCEL_FORWARD_MIN_ACCEL = 24.0
+BODY_ACCEL_FORWARD_MAX_ACCEL = 58.0
+BODY_ACCEL_LAUNCH_SAFE_AGL = 8.0
+BODY_ACCEL_LAUNCH_SAFE_STEPS = 80
+BODY_ACCEL_LAUNCH_MIN_LATERAL_SCALE = 0.20
 DIRECT_LAUNCH_SAFE_AGL = 8.0
 DIRECT_LAUNCH_SAFE_STEPS = 80
 DIRECT_LAUNCH_UP_BIAS = 0.75
 
 ACTION_KEYS = (
-    ["aim_right", "aim_up", "forward_accel"]
+    ["body_right_accel", "body_up_accel", "body_forward_accel"]
+    if CONTROL_MODE == "body_accel"
+    else ["aim_right", "aim_up", "forward_accel"]
     if CONTROL_MODE == "direct_accel"
     else ["thrust", "turn_direction"]
 )
@@ -348,7 +381,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_0_6_phase_1_sac_target500_y100",
+    "name": "v15_0_7_phase_1_sac_body_accel_target500_y100",
     "spawn_radius_min": 500.0,
     "spawn_radius_max": 500.0,
     "target_y": 100.0,
@@ -548,6 +581,8 @@ class Env:
         return self.connect.read_packet()
 
     def parse_state(self, raw_state):
+        if CONTROL_MODE == "body_accel":
+            return self.parse_body_accel_state(raw_state)
         if CONTROL_MODE == "direct_accel":
             return self.parse_direct_state(raw_state)
 
@@ -614,6 +649,50 @@ class Env:
             rocket_speed,
         ], dtype=np.float32)
 
+    def parse_body_accel_state(self, raw_state):
+        """Body-accel SAC icin hedefi roket govde frame'inde okuyan state vektoru kurar."""
+        s = raw_state["states"]
+        telemetry = raw_state.get("telemetry", {})
+
+        rel_pos = self._telemetry_vec(telemetry, "rel_pos_world")
+        rel_vel = self._telemetry_vec(telemetry, "rel_vel_world")
+        rocket_vel = self._telemetry_vec(telemetry, "rocket_vel_world")
+        body_right = self._safe_unit(
+            self._telemetry_vec(telemetry, "rocket_point_right_world"),
+            np.array([1.0, 0.0, 0.0]),
+        )
+        body_up = self._safe_unit(
+            self._telemetry_vec(telemetry, "rocket_point_up_world"),
+            np.array([0.0, 0.0, 1.0]),
+        )
+        body_forward = self._safe_unit(
+            self._telemetry_vec(telemetry, "rocket_point_forward_world"),
+            np.array([0.0, 1.0, 0.0]),
+        )
+
+        distance = float(s["distance"])
+        rel_dir = self._safe_unit(rel_pos, body_forward)
+        rocket_speed = float(np.linalg.norm(rocket_vel))
+
+        return np.array([
+            distance,
+            float(np.dot(rel_dir, body_right)),
+            float(np.dot(rel_dir, body_up)),
+            float(np.dot(rel_dir, body_forward)),
+            float(np.dot(rel_vel, body_right)),
+            float(np.dot(rel_vel, body_up)),
+            float(np.dot(rel_vel, body_forward)),
+            float(np.dot(rocket_vel, body_right)),
+            float(np.dot(rocket_vel, body_up)),
+            float(np.dot(rocket_vel, body_forward)),
+            float(s["closing_speed"]),
+            float(s["theta_rad"]),
+            float(s["agl"]),
+            float(s["alt_error"]),
+            float(telemetry.get("target_speed", TARGET_VELOCITY)),
+            rocket_speed,
+        ], dtype=np.float32)
+
     @staticmethod
     def _telemetry_vec(telemetry, name):
         values = telemetry.get(name, [0.0, 0.0, 0.0])
@@ -639,7 +718,7 @@ class Env:
         return value * (float(max_magnitude) / norm)
 
     def normalize_state(self, vector_state):
-        if CONTROL_MODE == "direct_accel":
+        if CONTROL_MODE in ("direct_accel", "body_accel"):
             return self.normalize_direct_state(vector_state)
 
         s = vector_state.copy()
@@ -1444,6 +1523,8 @@ class Env:
     # ------------------------------------------------------------------
 
     def denormalize_action(self, action):
+        if CONTROL_MODE == "body_accel":
+            return self.denormalize_body_accel_action(action)
         if CONTROL_MODE == "direct_accel":
             return self.denormalize_direct_accel_action(action)
 
@@ -1551,6 +1632,81 @@ class Env:
             float(look_dir[0]),
             float(look_dir[1]),
             float(look_dir[2]),
+        ]
+
+    def denormalize_body_accel_action(self, action):
+        """SAC action'ini roket govde frame'inde ivmeye cevirir; hedefe otomatik kilitlenmez."""
+        a = np.asarray(action, dtype=np.float32).reshape(-1)
+        if len(a) < 3:
+            a = np.pad(a, (0, 3 - len(a)), mode="constant")
+        a = np.clip(a[:3], -1.0, 1.0)
+
+        raw_state = self.last_raw_state or {}
+        states = raw_state.get("states", {})
+        telemetry = raw_state.get("telemetry", {})
+
+        body_right = self._safe_unit(
+            self._telemetry_vec(telemetry, "rocket_point_right_world"),
+            np.array([1.0, 0.0, 0.0]),
+        )
+        body_up = self._safe_unit(
+            self._telemetry_vec(telemetry, "rocket_point_up_world"),
+            np.array([0.0, 0.0, 1.0]),
+        )
+        body_forward = self._safe_unit(
+            self._telemetry_vec(telemetry, "rocket_point_forward_world"),
+            np.array([0.0, 1.0, 0.0]),
+        )
+
+        agl = float(states.get("agl", 0.0))
+        launch_progress = max(
+            np.clip(agl / max(BODY_ACCEL_LAUNCH_SAFE_AGL, 1e-6), 0.0, 1.0),
+            np.clip(float(self.step_count) / max(BODY_ACCEL_LAUNCH_SAFE_STEPS, 1), 0.0, 1.0),
+        )
+        launch_lateral_scale = BODY_ACCEL_LAUNCH_MIN_LATERAL_SCALE + (
+            1.0 - BODY_ACCEL_LAUNCH_MIN_LATERAL_SCALE
+        ) * launch_progress
+
+        right_accel = float(a[0]) * BODY_ACCEL_LATERAL_MAX_ACCEL * launch_lateral_scale
+        up_accel = float(a[1]) * BODY_ACCEL_LATERAL_MAX_ACCEL * launch_lateral_scale
+        forward_accel = BODY_ACCEL_FORWARD_MIN_ACCEL + ((float(a[2]) + 1.0) * 0.5) * (
+            BODY_ACCEL_FORWARD_MAX_ACCEL - BODY_ACCEL_FORWARD_MIN_ACCEL
+        )
+
+        accel_world = (
+            body_right * right_accel
+            + body_up * up_accel
+            + body_forward * forward_accel
+        )
+        accel_world = self._clamp_magnitude(accel_world, BODY_ACCEL_FORWARD_MAX_ACCEL)
+
+        self.last_action_info = {
+            "action_direction_id": -1,
+            "turn_direction_id": -1,
+            "turn_direction_name": "body_accel",
+            "action_direction_clock12": float(a[1]),
+            "action_direction_clock3": float(a[0]),
+            "turn_strength": float(np.linalg.norm(a)),
+            "action_norm_0": float(a[0]),
+            "action_norm_1": float(a[1]),
+            "action_norm_2": float(a[2]),
+            "direct_accel_world_x": float(accel_world[0]),
+            "direct_accel_world_y": float(accel_world[1]),
+            "direct_accel_world_z": float(accel_world[2]),
+            "direct_accel_cmd_right": float(right_accel),
+            "direct_accel_cmd_up": float(up_accel),
+            "direct_accel_cmd_forward": float(forward_accel),
+            "direct_launch_guard": float(launch_progress < 1.0),
+        }
+
+        return [
+            float(BODY_ACCEL_ACTION_MARKER),
+            float(accel_world[0]),
+            float(accel_world[1]),
+            float(accel_world[2]),
+            float(body_forward[0]),
+            float(body_forward[1]),
+            float(body_forward[2]),
         ]
 
     def build_info(self, raw_state, denorm_action=None, reward=None, done=None, done_reason=None):

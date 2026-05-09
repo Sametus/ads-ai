@@ -202,6 +202,7 @@ public class Env : MonoBehaviour
 
     [Header("Direct Guidance Test (Sadece klasik baseline)")]
     public float directActionMarker = -7777f;
+    public float bodyAccelActionMarker = -6666f;
     public float directAccelLimit = 90f;
     public float directMaxSpeed = 140f;
     public float directLookRateDeg = 720f;
@@ -258,6 +259,7 @@ public class Env : MonoBehaviour
     private float currentClock3Cmd = 0f;
     private float currentClock9Cmd = 0f;
     private bool currentDirectGuidanceMode = false;
+    private bool currentBodyAccelLearningMode = false;
     private Vector3 currentDirectAccelWorld = Vector3.zero;
     private Vector3 currentDirectLookWorld = Vector3.forward;
 
@@ -401,11 +403,28 @@ public class Env : MonoBehaviour
 
     private void ReadAction(float[] actionValues)
     {
+        if (actionValues.Length >= 7 && Mathf.Abs(actionValues[0] - bodyAccelActionMarker) <= 0.5f)
+        {
+            // Body-accel SAC egitiminde Unity hedefe otomatik kilitlenmez.
+            // Python sadece govde frame'inden hesaplanan ivmeyi yollar; kontrolu SAC ogrenir.
+            currentDirectGuidanceMode = true;
+            currentBodyAccelLearningMode = true;
+            currentThrust = 0f;
+            currentClock12Cmd = 0f;
+            currentClock6Cmd = 0f;
+            currentClock3Cmd = 0f;
+            currentClock9Cmd = 0f;
+            currentDirectAccelWorld = new Vector3(actionValues[1], actionValues[2], actionValues[3]);
+            currentDirectLookWorld = new Vector3(actionValues[4], actionValues[5], actionValues[6]);
+            return;
+        }
+
         if (actionValues.Length >= 7 && actionValues[0] <= directActionMarker + 0.5f)
         {
             // Direct mode hem klasik baseline hem de V12 RL icin kullanilir.
             // Clock/torque zinciri yerine dunya uzayinda sinirli ivme uygulariz.
             currentDirectGuidanceMode = true;
+            currentBodyAccelLearningMode = false;
             currentThrust = 0f;
             currentClock12Cmd = 0f;
             currentClock6Cmd = 0f;
@@ -417,6 +436,7 @@ public class Env : MonoBehaviour
         }
 
         currentDirectGuidanceMode = false;
+        currentBodyAccelLearningMode = false;
         currentDirectAccelWorld = Vector3.zero;
         currentDirectLookWorld = Vector3.forward;
         currentThrust = actionValues[0];
@@ -587,8 +607,12 @@ public class Env : MonoBehaviour
         lastRollTorqueLimit = 0f;
 
         rocketRb.AddForce(accelWorld, ForceMode.Acceleration);
-        AlignRocketPointToDirectLook();
-        DampenDirectSideSlip();
+
+        if (!currentBodyAccelLearningMode)
+        {
+            AlignRocketPointToDirectLook();
+            DampenDirectSideSlip();
+        }
     }
 
     private void DampenDirectSideSlip()
@@ -776,6 +800,7 @@ public class Env : MonoBehaviour
         currentClock3Cmd = 0f;
         currentClock9Cmd = 0f;
         currentDirectGuidanceMode = false;
+        currentBodyAccelLearningMode = false;
         currentDirectAccelWorld = Vector3.zero;
         currentDirectLookWorld = rocketPoint != null ? rocketPoint.forward : Vector3.forward;
 

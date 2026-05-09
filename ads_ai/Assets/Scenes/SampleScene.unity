@@ -222,10 +222,10 @@ Camera:
   m_LensShift: {x: 0, y: 0}
   m_NormalizedViewPortRect:
     serializedVersion: 2
-    x: 0
-    y: 0.5
+    x: 0.5
+    y: 0.6667
     width: 0.5
-    height: 0.5
+    height: 0.333
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
@@ -254,13 +254,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 262483185}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.059355386, y: -0.00030403768, z: -0.0000069321563, w: -0.9982369}
-  m_LocalPosition: {x: 0, y: 30, z: -323}
+  m_LocalRotation: {x: 0.23130564, y: -0.00030064603, z: 0.000045817284, w: -0.9728811}
+  m_LocalPosition: {x: 0, y: 0.33, z: -4.17}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -26.748, y: 0.039, z: -0.015}
 --- !u!1 &306416282
 GameObject:
   m_ObjectHideFlags: 0
@@ -360,10 +360,10 @@ Camera:
   m_LensShift: {x: 0, y: 0}
   m_NormalizedViewPortRect:
     serializedVersion: 2
-    x: 0.5
-    y: 0.6667
+    x: 0
+    y: 0.5
     width: 0.5
-    height: 0.333
+    height: 0.5
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
@@ -412,19 +412,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   target: {fileID: 2129727328}
-  distance: 3.5
-  height: 4
-  sideOffset: 2
-  lookOffset: {x: 0, y: 0, z: 0}
-  positionSmoothTime: 0.035
-  lookSmoothTime: 0.04
-  basisSmoothTime: 0.10
-  rotationSharpness: 36
-  lookAheadTime: 0.04
-  maxLookAheadDistance: 4
-  catchUpDistance: 1.5
-  fastPositionSmoothTime: 0.012
+  distance: 18
+  height: 10
+  sideOffset: -18
+  lookOffset: {x: 0, y: 1.5, z: 0}
+  positionSmoothTime: 0.025
+  lookSmoothTime: 0.06
+  rotationSharpness: 18
+  catchUpDistance: 2
+  fastPositionSmoothTime: 0.008
   snapDistance: 8
+  dynamicZoom: 1
+  baseFieldOfView: 46
+  fastFieldOfView: 62
+  zoomSpeedForFastFov: 110
+  baseOrthographicSize: 10
+  fastOrthographicSize: 18
+  zoomSmoothTime: 0.12
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -6344,6 +6348,7 @@ MonoBehaviour:
   clockTurnRateControllerGain: 1.8
   maxPitchYawTorqueCommand: 6
   directActionMarker: -7777
+  bodyAccelActionMarker: -6666
   directAccelLimit: 90
   directMaxSpeed: 140
   directLookRateDeg: 720
