@@ -206,6 +206,10 @@ public class Env : MonoBehaviour
     public float bodyAccelActionMarker = -6666f;
     public float directAccelLimit = 90f;
     public float directMaxSpeed = 140f;
+    public float guidanceAccelLimit = 45f;
+    public float guidanceAccelMaxSpeed = 62f;
+    public float guidanceAccelOverspeedBrake = 1.4f;
+    public float guidanceAccelLookRateDeg = 360f;
     public float directLookRateDeg = 720f;
     public bool directZeroAngularVelocity = true;
     public float directVelocityAlignBlend = 0.18f;
@@ -593,9 +597,10 @@ public class Env : MonoBehaviour
     {
         // Direct guidance testinde action artik tork degil, dunya uzayinda istenen ivmedir.
         // ForceMode.Acceleration kullandigimiz icin kütle etkisini ayri dusunmeyiz; bu sadece baseline testidir.
-        Vector3 accelWorld = Vector3.ClampMagnitude(currentDirectAccelWorld, Mathf.Max(0f, directAccelLimit));
+        float accelLimit = currentGuidanceAccelLearningMode ? guidanceAccelLimit : directAccelLimit;
+        Vector3 accelWorld = Vector3.ClampMagnitude(currentDirectAccelWorld, Mathf.Max(0f, accelLimit));
         Vector3 velocityWorld = rocketRb.linearVelocity;
-        float maxSpeed = Mathf.Max(0f, directMaxSpeed);
+        float maxSpeed = Mathf.Max(0f, currentGuidanceAccelLearningMode ? guidanceAccelMaxSpeed : directMaxSpeed);
 
         if (maxSpeed > 0f && velocityWorld.magnitude > maxSpeed && accelWorld.sqrMagnitude > 1e-8f)
         {
@@ -603,6 +608,12 @@ public class Env : MonoBehaviour
             float speedUpPart = Vector3.Dot(accelWorld, speedDir);
             if (speedUpPart > 0f)
                 accelWorld -= speedDir * speedUpPart;
+
+            if (currentGuidanceAccelLearningMode)
+            {
+                float overspeed = velocityWorld.magnitude - maxSpeed;
+                accelWorld -= speedDir * overspeed * Mathf.Max(0f, guidanceAccelOverspeedBrake);
+            }
         }
 
         lastThrustWorld = accelWorld;
@@ -703,7 +714,7 @@ public class Env : MonoBehaviour
         Quaternion nextRotation = Quaternion.RotateTowards(
             rocketRb.rotation,
             desiredRotation,
-            Mathf.Max(0f, directLookRateDeg) * Time.fixedDeltaTime
+            Mathf.Max(0f, currentGuidanceAccelLearningMode ? guidanceAccelLookRateDeg : directLookRateDeg) * Time.fixedDeltaTime
         );
 
         rocketRb.MoveRotation(nextRotation);

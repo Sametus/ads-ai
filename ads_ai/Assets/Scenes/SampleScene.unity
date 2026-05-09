@@ -6352,6 +6352,10 @@ MonoBehaviour:
   bodyAccelActionMarker: -6666
   directAccelLimit: 90
   directMaxSpeed: 140
+  guidanceAccelLimit: 45
+  guidanceAccelMaxSpeed: 62
+  guidanceAccelOverspeedBrake: 1.4
+  guidanceAccelLookRateDeg: 360
   directLookRateDeg: 720
   directZeroAngularVelocity: 1
   directVelocityAlignBlend: 0.18
