@@ -180,7 +180,9 @@ public class Env : MonoBehaviour
     public LineRenderer forwardLine;
     public float forwardLineLength = 20f;
     public bool drawActionAuditRays = true;
-    public float actionAuditRayLength = 12f;
+    public float actionAuditRayLength = 8f;
+    [Range(0.05f, 1f)] public float actionAuditRayAlpha = 0.22f;
+    public float actionAuditRayDuration = 0.01f;
 
     [Header("Rocket Reset Pose")]
     public Vector3 rocketResetPosition = new Vector3(-0.492f, 0.8375f, 0.022f);
@@ -728,7 +730,12 @@ public class Env : MonoBehaviour
     private void ResetEnvironment(float[] resetValues)
     {
         float targetPosX = resetValues[0];
-        float targetPosY = keepTargetYFixed ? fixedTargetY : resetValues[1];
+        float targetPosY = resetValues[1];
+        if (keepTargetYFixed)
+        {
+            fixedTargetY = targetPosY + targetHeightOffset;
+            targetPosY = fixedTargetY;
+        }
         float targetPosZ = resetValues[2];
 
         float targetRotX = keepTargetRotXFixed ? fixedTargetRotX : 0f;
@@ -1232,10 +1239,11 @@ public class Env : MonoBehaviour
             return;
 
         Vector3 origin = rocketPoint.position;
+        float rayDuration = Mathf.Max(0f, actionAuditRayDuration);
 
         // Scene view icin renkli eksen cizimleri:
         // Cyan burun/itki, yesil clock-12, sari clock-3, beyaz hedef, magenta istenen donus, kirmizi uygulanan tork.
-        Debug.DrawRay(origin, rocketPoint.forward.normalized * actionAuditRayLength, Color.cyan, Time.fixedDeltaTime, false);
+        DrawSoftAuditRay(origin, rocketPoint.forward, SoftColor(0.35f, 0.85f, 1.0f), rayDuration);
 
         if (currentDirectGuidanceMode)
         {
@@ -1243,30 +1251,43 @@ public class Env : MonoBehaviour
             // Burada sadece hedef yonu, istenen look yonu ve uygulanan ivme gosterilir.
             Vector3 relToTargetDirect = targetPoint.position - rocketPoint.position;
             if (relToTargetDirect.sqrMagnitude > 1e-8f)
-                Debug.DrawRay(origin, relToTargetDirect.normalized * actionAuditRayLength, Color.white, Time.fixedDeltaTime, false);
+                DrawSoftAuditRay(origin, relToTargetDirect, SoftColor(0.92f, 0.92f, 0.92f), rayDuration);
 
             if (lastDesiredClockTurnWorld.sqrMagnitude > 1e-8f)
-                Debug.DrawRay(origin, lastDesiredClockTurnWorld.normalized * actionAuditRayLength, Color.magenta, Time.fixedDeltaTime, false);
+                DrawSoftAuditRay(origin, lastDesiredClockTurnWorld, SoftColor(0.86f, 0.40f, 0.88f), rayDuration);
 
             if (lastThrustWorld.sqrMagnitude > 1e-8f)
-                Debug.DrawRay(origin, lastThrustWorld.normalized * actionAuditRayLength, Color.red, Time.fixedDeltaTime, false);
+                DrawSoftAuditRay(origin, lastThrustWorld, SoftColor(1.0f, 0.42f, 0.34f), rayDuration);
 
             return;
         }
 
         BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out _, out _);
-        Debug.DrawRay(origin, clock12World * actionAuditRayLength, Color.green, Time.fixedDeltaTime, false);
-        Debug.DrawRay(origin, clock3World * actionAuditRayLength, Color.yellow, Time.fixedDeltaTime, false);
+        DrawSoftAuditRay(origin, clock12World, SoftColor(0.35f, 0.85f, 0.45f), rayDuration);
+        DrawSoftAuditRay(origin, clock3World, SoftColor(0.95f, 0.82f, 0.35f), rayDuration);
 
         Vector3 relToTarget = targetPoint.position - rocketPoint.position;
         if (relToTarget.sqrMagnitude > 1e-8f)
-            Debug.DrawRay(origin, relToTarget.normalized * actionAuditRayLength, Color.white, Time.fixedDeltaTime, false);
+            DrawSoftAuditRay(origin, relToTarget, SoftColor(0.92f, 0.92f, 0.92f), rayDuration);
 
         if (lastDesiredClockTurnWorld.sqrMagnitude > 1e-8f)
-            Debug.DrawRay(origin, lastDesiredClockTurnWorld.normalized * actionAuditRayLength, Color.magenta, Time.fixedDeltaTime, false);
+            DrawSoftAuditRay(origin, lastDesiredClockTurnWorld, SoftColor(0.86f, 0.40f, 0.88f), rayDuration);
 
         if (lastTorqueCommandWorld.sqrMagnitude > 1e-8f)
-            Debug.DrawRay(origin, lastTorqueCommandWorld.normalized * actionAuditRayLength, Color.red, Time.fixedDeltaTime, false);
+            DrawSoftAuditRay(origin, lastTorqueCommandWorld, SoftColor(1.0f, 0.42f, 0.34f), rayDuration);
+    }
+
+    private Color SoftColor(float r, float g, float b)
+    {
+        return new Color(r, g, b, Mathf.Clamp01(actionAuditRayAlpha));
+    }
+
+    private void DrawSoftAuditRay(Vector3 origin, Vector3 direction, Color color, float duration)
+    {
+        if (direction.sqrMagnitude <= 1e-8f)
+            return;
+
+        Debug.DrawRay(origin, direction.normalized * actionAuditRayLength, color, duration, false);
     }
 
     private void UpdateParticleFX()

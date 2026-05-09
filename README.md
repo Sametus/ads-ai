@@ -266,7 +266,7 @@ Temel runtime ayarları burada tutulur:
 ```python
 IP = "127.0.0.1"
 PORT = 5005
-SAC_MODEL_PREFIX = "sac_v15_forward_damped"
+SAC_MODEL_PREFIX = "sac_v15_target500_y100"
 SAC_TOTAL_STEPS = 250000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000
@@ -450,7 +450,7 @@ python scripts/plot_phase_report.py
 SAC canlı training grafik scripti:
 
 ```powershell
-python scripts/plot_sac_report.py --phase-contains v15_0_4 --out-dir logs\plots
+python scripts/plot_sac_report.py --phase-contains v15_0_6 --out-dir logs\plots
 ```
 
 Plotly interaktif grafik scripti:
@@ -639,7 +639,7 @@ python scripts/pn_guidance_test.py --mode accel --episodes 5 --radius-min 280 --
 python scripts/pn_guidance_test.py --mode direct --episodes 5 --radius-min 280 --radius-max 300 --target-y 50 --terminal-max-altitude 240 --max-steps 1000 --output logs/pn_direct_v11018_r280_300.csv
 
 # SAC canlı training PNG raporu
-python scripts/plot_sac_report.py --phase-contains v15_0_4 --out-dir logs\plots
+python scripts/plot_sac_report.py --phase-contains v15_0_6 --out-dir logs\plots
 
 # Statik faz raporu
 python scripts/plot_phase_report.py

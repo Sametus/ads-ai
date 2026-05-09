@@ -416,6 +416,15 @@ MonoBehaviour:
   height: 4
   sideOffset: 2
   lookOffset: {x: 0, y: 0, z: 0}
+  positionSmoothTime: 0.035
+  lookSmoothTime: 0.04
+  basisSmoothTime: 0.10
+  rotationSharpness: 36
+  lookAheadTime: 0.04
+  maxLookAheadDistance: 4
+  catchUpDistance: 1.5
+  fastPositionSmoothTime: 0.012
+  snapDistance: 8
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -6319,7 +6328,9 @@ MonoBehaviour:
   forwardLine: {fileID: 2039309739}
   forwardLineLength: 20
   drawActionAuditRays: 1
-  actionAuditRayLength: 12
+  actionAuditRayLength: 8
+  actionAuditRayAlpha: 0.22
+  actionAuditRayDuration: 0.01
   rocketResetPosition: {x: -0.492, y: 0.8375, z: 0.022}
   rocketResetEuler: {x: -90, y: 0, z: 0}
   thrustScale: 1
@@ -6337,6 +6348,8 @@ MonoBehaviour:
   directMaxSpeed: 140
   directLookRateDeg: 720
   directZeroAngularVelocity: 1
+  directVelocityAlignBlend: 0.18
+  directBackwardVelocityDamp: 0.55
   targetHeightOffset: 0
   rollStabilizationGain: 25
   rollDampingGain: 20
@@ -6361,6 +6374,9 @@ MonoBehaviour:
   lowAltitudeGraceSteps: 8
   rocketExhaustFx: {fileID: 1341534238}
   targetExhaustFx: {fileID: 1296251870}
+  alignRocketExhaustToRocketPoint: 1
+  rocketExhaustWorldSimulation: 1
+  rocketExhaustBackOffset: 0.42
 --- !u!1 &1296251869
 GameObject:
   m_ObjectHideFlags: 0
@@ -16288,7 +16304,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6b198f8976adcf74baa63e8599972cf4, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 50
+      value: 100
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 6b198f8976adcf74baa63e8599972cf4, type: 3}
       propertyPath: m_LocalPosition.z

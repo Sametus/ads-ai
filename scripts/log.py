@@ -119,6 +119,9 @@ UPDATE_HEADER = [
     "entropy",
     "kl",
     "clip_frac",
+    "alpha",
+    "q1_loss",
+    "q2_loss",
     "gamma",
     "lam",
     "lr",
@@ -228,6 +231,9 @@ def append_update_csv(update_id, logs, gamma, lam, lr):
         "entropy": logs.get("entropy"),
         "kl": logs.get("kl"),
         "clip_frac": logs.get("clip_frac"),
+        "alpha": logs.get("alpha", logs.get("clip_frac")),
+        "q1_loss": logs.get("q1_loss"),
+        "q2_loss": logs.get("q2_loss"),
         "gamma": gamma,
         "lam": lam,
         "lr": lr,
@@ -304,7 +310,7 @@ def print_update_console(update_id, logs):
         f"value={logs.get('value_loss', 0.0):.4f} | "
         f"ent={logs.get('entropy', 0.0):.4f} | "
         f"kl={logs.get('kl', 0.0):.4f} | "
-        f"clip={logs.get('clip_frac', 0.0):.4f} | "
+        f"alpha={logs.get('alpha', logs.get('clip_frac', 0.0)):.4f} | "
         f"{timestamp}"
     )
     print(msg, flush=True)

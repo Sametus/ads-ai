@@ -136,6 +136,37 @@ def load_episodes(logs_dir: Path, phase_contains: str) -> pd.DataFrame:
     return episodes
 
 
+def load_updates(logs_dir: Path) -> pd.DataFrame:
+    """SAC optimizer logunu okur; eski loglarda alpha icin clip_frac fallback kullanir."""
+    update_path = logs_dir / "update_log.csv"
+    updates = read_csv_safe(update_path)
+    numeric_cols = [
+        "update_id",
+        "loss",
+        "policy_loss",
+        "value_loss",
+        "entropy",
+        "kl",
+        "clip_frac",
+        "alpha",
+        "q1_loss",
+        "q2_loss",
+        "gamma",
+        "lam",
+        "lr",
+    ]
+    updates = ensure_numeric(updates, numeric_cols)
+
+    if "alpha" not in updates.columns and "clip_frac" in updates.columns:
+        updates["alpha"] = updates["clip_frac"]
+    elif "alpha" in updates.columns and "clip_frac" in updates.columns:
+        updates["alpha"] = updates["alpha"].fillna(updates["clip_frac"])
+
+    if "update_id" in updates.columns:
+        updates = updates.sort_values("update_id").reset_index(drop=True)
+    return updates
+
+
 def iter_step_chunks(logs_dir: Path, phase_contains: str, wanted_cols: Iterable[str], chunksize: int):
     """Büyük step logunu parça parça okur; canlı training sırasında RAM'i korur."""
     step_path = logs_dir / "step_log.csv"
@@ -640,11 +671,82 @@ def plot_hit_positions(episodes: pd.DataFrame, steps: pd.DataFrame, out_path: Pa
     plt.close(fig)
 
 
+def plot_update_diagnostics(updates: pd.DataFrame, out_path: Path) -> None:
+    """SAC'a ozgu optimizer, critic, entropy ve alpha sinyallerini cizer."""
+    if updates.empty or "update_id" not in updates.columns:
+        save_empty(out_path, "SAC Update Diagnostics", "update_log.csv icinde okunabilir veri yok.")
+        return
+
+    x = updates["update_id"]
+    fig, axes = plt.subplots(2, 2, figsize=(14, 8), dpi=140)
+    fig.suptitle("SAC Update Diagnostics", fontsize=14, fontweight="bold")
+
+    ax = axes[0, 0]
+    for col, label, color in [
+        ("loss", "total", "#111827"),
+        ("policy_loss", "actor", "#2563eb"),
+        ("value_loss", "critic total", "#dc2626"),
+    ]:
+        if col in updates.columns and updates[col].notna().any():
+            ax.plot(x, updates[col], label=label, linewidth=1.4, color=color)
+    ax.set_title("Loss Components")
+    ax.set_xlabel("Global step")
+    ax.grid(alpha=0.25)
+    ax.legend(fontsize=8)
+
+    ax = axes[0, 1]
+    if "entropy" in updates.columns and updates["entropy"].notna().any():
+        ax.plot(x, updates["entropy"], color="#7c3aed", linewidth=1.5, label="entropy")
+    ax.set_title("Entropy / Alpha")
+    ax.set_xlabel("Global step")
+    ax.set_ylabel("Entropy")
+    ax.grid(alpha=0.25)
+    ax_alpha = ax.twinx()
+    if "alpha" in updates.columns and updates["alpha"].notna().any():
+        ax_alpha.plot(x, updates["alpha"], color="#d97706", linewidth=1.4, label="alpha")
+    ax_alpha.set_ylabel("Alpha")
+    lines, labels = ax.get_legend_handles_labels()
+    lines2, labels2 = ax_alpha.get_legend_handles_labels()
+    ax.legend(lines + lines2, labels + labels2, fontsize=8, loc="best")
+
+    ax = axes[1, 0]
+    plotted_q = False
+    for col, label, color in [
+        ("q1_loss", "q1", "#0891b2"),
+        ("q2_loss", "q2", "#1f9d55"),
+    ]:
+        if col in updates.columns and updates[col].notna().any():
+            ax.plot(x, updates[col], label=label, linewidth=1.3, color=color)
+            plotted_q = True
+    if not plotted_q and "value_loss" in updates.columns and updates["value_loss"].notna().any():
+        ax.plot(x, updates["value_loss"], label="critic total", linewidth=1.3, color="#dc2626")
+    ax.set_title("Critic Loss")
+    ax.set_xlabel("Global step")
+    ax.grid(alpha=0.25)
+    ax.legend(fontsize=8)
+
+    ax = axes[1, 1]
+    for col, label, color in [
+        ("lr", "lr", "#0f172a"),
+        ("gamma", "gamma", "#64748b"),
+    ]:
+        if col in updates.columns and updates[col].notna().any():
+            ax.plot(x, updates[col], label=label, linewidth=1.3, color=color)
+    ax.set_title("Training Constants")
+    ax.set_xlabel("Global step")
+    ax.grid(alpha=0.25)
+    ax.legend(fontsize=8)
+
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(out_path)
+    plt.close(fig)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="SAC/V15 canlı loglarından PNG grafik raporu üretir.")
     parser.add_argument("--logs-dir", type=Path, default=Path("logs"), help="Log klasörü.")
     parser.add_argument("--out-dir", type=Path, default=Path("logs") / "plots", help="Grafik çıktı klasörü.")
-    parser.add_argument("--phase-contains", default="v15_0_4", help="phase_name içinde aranacak metin.")
+    parser.add_argument("--phase-contains", default="v15_0_6", help="phase_name içinde aranacak metin.")
     parser.add_argument("--prefix", default="", help="Çıktı dosyası ön eki. Boşsa faz adından üretilir.")
     parser.add_argument("--bin-size", type=float, default=10.0, help="Radius histogram bin genişliği.")
     parser.add_argument("--step-sample-stride", type=int, default=20, help="Step log örnekleme aralığı.")
@@ -657,6 +759,7 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     episodes = load_episodes(args.logs_dir, args.phase_contains)
+    updates = load_updates(args.logs_dir)
     steps = load_step_rows(args.logs_dir, args.phase_contains, args.step_sample_stride, args.chunksize)
 
     if args.prefix:
@@ -673,6 +776,7 @@ def main() -> None:
         "reset_map": args.out_dir / f"{prefix}_reset_map.png",
         "action_diagnostics": args.out_dir / f"{prefix}_action_diagnostics.png",
         "hit_positions": args.out_dir / f"{prefix}_hit_positions.png",
+        "update_diagnostics": args.out_dir / f"{prefix}_update_diagnostics.png",
     }
 
     plot_summary(episodes, outputs["summary"])
@@ -681,8 +785,9 @@ def main() -> None:
     plot_reset_map(episodes, steps, outputs["reset_map"])
     plot_action_diagnostics(steps, outputs["action_diagnostics"])
     plot_hit_positions(episodes, steps, outputs["hit_positions"])
+    plot_update_diagnostics(updates, outputs["update_diagnostics"])
 
-    print(f"[plot_sac_report] episodes={len(episodes)} sampled_steps={len(steps)}")
+    print(f"[plot_sac_report] episodes={len(episodes)} sampled_steps={len(steps)} updates={len(updates)}")
     for name, path in outputs.items():
         print(f"[plot_sac_report] {name}: {path}")
 

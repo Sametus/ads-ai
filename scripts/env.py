@@ -348,9 +348,10 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_0_4_phase_1_sac_forward_damped_140_160",
-    "spawn_radius_min": 140.0,
-    "spawn_radius_max": 160.0,
+    "name": "v15_0_6_phase_1_sac_target500_y100",
+    "spawn_radius_min": 500.0,
+    "spawn_radius_max": 500.0,
+    "target_y": 100.0,
     "heading_offset_min": -5.0,
     "heading_offset_max": 5.0,
     "heading_offset_abs_min": 1.0,
@@ -685,7 +686,7 @@ class Env:
             self.phase["heading_offset_max"],
             self.phase.get("heading_offset_abs_min", 0.0),
         )
-        py = 50.0
+        py = float(self.phase.get("target_y", 50.0))
 
         return self._send_reset_values(px, py, pz, ry, rz, heading_offset, target_miss_distance)
 
