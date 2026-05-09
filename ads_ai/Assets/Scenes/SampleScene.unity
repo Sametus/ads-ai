@@ -6348,6 +6348,7 @@ MonoBehaviour:
   clockTurnRateControllerGain: 1.8
   maxPitchYawTorqueCommand: 6
   directActionMarker: -7777
+  guidanceAccelActionMarker: -5555
   bodyAccelActionMarker: -6666
   directAccelLimit: 90
   directMaxSpeed: 140

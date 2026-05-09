@@ -3,7 +3,7 @@ from datetime import datetime
 import connector
 import numpy as np
 
-CONTROL_MODE = "body_accel"
+CONTROL_MODE = "guidance_accel"
 
 CLOCK_STATE_KEYS = [
     "distance",
@@ -50,6 +50,8 @@ DIRECT_STATE_KEYS = [
     "rocket_speed",
 ]
 
+GUIDANCE_ACCEL_STATE_KEYS = DIRECT_STATE_KEYS
+
 BODY_ACCEL_STATE_KEYS = [
     "distance",
     "rel_dir_body_right",
@@ -70,7 +72,9 @@ BODY_ACCEL_STATE_KEYS = [
 ]
 
 STATE_KEYS = (
-    BODY_ACCEL_STATE_KEYS
+    GUIDANCE_ACCEL_STATE_KEYS
+    if CONTROL_MODE == "guidance_accel"
+    else BODY_ACCEL_STATE_KEYS
     if CONTROL_MODE == "body_accel"
     else DIRECT_STATE_KEYS if CONTROL_MODE == "direct_accel"
     else CLOCK_STATE_KEYS
@@ -116,6 +120,16 @@ DIRECT_ACTION_MAX_ACCEL = 65.0
 DIRECT_ACTION_MIN_ACCEL = 38.0
 DIRECT_ACTION_AIM_OFFSET = 0.35
 DIRECT_ACTION_MARKER = -7777.0
+GUIDANCE_ACCEL_ACTION_MARKER = -5555.0
+GUIDANCE_ACCEL_LATERAL_MAX_ACCEL = 42.0
+GUIDANCE_ACCEL_UP_MAX_ACCEL = 38.0
+GUIDANCE_ACCEL_FORWARD_MIN_ACCEL = 14.0
+GUIDANCE_ACCEL_FORWARD_MAX_ACCEL = 54.0
+GUIDANCE_ACCEL_MAX_ACCEL = 78.0
+GUIDANCE_ACCEL_LAUNCH_SAFE_AGL = 12.0
+GUIDANCE_ACCEL_LAUNCH_SAFE_STEPS = 90
+GUIDANCE_ACCEL_LAUNCH_MIN_LATERAL_SCALE = 0.35
+GUIDANCE_ACCEL_LAUNCH_UP_BIAS = 18.0
 BODY_ACCEL_ACTION_MARKER = -6666.0
 BODY_ACCEL_LATERAL_MAX_ACCEL = 32.0
 BODY_ACCEL_FORWARD_MIN_ACCEL = 24.0
@@ -128,7 +142,9 @@ DIRECT_LAUNCH_SAFE_STEPS = 80
 DIRECT_LAUNCH_UP_BIAS = 0.75
 
 ACTION_KEYS = (
-    ["body_right_accel", "body_up_accel", "body_forward_accel"]
+    ["accel_right", "accel_up", "accel_forward"]
+    if CONTROL_MODE == "guidance_accel"
+    else ["body_right_accel", "body_up_accel", "body_forward_accel"]
     if CONTROL_MODE == "body_accel"
     else ["aim_right", "aim_up", "forward_accel"]
     if CONTROL_MODE == "direct_accel"
@@ -381,7 +397,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_0_7_phase_1_sac_body_accel_target500_y100",
+    "name": "v15_1_0_phase_1_sac_guidance_accel_target500_y100",
     "spawn_radius_min": 500.0,
     "spawn_radius_max": 500.0,
     "target_y": 100.0,
@@ -581,6 +597,8 @@ class Env:
         return self.connect.read_packet()
 
     def parse_state(self, raw_state):
+        if CONTROL_MODE == "guidance_accel":
+            return self.parse_direct_state(raw_state)
         if CONTROL_MODE == "body_accel":
             return self.parse_body_accel_state(raw_state)
         if CONTROL_MODE == "direct_accel":
@@ -717,8 +735,24 @@ class Env:
             return value
         return value * (float(max_magnitude) / norm)
 
+    @staticmethod
+    def _is_accel_action_packet(values):
+        """Unity marker'li ivme paketlerini reward tarafinda clock action gibi okumamayi saglar."""
+        if values is None or len(values) < 7:
+            return False
+
+        marker = float(values[0])
+        return any(
+            abs(marker - expected) <= 0.5
+            for expected in (
+                DIRECT_ACTION_MARKER,
+                BODY_ACCEL_ACTION_MARKER,
+                GUIDANCE_ACCEL_ACTION_MARKER,
+            )
+        )
+
     def normalize_state(self, vector_state):
-        if CONTROL_MODE in ("direct_accel", "body_accel"):
+        if CONTROL_MODE in ("direct_accel", "body_accel", "guidance_accel"):
             return self.normalize_direct_state(vector_state)
 
         s = vector_state.copy()
@@ -1397,7 +1431,7 @@ class Env:
         vector_state = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
 
-        is_direct_guidance = bool(len(denorm_action) >= 7 and float(denorm_action[0]) <= DIRECT_ACTION_MARKER + 0.5)
+        is_direct_guidance = self._is_accel_action_packet(denorm_action)
         reward_action = (
             np.asarray([MAX_THRUST, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
             if is_direct_guidance
@@ -1446,7 +1480,7 @@ class Env:
         if len(values) < 5:
             raise ValueError("Direct action icin 5 deger gerekir: thrust, clock_12, clock_6, clock_3, clock_9")
 
-        is_direct_guidance = bool(len(values) >= 7 and float(values[0]) <= DIRECT_ACTION_MARKER + 0.5)
+        is_direct_guidance = self._is_accel_action_packet(values)
         if is_direct_guidance:
             values = values[:7].astype(np.float32)
         else:
@@ -1523,6 +1557,8 @@ class Env:
     # ------------------------------------------------------------------
 
     def denormalize_action(self, action):
+        if CONTROL_MODE == "guidance_accel":
+            return self.denormalize_guidance_accel_action(action)
         if CONTROL_MODE == "body_accel":
             return self.denormalize_body_accel_action(action)
         if CONTROL_MODE == "direct_accel":
@@ -1557,6 +1593,92 @@ class Env:
             float(clock_6_cmd),
             float(clock_3_cmd),
             float(clock_9_cmd),
+        ]
+
+    def denormalize_guidance_accel_action(self, action):
+        """
+        SAC action'ini guidance frame'inde ivme komutuna cevirir.
+
+        Bu mod hedefe otomatik bakis/PN kullanmaz. Ajan sag-sol, yukari-asagi ve
+        ileri ivmeyi secer; Unity sadece bu ivmeyi uygular ve gorsel govdeyi hiz
+        yonune hizalar. Boylece roll problemi egitimin ana hedefi olmaktan cikar.
+        """
+        a = np.asarray(action, dtype=np.float32).reshape(-1)
+        if len(a) < 3:
+            a = np.pad(a, (0, 3 - len(a)), mode="constant")
+        a = np.clip(a[:3], -1.0, 1.0)
+
+        raw_state = self.last_raw_state or {}
+        states = raw_state.get("states", {})
+        telemetry = raw_state.get("telemetry", {})
+
+        right_ref = self._safe_unit(
+            self._telemetry_vec(telemetry, "guidance_right_world"),
+            np.array([1.0, 0.0, 0.0]),
+        )
+        up_ref = self._safe_unit(
+            self._telemetry_vec(telemetry, "guidance_up_world"),
+            np.array([0.0, 1.0, 0.0]),
+        )
+        forward_ref = self._safe_unit(
+            self._telemetry_vec(telemetry, "guidance_forward_world"),
+            np.array([0.0, 0.0, 1.0]),
+        )
+
+        agl = float(states.get("agl", 0.0))
+        launch_progress = max(
+            np.clip(agl / max(GUIDANCE_ACCEL_LAUNCH_SAFE_AGL, 1e-6), 0.0, 1.0),
+            np.clip(float(self.step_count) / max(GUIDANCE_ACCEL_LAUNCH_SAFE_STEPS, 1), 0.0, 1.0),
+        )
+        launch_lateral_scale = GUIDANCE_ACCEL_LAUNCH_MIN_LATERAL_SCALE + (
+            1.0 - GUIDANCE_ACCEL_LAUNCH_MIN_LATERAL_SCALE
+        ) * launch_progress
+
+        right_accel = float(a[0]) * GUIDANCE_ACCEL_LATERAL_MAX_ACCEL * launch_lateral_scale
+        up_accel = float(a[1]) * GUIDANCE_ACCEL_UP_MAX_ACCEL
+        up_accel += (1.0 - launch_progress) * GUIDANCE_ACCEL_LAUNCH_UP_BIAS
+        forward_accel = GUIDANCE_ACCEL_FORWARD_MIN_ACCEL + ((float(a[2]) + 1.0) * 0.5) * (
+            GUIDANCE_ACCEL_FORWARD_MAX_ACCEL - GUIDANCE_ACCEL_FORWARD_MIN_ACCEL
+        )
+
+        accel_world = (
+            right_ref * right_accel
+            + up_ref * up_accel
+            + forward_ref * forward_accel
+        )
+        accel_world = self._clamp_magnitude(accel_world, GUIDANCE_ACCEL_MAX_ACCEL)
+
+        rocket_vel = self._telemetry_vec(telemetry, "rocket_vel_world")
+        velocity_look = rocket_vel + (accel_world * 0.25)
+        look_dir = self._safe_unit(velocity_look, self._safe_unit(accel_world, forward_ref))
+
+        self.last_action_info = {
+            "action_direction_id": -1,
+            "turn_direction_id": -1,
+            "turn_direction_name": "guidance_accel",
+            "action_direction_clock12": float(a[1]),
+            "action_direction_clock3": float(a[0]),
+            "turn_strength": float(np.linalg.norm(a)),
+            "action_norm_0": float(a[0]),
+            "action_norm_1": float(a[1]),
+            "action_norm_2": float(a[2]),
+            "direct_accel_world_x": float(accel_world[0]),
+            "direct_accel_world_y": float(accel_world[1]),
+            "direct_accel_world_z": float(accel_world[2]),
+            "direct_accel_cmd_right": float(right_accel),
+            "direct_accel_cmd_up": float(up_accel),
+            "direct_accel_cmd_forward": float(forward_accel),
+            "direct_launch_guard": float(launch_progress < 1.0),
+        }
+
+        return [
+            float(GUIDANCE_ACCEL_ACTION_MARKER),
+            float(accel_world[0]),
+            float(accel_world[1]),
+            float(accel_world[2]),
+            float(look_dir[0]),
+            float(look_dir[1]),
+            float(look_dir[2]),
         ]
 
     def denormalize_direct_accel_action(self, action):

@@ -202,6 +202,7 @@ public class Env : MonoBehaviour
 
     [Header("Direct Guidance Test (Sadece klasik baseline)")]
     public float directActionMarker = -7777f;
+    public float guidanceAccelActionMarker = -5555f;
     public float bodyAccelActionMarker = -6666f;
     public float directAccelLimit = 90f;
     public float directMaxSpeed = 140f;
@@ -260,6 +261,7 @@ public class Env : MonoBehaviour
     private float currentClock9Cmd = 0f;
     private bool currentDirectGuidanceMode = false;
     private bool currentBodyAccelLearningMode = false;
+    private bool currentGuidanceAccelLearningMode = false;
     private Vector3 currentDirectAccelWorld = Vector3.zero;
     private Vector3 currentDirectLookWorld = Vector3.forward;
 
@@ -403,12 +405,30 @@ public class Env : MonoBehaviour
 
     private void ReadAction(float[] actionValues)
     {
+        if (actionValues.Length >= 7 && Mathf.Abs(actionValues[0] - guidanceAccelActionMarker) <= 0.5f)
+        {
+            // Guidance-accel SAC: RL sadece ivme komutu secer.
+            // Burun hedefe kilitlenmez; gorsel govde hiz/ivme yonune hizalanir, roll ogrenme disinda tutulur.
+            currentDirectGuidanceMode = true;
+            currentBodyAccelLearningMode = false;
+            currentGuidanceAccelLearningMode = true;
+            currentThrust = 0f;
+            currentClock12Cmd = 0f;
+            currentClock6Cmd = 0f;
+            currentClock3Cmd = 0f;
+            currentClock9Cmd = 0f;
+            currentDirectAccelWorld = new Vector3(actionValues[1], actionValues[2], actionValues[3]);
+            currentDirectLookWorld = new Vector3(actionValues[4], actionValues[5], actionValues[6]);
+            return;
+        }
+
         if (actionValues.Length >= 7 && Mathf.Abs(actionValues[0] - bodyAccelActionMarker) <= 0.5f)
         {
             // Body-accel SAC egitiminde Unity hedefe otomatik kilitlenmez.
             // Python sadece govde frame'inden hesaplanan ivmeyi yollar; kontrolu SAC ogrenir.
             currentDirectGuidanceMode = true;
             currentBodyAccelLearningMode = true;
+            currentGuidanceAccelLearningMode = false;
             currentThrust = 0f;
             currentClock12Cmd = 0f;
             currentClock6Cmd = 0f;
@@ -425,6 +445,7 @@ public class Env : MonoBehaviour
             // Clock/torque zinciri yerine dunya uzayinda sinirli ivme uygulariz.
             currentDirectGuidanceMode = true;
             currentBodyAccelLearningMode = false;
+            currentGuidanceAccelLearningMode = false;
             currentThrust = 0f;
             currentClock12Cmd = 0f;
             currentClock6Cmd = 0f;
@@ -437,6 +458,7 @@ public class Env : MonoBehaviour
 
         currentDirectGuidanceMode = false;
         currentBodyAccelLearningMode = false;
+        currentGuidanceAccelLearningMode = false;
         currentDirectAccelWorld = Vector3.zero;
         currentDirectLookWorld = Vector3.forward;
         currentThrust = actionValues[0];
@@ -608,11 +630,34 @@ public class Env : MonoBehaviour
 
         rocketRb.AddForce(accelWorld, ForceMode.Acceleration);
 
+        if (currentGuidanceAccelLearningMode)
+        {
+            AlignRocketPointToGuidanceVelocity(accelWorld);
+            return;
+        }
+
         if (!currentBodyAccelLearningMode)
         {
             AlignRocketPointToDirectLook();
             DampenDirectSideSlip();
         }
+    }
+
+    private void AlignRocketPointToGuidanceVelocity(Vector3 accelWorld)
+    {
+        Vector3 lookWorld = rocketRb.linearVelocity;
+
+        if (lookWorld.sqrMagnitude <= 1e-6f)
+            lookWorld = currentDirectLookWorld;
+
+        if (lookWorld.sqrMagnitude <= 1e-6f)
+            lookWorld = accelWorld;
+
+        if (lookWorld.sqrMagnitude <= 1e-6f)
+            return;
+
+        currentDirectLookWorld = lookWorld.normalized;
+        AlignRocketPointToDirectLook();
     }
 
     private void DampenDirectSideSlip()
@@ -801,6 +846,7 @@ public class Env : MonoBehaviour
         currentClock9Cmd = 0f;
         currentDirectGuidanceMode = false;
         currentBodyAccelLearningMode = false;
+        currentGuidanceAccelLearningMode = false;
         currentDirectAccelWorld = Vector3.zero;
         currentDirectLookWorld = rocketPoint != null ? rocketPoint.forward : Vector3.forward;
 

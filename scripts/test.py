@@ -66,6 +66,7 @@ if __name__ == "__main__":
                         f"AGL={info['agl']:.2f} | "
                         f"R={reward:.3f} | "
                         f"Action=[{action[0]:.3f}, {action[1]:.3f}, {action[2]:.3f}] | "
+                        f"Mode={info.get('turn_direction_name', 'n/a')} | "
                         f"Acc=[{info.get('direct_accel_world_x', 0.0):.1f}, "
                         f"{info.get('direct_accel_world_y', 0.0):.1f}, "
                         f"{info.get('direct_accel_world_z', 0.0):.1f}]"
