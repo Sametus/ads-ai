@@ -415,12 +415,14 @@ python scripts/train.py
 python scripts/plot_sac_report.py
 ```
 
-## Mevcut Durumun İnsan Diliyle Özeti
+## Mevcut Teknik Durum Özeti
 
-Bu proje çok sayıda mimari denemeden geçti. PPO küçük menzillerde umut verdi ama büyük radius altında gerçek güdüm davranışına genelleşmedi. Uzman önerileri sonrası PN, direct acceleration, teacher/pretrain ve sonunda SAC hattı denendi.
+Proje çalışır durumdadır: Unity-Python haberleşmesi, SAC training döngüsü, checkpoint üretimi ve loglama aktif olarak çalışmaktadır. Ancak güncel deney başarılı bir hedef vurma modeli üretmemiştir.
 
-Bugünkü aktif SAC hattı roketi uçurabiliyor, anında çarpmıyor ve bazı anlarda hedefe yaklaştırıyor. Fakat hedefe yaklaşma davranışı vuruşa dönüşmüyor. Son loglarda roket episode sonunda hedefe doğru kapanmak yerine hedeften uzaklaşıyor; alignment negatifleşiyor ve çoğunlukla düşük irtifa ile bitiyor.
+PPO küçük radius değerlerinde umut vermiş, fakat radius büyüdükçe davranış gerçek güdüme genelleşmemiştir. Bu nedenle uzman önerileri doğrultusunda PN baseline, direct acceleration, teacher/pretrain ve son olarak SAC hattı denenmiştir.
 
-Bu nedenle sorun artık "kod hiç çalışmıyor" seviyesinde değil. Daha dar ve teknik bir problem var: state/reward/action tasarımı hedefi geçmeden, doğru açı ve kapanma hızıyla intercept davranışını öğrenmeye yetmiyor.
+Aktif SAC koşusunda roket anında çarpmadan uçabilmekte ve bazı adımlarda hedefe yaklaşabilmektedir. Fakat bu yaklaşma vuruşa dönüşmemektedir. Son loglarda episode sonunda alignment negatifleşmekte, closing speed negatife dönmekte ve roket çoğunlukla düşük irtifa ile bitmektedir.
 
-Bir sonraki mantıklı iş, büyük mimari sıçrama değil; önce loglamayı güçlendirip hedefin yanından geçme davranışını net ölçmek, sonra reward ve curriculum'u buna göre sadeleştirmektir.
+Güncel sorun çalışma altyapısından çok kontrol ve öğrenme tasarımı tarafındadır. State/reward/action tasarımı, hedefin yanından geçmeden doğru açı ve pozitif kapanma hızıyla intercept davranışı üretmeye yetmemektedir.
+
+Bir sonraki odak, büyük mimari değişiklikten önce `closest_distance`, `closest_alignment`, `closest_closing_speed` gibi metrikleri episode seviyesinde loglamak; ardından reward ve curriculum tasarımını bu verilere göre sadeleştirmektir.
