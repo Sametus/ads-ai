@@ -746,7 +746,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="SAC/V15 canlı loglarından PNG grafik raporu üretir.")
     parser.add_argument("--logs-dir", type=Path, default=Path("logs"), help="Log klasörü.")
     parser.add_argument("--out-dir", type=Path, default=Path("logs") / "plots", help="Grafik çıktı klasörü.")
-    parser.add_argument("--phase-contains", default="v15_1_1", help="phase_name içinde aranacak metin.")
+    parser.add_argument("--phase-contains", default="v15_1_2", help="phase_name içinde aranacak metin.")
     parser.add_argument("--prefix", default="", help="Çıktı dosyası ön eki. Boşsa faz adından üretilir.")
     parser.add_argument("--bin-size", type=float, default=10.0, help="Radius histogram bin genişliği.")
     parser.add_argument("--step-sample-stride", type=int, default=20, help="Step log örnekleme aralığı.")

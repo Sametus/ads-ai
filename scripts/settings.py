@@ -20,7 +20,7 @@ MODELS_DIR = "models"
 
 # V15 aktif egitim hatti sadece SAC'tir.
 # Eski egitim hatlarina ait checkpoint isimleri bilincli olarak bu surumden cikarildi.
-SAC_MODEL_PREFIX = "sac_v15_1_1_guidance_accel_slow_target500_y100"
+SAC_MODEL_PREFIX = "sac_v15_1_2_guidance_accel_launch_guard_target500_y100"
 SAC_TOTAL_STEPS = 250000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000

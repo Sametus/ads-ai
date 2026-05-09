@@ -126,10 +126,12 @@ GUIDANCE_ACCEL_UP_MAX_ACCEL = 22.0
 GUIDANCE_ACCEL_FORWARD_MIN_ACCEL = 6.0
 GUIDANCE_ACCEL_FORWARD_MAX_ACCEL = 28.0
 GUIDANCE_ACCEL_MAX_ACCEL = 42.0
-GUIDANCE_ACCEL_LAUNCH_SAFE_AGL = 12.0
-GUIDANCE_ACCEL_LAUNCH_SAFE_STEPS = 90
-GUIDANCE_ACCEL_LAUNCH_MIN_LATERAL_SCALE = 0.35
-GUIDANCE_ACCEL_LAUNCH_UP_BIAS = 8.0
+GUIDANCE_ACCEL_LAUNCH_SAFE_AGL = 18.0
+GUIDANCE_ACCEL_LAUNCH_SAFE_STEPS = 120
+GUIDANCE_ACCEL_LAUNCH_MIN_LATERAL_SCALE = 0.10
+GUIDANCE_ACCEL_LAUNCH_MIN_FORWARD_SCALE = 0.18
+GUIDANCE_ACCEL_LAUNCH_UP_BIAS = 10.0
+GUIDANCE_ACCEL_LAUNCH_MIN_UP_ACCEL = 24.0
 BODY_ACCEL_ACTION_MARKER = -6666.0
 BODY_ACCEL_LATERAL_MAX_ACCEL = 32.0
 BODY_ACCEL_FORWARD_MIN_ACCEL = 24.0
@@ -397,7 +399,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_1_1_phase_1_sac_guidance_accel_slow_target500_y100",
+    "name": "v15_1_2_phase_1_sac_guidance_accel_launch_guard_target500_y100",
     "spawn_radius_min": 500.0,
     "spawn_radius_max": 500.0,
     "target_y": 100.0,
@@ -1633,13 +1635,19 @@ class Env:
         launch_lateral_scale = GUIDANCE_ACCEL_LAUNCH_MIN_LATERAL_SCALE + (
             1.0 - GUIDANCE_ACCEL_LAUNCH_MIN_LATERAL_SCALE
         ) * launch_progress
+        launch_forward_scale = GUIDANCE_ACCEL_LAUNCH_MIN_FORWARD_SCALE + (
+            1.0 - GUIDANCE_ACCEL_LAUNCH_MIN_FORWARD_SCALE
+        ) * launch_progress
 
         right_accel = float(a[0]) * GUIDANCE_ACCEL_LATERAL_MAX_ACCEL * launch_lateral_scale
         up_accel = float(a[1]) * GUIDANCE_ACCEL_UP_MAX_ACCEL
         up_accel += (1.0 - launch_progress) * GUIDANCE_ACCEL_LAUNCH_UP_BIAS
+        min_up_accel = (1.0 - launch_progress) * GUIDANCE_ACCEL_LAUNCH_MIN_UP_ACCEL
+        up_accel = max(up_accel, min_up_accel)
         forward_accel = GUIDANCE_ACCEL_FORWARD_MIN_ACCEL + ((float(a[2]) + 1.0) * 0.5) * (
             GUIDANCE_ACCEL_FORWARD_MAX_ACCEL - GUIDANCE_ACCEL_FORWARD_MIN_ACCEL
         )
+        forward_accel *= launch_forward_scale
 
         accel_world = (
             right_ref * right_accel
