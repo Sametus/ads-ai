@@ -1,1 +1,0 @@
-timestamp,update_id,episode_id,phase_id,phase_name,max_step,episode_return,episode_len,done_reason,start_distance,final_distance,start_agl,final_agl,start_alt_error,final_alt_error,final_closing_speed,final_theta_deg,final_alpha_deg,final_beta_deg,final_alignment,final_forward_up_dot,final_grounded_flag,final_ang_vel_mag

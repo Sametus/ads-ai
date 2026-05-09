@@ -11,8 +11,14 @@ ads_ai/[Uu]ser[Ss]ettings/
 ads_ai/[Aa]ssets/**/[Pp]lugin[Yy]ourProject/
 ads_ai/[Aa]ssets/StreamingAssets/aa.meta
 
-# Ignore IDE specific files (keep workspace settings if needed)
+# Ignore IDE / Unity generated project files
 ads_ai/.vs/
+ads_ai/.vscode/
+ads_ai/*.csproj
+ads_ai/*.sln
+ads_ai/*.slnx
+/.vscode/
+/.idea/
 
 # Runtime artifacts and local tooling
 /logs/

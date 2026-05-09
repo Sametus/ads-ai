@@ -767,3 +767,14 @@
 > - **Hiz Sondurme**: `Env.cs` direct mode icine `DampenDirectSideSlip()` eklendi. Roket burnu hedefe donse bile onceki hiz nedeniyle yan/geri kayma suruyordu; yan hiz yumusak azaltildi, geri hiz daha sert sonduruldu.
 > - **Aim Limit**: `DIRECT_ACTION_AIM_OFFSET=0.35` yapildi. Ajan hedef bakisindan tamamen kopamaz; ilk random SAC action'lari akrobatik/yanlayarak ucus uretmemelidir.
 > - **Yeni Prefix/Faz**: Action ve runtime davranisi degistigi icin checkpoint prefix'i `sac_v15_forward_damped`, faz adi `v15_0_4_phase_1_sac_forward_damped_140_160` oldu.
+
+# v15.1 sürüm ailesi
+
+> ## v15.1.2 - SAC Guidance Acceleration Handoff
+>
+> - **Aktif algoritma**: PPO ve teacher/pretrain akışları aktif runtime'dan çıkarıldı; güncel eğitim hattı SAC (Soft Actor-Critic / yumuşak aktör-eleştirmen) üzerinde çalışıyor.
+> - **Kontrol modu**: Ajan artık `guidance_accel` modunda 3 continuous action üretir. Python bu değerleri hedef doğrultusuna bağlı sağ/yukarı/ileri ivme komutlarına çevirir; Unity bu ivmeyi uygular ve görsel gövdeyi hareket yönüne hizalar.
+> - **Deney ayarı**: Aktif faz `v15_1_2_phase_1_sac_guidance_accel_launch_guard_target500_y100`; hedef yüksekliği `100`, spawn radius `500`, maksimum episode uzunluğu `800` step.
+> - **Son gözlem**: 350 episode ve 165500 update sonunda success yoktur. Çarpışma problemi giderilmiş görünür; roket daha uzun uçmaktadır. Ancak son episode'larda hedefe yaklaşma davranışı terminal başarıya dönüşmemiş, roket çoğunlukla hedefi geçip ters hizalanma ile `low_agl` bitirmiştir.
+> - **Repo temizliği**: Unity/IDE tarafından üretilen `.csproj`, `.sln`, `.slnx`, `.vscode` dosyaları ve root runtime logları artık git dışında tutulur. Ham runtime logları yerel analiz için korunabilir, fakat repo'ya commit edilmez.
+> - **Handoff amacı**: README, projeyi dışarıdan okuyacak bir uzmana mevcut mimariyi, geçmiş kararları, güncel başarısızlık modunu ve önerilen sonraki inceleme başlıklarını anlatacak şekilde güncellendi.
