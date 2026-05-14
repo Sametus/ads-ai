@@ -17,17 +17,30 @@ Bu README özellikle projeyi dışarıdan inceleyecek bir insanın, kodu açmada
 
 Proje şu anda başarılı bir model teslim noktasında değildir. Güncel kod çalışır durumdadır, SAC training başlar ve Unity ile Python haberleşir; fakat son denemede ajan hedef vurma davranışını öğrenememiştir.
 
-Son aktif deney:
+Kodda aktif deney:
 
 ```text
-version: v15.1.2
-phase: v15_1_2_phase_1_sac_guidance_accel_launch_guard_target500_y100
+version: v15.1.11
+phase: v15_1_11_phase_1_sac_radius700_less_lateral_more_up_y100
 algorithm: SAC
-control_mode: guidance_accel
-spawn_radius: 500
+control_mode: direct_accel
+spawn_radius: 700
 target_y: 100
-max_step: 800
+max_step: 2400
+reward: simple reset + theta > 110 terminal after short grace
+action: learned direct steering
 ```
+
+v15.1.6 baseline kontrolu:
+
+| Policy | Episode | Done reason | Success |
+|---|---:|---|---:|
+| `zero` | 10 | `bad_angle` 10/10 | 0/10 |
+| `random` | 10 | `bad_angle` 10/10 | 0/10 |
+
+Yorum: Sifir veya rastgele action artik hedefi vuramiyor. Bu, v15.1.5'teki `%100 success` davranisinin SAC ogrenmesi degil, hedefe otomatik bakan action wrapper etkisi oldugunu dogrular. v15.1.6 ile basari gelirse bunu gercek policy ogrenmesi olarak incelemek daha anlamli olur.
+
+Not: Aşağıdaki log özeti reward resetinden önceki `v15.1.2` koşusuna aittir. `v15.1.3` kodu yeni reward ile sıfırdan training başlatmak için hazırlandı. `v15.1.4` `theta > 90` olduğunda episode'u `bad_angle` terminaliyle bitiren denemeydi. `v15.1.5` action mimarisini tekrar `direct_accel` hedef-bakış moduna aldı, fakat başarı SAC öğrenmesi başlamadan geldi. `v15.1.6` sıfır action'ın hedefe otomatik bakmasını kaldırır; ajan direksiyon komutunu öğrenmek zorundadır. `v15.1.7` fazla erken `bad_angle` bitişlerini azaltmak için açıyı `110` dereceye gevşetir ve kısa bir tolerans süresi ekler. `v15.1.8` timeout süresini artırır; `v15.1.9` bu devam koşusunu `1600` step ve `1,000,000` toplam training step'e genişletir. `v15.1.10` genişletilmiş sahne için spawn radius'u `700` ve max step'i `2400` yapar. Aktif ayar yeniden `v15.1.11` değerlerine alınmıştır: fazla sağ-sol manevrayı azaltmak için yatay direksiyon otoritesi düşürülür, yukarı direksiyon otoritesi ayrı tutulur ve Unity direct bakış dönüşü sakinleştirilir.
 
 Son loglardan çıkan ana tablo:
 
@@ -70,32 +83,46 @@ scripts/train.py
 Aktif SAC ayarları:
 
 ```text
-SAC_MODEL_PREFIX = sac_v15_1_2_guidance_accel_launch_guard_target500_y100
-SAC_TOTAL_STEPS = 250000
+SAC_MODEL_PREFIX = sac_v15_1_7_learned_direct_steer_angle110_grace_target500_y100
+SAC_TOTAL_STEPS = 1000000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000
 SAC_START_TRAINING_STEPS = 8000
 SAC_TRAIN_EVERY_STEPS = 32
+SAC_SAVE_REPLAY_BUFFER = True
+SAC_LOAD_REPLAY_BUFFER = False
 SAC_GAMMA = 0.995
 SAC_REWARD_SCALE = 0.02
 SAC_INITIAL_ALPHA = 0.25
 ```
 
+Replay buffer da checkpoint ile beraber kaydedilir:
+
+```text
+models/sac_v15_1_7_learned_direct_steer_angle110_grace_target500_y100_replay_buffer.npz
+```
+
+Bu dosya, training yarida kesilip yeniden baslatildiginda SAC'in gecmis deney hafizasini geri yuklemek icindir. Eski run tamamlanip Python process kapandiysa o run'in RAM'deki replay buffer'i geriye donuk kurtarilamaz; dosya ancak bu ozellik eklendikten sonraki kosularda olusur.
+
+Not: v15.1.8 ve sonrasında `SAC_MODEL_PREFIX` bilincli olarak `sac_v15_1_7...` kalir. Amaç mevcut checkpoint zincirini kaybetmeden, yeni faz ayarlarıyla eğitime devam etmektir.
+
 Aktif control mode:
 
 ```text
-CONTROL_MODE = guidance_accel
+CONTROL_MODE = direct_accel
 ```
 
 Bu modda ajan doğrudan roket torku seçmez. Ajan 3 continuous action üretir:
 
 ```text
-action[0] -> sağ/sol yanal ivme
-action[1] -> yukarı/aşağı ivme
-action[2] -> ileri ivme
+action[0] -> mevcut burun yönüne göre sağ/sol direksiyon
+action[1] -> mevcut burun yönüne göre yukarı/aşağı direksiyon
+action[2] -> pozitif ileri ivme şiddeti
 ```
 
-Python bu üç değeri hedef doğrultusuna bağlı guidance frame içinde ivmeye çevirir. Unity bu ivmeyi uygular. Burun hedefe kilitlenmez; görsel gövde hareket/ivme yönüne göre hizalanır. Roll kontrolü öğrenme probleminden mümkün olduğunca ayrıştırılmaya çalışılmıştır.
+Python bu üç değeri mevcut roket burnundan türetilen bir bakış yönüne ve bu yönde pozitif ivmeye çevirir. Hedef yönü state içinde ajana verilir, fakat action wrapper artık hedefe otomatik kilitlenmez. Unity roket burnunu komut edilen bakış yönüne hizalar ve yan/geri kaymayı yumuşatır.
+
+v15.1.11 ile sağ-sol direksiyon ve yukarı direksiyon katsayıları ayrıdır. Sağ-sol aim offset `0.75`, yukarı aim offset `1.85`, ileri ivme bandı `20-55` olarak kullanılır; amaç fazla sağ-sol salınımı azaltıp dikey bileşeni korumaktır. Unity direct bakış dönüş hızı `420 deg/s`, yan hız söndürme karışımı `0.10`, direct hız limiti `140` değerinde tutulur.
 
 ## Unity - Python Akışı
 
@@ -130,6 +157,39 @@ success_alignment = 0.90
 success_min_closing = 0.0
 ```
 
+## Güncel Reward Tasarımı
+
+v15.1.3 ile önceki karmaşık dense reward bileşenleri kaldırıldı. Bu denemenin amacı reward hacking riskini azaltıp ajana yalnızca temel güdüm sinyallerini vermektir.
+
+Aktif reward:
+
+```text
+reward =
+  step_penalty
+  + distance_progress_reward
+  + alignment_reward
+  + closing_reward
+  + terminal_reward
+```
+
+Anlamları:
+
+- `step_penalty`: gereksiz uzayan episode için küçük zaman maliyeti.
+- `distance_progress_reward`: bir önceki step'e göre hedefe yaklaşmayı ödüllendirir, uzaklaşmayı cezalandırır.
+- `alignment_reward`: roketin hedef görüş hattına dönük olmasını ödüllendirir.
+- `closing_reward`: hedefe doğru pozitif kapanma hızını ödüllendirir.
+- `terminal_reward`: success, collision, low altitude, high altitude, wrong way ve timeout için tek seferlik bitiş ödül/cezası.
+
+Kasıtlı olarak kaldırılan eski bileşenler: yakın başarı bonusları, roll/angular cezaları, thrust gate cezaları, clock action alignment reward'ları, düşük irtifa kaçış bonusları ve çok parçalı açı shaping terimleri.
+
+v15.1.4 ve sonrası ek terminal kuralı:
+
+```text
+step_count > 25 and theta_deg > 110.0 -> done_reason = bad_angle, terminal_reward = -50
+```
+
+Bu kuralın amacı, ajan hedefin yanından geçip açı çok açıldıktan sonra boş yere kaçmayı öğrenmesin diye episode'u erken kesmektir. v15.1.7 ve sonrasında eşik 110 dereceye çekildi ve ilk 25 step için tolerans verildi; böylece ajan ilk manevra aramasında hemen terminal yemeden toparlama deneyebilir.
+
 Türkçe karşılıkları:
 
 - `distance`: hedefe mesafe
@@ -141,6 +201,8 @@ Türkçe karşılıkları:
 - `wrong_way`: hedefe göre ters yönde kalma
 
 ## Son Training Loglarının Yorumu
+
+Bu bölüm reward resetinden önceki `v15.1.2` SAC koşusunu anlatır.
 
 Son koşuda toplam 350 episode incelendi.
 
@@ -240,14 +302,14 @@ Daha önce alınan uzman önerilerinin projedeki karşılığı:
 | HER düşün | Henüz uygulanmadı. |
 | Curriculum adaptif olsun | Henüz tam uygulanmadı. Güncel koşu sabit radius 500. |
 | CNN / egocentric grid representation dene | Henüz uygulanmadı. Mevcut state hâlâ hand-engineered. |
-| Potential-based reward shaping | Henüz tam uygulanmadı; mevcut reward birçok dense bileşen içeriyor. |
+| Potential-based reward shaping | Henüz tam uygulanmadı; v15.1.3'te eski çok parçalı dense reward kaldırılıp basit reward reset denemesi başlatıldı. |
 | Tanh action saturation kontrolü | Kısmen loglanıyor; son davranış hâlâ incelenmeli. |
 
 ## Güncel Hipotez
 
 Mevcut failure mode'un tek bir sebebi kesinleşmiş değildir. En güçlü hipotezler:
 
-1. Reward mesafe azaltmayı erken aşamada fazla ödüllendiriyor, ama hedefi geçip kötü açıyla uzaklaşmayı yeterince erken cezalandırmıyor.
+1. Önceki reward tasarımında reward hacking riski vardı; v15.1.3 bu yüzden hedefe yönelme, hedefe yaklaşma ve kapanma hızı dışında ara sinyalleri kaldıran sade bir deneme olarak başlatıldı.
 2. Terminal log sadece final distance gösterdiği için "en yakın geçiş mesafesi" net görünmüyor. Closest approach metriği episode loguna eklenmeli.
 3. Sabit 500 radius, sıfırdan SAC için fazla sert olabilir. Önce daha küçük ama gerçek güdüm gerektiren radius bandında davranışı oturtmak gerekebilir.
 4. State representation elle tasarlanmış olduğu için angle wrapping, frame dönüşümü veya normalizasyon hataları policy'yi yanıltıyor olabilir.
@@ -269,7 +331,7 @@ ads_ai/Assets/Scripts/Connector.cs
 Özellikle incelenmesi gereken başlıklar:
 
 - `scripts/env.py` içindeki reward bileşenleri ve terminal koşulları
-- `guidance_accel` action dönüşümü
+- `direct_accel` öğrenilen direksiyon action dönüşümü
 - Unity tarafında direct acceleration uygulaması
 - Hedef / roket frame dönüşümleri
 - `theta`, `alignment`, `closing_speed`, `alpha`, `beta` tanımlarının tutarlılığı
@@ -281,7 +343,16 @@ ads_ai/Assets/Scripts/Connector.cs
 
 Kod tarafında büyük mimari değişiklik yapmadan önce şu küçük ve ölçülebilir adımlar önerilir:
 
-1. Episode boyunca en yakın geçişi logla:
+1. SAC training'e başlamadan önce action baseline kontrolü koş:
+
+```text
+conda run -n rl_codes python scripts/action_baseline.py --policy zero --episodes 10
+conda run -n rl_codes python scripts/action_baseline.py --policy random --episodes 10
+```
+
+Bu iki test yüksek success verirse başarı hâlâ action wrapper'dan geliyor demektir. Düşük success verirse SAC training'in gerçekten öğrenme alanı vardır.
+
+2. Episode boyunca en yakın geçişi logla:
 
 ```text
 closest_distance

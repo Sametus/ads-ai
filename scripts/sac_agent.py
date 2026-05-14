@@ -3,6 +3,7 @@ import gzip
 import os
 import pickle
 import re
+import shutil
 
 import numpy as np
 
@@ -59,6 +60,72 @@ class ReplayBuffer:
             "next_states": self.next_states[idx],
             "dones": self.dones[idx],
         }
+
+    def save(self, path, step_id):
+        """Replay buffer'i hizli yuklenebilir tek dosya olarak kaydeder."""
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp_path = f"{path}.tmp"
+        backup_path = f"{path}.bak"
+        with open(tmp_path, "wb") as f:
+            np.savez(
+                f,
+                step=np.asarray([int(step_id)], dtype=np.int64),
+                capacity=np.asarray([self.capacity], dtype=np.int64),
+                ptr=np.asarray([self.ptr], dtype=np.int64),
+                size=np.asarray([self.size], dtype=np.int64),
+                states=self.states,
+                actions=self.actions,
+                rewards=self.rewards,
+                next_states=self.next_states,
+                dones=self.dones,
+            )
+        if os.path.exists(path):
+            try:
+                shutil.copy2(path, backup_path)
+            except OSError:
+                pass
+        os.replace(tmp_path, path)
+
+    def load(self, path):
+        """Kayitli replay buffer varsa yukler ve dosyadaki step'i dondurur."""
+        if not os.path.exists(path):
+            return None
+
+        with np.load(path, allow_pickle=False) as data:
+            saved_capacity = int(data["capacity"][0])
+            saved_size = int(data["size"][0])
+            saved_ptr = int(data["ptr"][0])
+            saved_step = int(data["step"][0])
+
+            arrays = {
+                "states": self.states,
+                "actions": self.actions,
+                "rewards": self.rewards,
+                "next_states": self.next_states,
+                "dones": self.dones,
+            }
+            for key, target in arrays.items():
+                if data[key].shape != target.shape:
+                    raise ValueError(
+                        f"Replay buffer shape uyusmuyor: {key} "
+                        f"dosya={data[key].shape} beklenen={target.shape}"
+                    )
+
+            if saved_capacity != self.capacity:
+                raise ValueError(
+                    f"Replay buffer kapasitesi uyusmuyor: dosya={saved_capacity} "
+                    f"beklenen={self.capacity}"
+                )
+
+            self.states[:] = data["states"]
+            self.actions[:] = data["actions"]
+            self.rewards[:] = data["rewards"]
+            self.next_states[:] = data["next_states"]
+            self.dones[:] = data["dones"]
+            self.ptr = max(0, min(saved_ptr, self.capacity - 1))
+            self.size = max(0, min(saved_size, self.capacity))
+
+        return saved_step
 
 
 class SACAgent:
@@ -260,14 +327,21 @@ class SACAgent:
     def state_path(self, step_id):
         return os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_state_step{step_id}.pkl.gz")
 
+    def replay_buffer_path(self):
+        return os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_replay_buffer.npz")
+
     def latest_checkpoint_step(self):
-        """Aktif SAC prefix'i ile kaydedilmis en son checkpoint step'ini bulur."""
+        """Aktif SAC prefix'i ile kaydedilmis en son egitilmis checkpoint step'ini bulur."""
         pattern = os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_actor_step*.keras")
+        min_trained_step = int(settings.SAC_START_TRAINING_STEPS)
         steps = []
         for path in glob.glob(pattern):
             match = re.search(r"_step(\d+)\.keras$", os.path.basename(path))
-            if match:
-                steps.append(int(match.group(1)))
+            if not match:
+                continue
+            step_id = int(match.group(1))
+            if step_id >= min_trained_step:
+                steps.append(step_id)
         return max(steps) if steps else None
 
     def save_checkpoint(self, step_id):

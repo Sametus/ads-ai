@@ -6,9 +6,9 @@ public class CameraFollow : MonoBehaviour
     public Transform target;
 
     [Header("Dunya Sabit Kamera Offset")]
-    public float distance = 18f;
-    public float height = 10f;
-    public float sideOffset = -18f;
+    public float distance = 14f;
+    public float height = 8f;
+    public float sideOffset = -14f;
 
     [Header("Bakis Ayari")]
     public Vector3 lookOffset = new Vector3(0f, 1.5f, 0f);
@@ -25,11 +25,11 @@ public class CameraFollow : MonoBehaviour
 
     [Header("Kadraji Koru")]
     public bool dynamicZoom = true;
-    public float baseFieldOfView = 46f;
-    public float fastFieldOfView = 62f;
+    public float baseFieldOfView = 40f;
+    public float fastFieldOfView = 54f;
     public float zoomSpeedForFastFov = 110f;
-    public float baseOrthographicSize = 10f;
-    public float fastOrthographicSize = 18f;
+    public float baseOrthographicSize = 7.5f;
+    public float fastOrthographicSize = 13f;
     public float zoomSmoothTime = 0.12f;
 
     private Vector3 positionVelocity = Vector3.zero;

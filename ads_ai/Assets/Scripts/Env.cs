@@ -210,9 +210,9 @@ public class Env : MonoBehaviour
     public float guidanceAccelMaxSpeed = 62f;
     public float guidanceAccelOverspeedBrake = 1.4f;
     public float guidanceAccelLookRateDeg = 360f;
-    public float directLookRateDeg = 720f;
+    public float directLookRateDeg = 500f;
     public bool directZeroAngularVelocity = true;
-    public float directVelocityAlignBlend = 0.18f;
+    public float directVelocityAlignBlend = 0.10f;
     public float directBackwardVelocityDamp = 0.55f;
 
     [Header("Guidance Stabilization")]

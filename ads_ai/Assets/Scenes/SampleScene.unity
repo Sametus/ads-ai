@@ -412,9 +412,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   target: {fileID: 2129727328}
-  distance: 18
-  height: 10
-  sideOffset: -18
+  distance: 14
+  height: 8
+  sideOffset: -14
   lookOffset: {x: 0, y: 1.5, z: 0}
   positionSmoothTime: 0.025
   lookSmoothTime: 0.06
@@ -423,11 +423,11 @@ MonoBehaviour:
   fastPositionSmoothTime: 0.008
   snapDistance: 8
   dynamicZoom: 1
-  baseFieldOfView: 46
-  fastFieldOfView: 62
+  baseFieldOfView: 40
+  fastFieldOfView: 54
   zoomSpeedForFastFov: 110
-  baseOrthographicSize: 10
-  fastOrthographicSize: 18
+  baseOrthographicSize: 7.5
+  fastOrthographicSize: 13
   zoomSmoothTime: 0.12
 --- !u!1 &330585543
 GameObject:
@@ -5703,7 +5703,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.021, z: 0}
-  m_LocalScale: {x: 500, y: 0.02, z: 500}
+  m_LocalScale: {x: 1000, y: 0.02, z: 1000}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -6356,9 +6356,9 @@ MonoBehaviour:
   guidanceAccelMaxSpeed: 62
   guidanceAccelOverspeedBrake: 1.4
   guidanceAccelLookRateDeg: 360
-  directLookRateDeg: 720
+  directLookRateDeg: 500
   directZeroAngularVelocity: 1
-  directVelocityAlignBlend: 0.18
+  directVelocityAlignBlend: 0.10
   directBackwardVelocityDamp: 0.55
   targetHeightOffset: 0
   rollStabilizationGain: 25
@@ -11331,7 +11331,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 100, y: 1, z: 100}
+  m_LocalScale: {x: 200, y: 1, z: 200}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -16257,7 +16257,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.009, z: 0}
-  m_LocalScale: {x: 800, y: 0.02, z: 800}
+  m_LocalScale: {x: 1500, y: 0.02, z: 1500}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}

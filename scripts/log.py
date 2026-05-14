@@ -27,7 +27,7 @@ def _terminal_color(done_reason):
         return YELLOW
     if done_reason == "high_altitude":
         return MAGENTA
-    if done_reason in ["wrong_way", "collision", "timeout"]:
+    if done_reason in ["bad_angle", "wrong_way", "collision", "timeout"]:
         return RED
     if done_reason in ["near_miss", "escaped"]:
         return CYAN

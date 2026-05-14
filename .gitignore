@@ -21,3 +21,7 @@ ads_ai/.vscode/
 /.cursor/
 scripts/__pycache__/
 **/__pycache__/
+
+# Runtime training outputs
+/logs/
+/models/

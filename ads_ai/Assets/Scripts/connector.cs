@@ -47,14 +47,14 @@ public class Connector
 
             waitingForClient = true;
 
-            Debug.Log($"[Connector] Server baþladý: {ip}:{port}");
-            Debug.Log("[Connector] Python baðlantýsý arka planda bekleniyor...");
+            Debug.Log($"[Connector] Server baï¿½ladï¿½: {ip}:{port}");
+            Debug.Log("[Connector] Python baï¿½lantï¿½sï¿½ arka planda bekleniyor...");
 
             _ = AcceptClientAsync();
         }
         catch (Exception e)
         {
-            Debug.LogError($"[Connector] StartServer hatasý: {e.Message}");
+            Debug.LogError($"[Connector] StartServer hatasï¿½: {e.Message}");
             Close();
         }
     }
@@ -72,11 +72,11 @@ public class Connector
             stream = client.GetStream();
             waitingForClient = false;
 
-            Debug.Log("[Connector] Python baðlandý.");
+            Debug.Log("[Connector] Python baï¿½landï¿½.");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[Connector] AcceptClientAsync hatasý: {e.Message}");
+            Debug.LogError($"[Connector] AcceptClientAsync hatasï¿½: {e.Message}");
             waitingForClient = false;
             Close();
         }
@@ -88,7 +88,7 @@ public class Connector
         {
             if (!IsConnected)
             {
-                Debug.LogWarning("[Connector] SendPacket çaðrýldý ama baðlantý yok.");
+                Debug.LogWarning("[Connector] SendPacket ï¿½aï¿½rï¿½ldï¿½ ama baï¿½lantï¿½ yok.");
                 return;
             }
 
@@ -106,7 +106,7 @@ public class Connector
         }
         catch (Exception e)
         {
-            Debug.LogError($"[Connector] SendPacket hatasý: {e.Message}");
+            Debug.LogError($"[Connector] SendPacket hatasï¿½: {e.Message}");
             Close();
         }
     }
@@ -127,15 +127,13 @@ public class Connector
             {
                 Array.Reverse(header);
             }
-
             int msgLen = BitConverter.ToInt32(header, 0);
 
             if (msgLen <= 0 || msgLen > 1024 * 1024)
             {
-                Debug.LogError($"[Connector] Geçersiz mesaj uzunluðu: {msgLen}");
+                Debug.LogError($"[Connector] Geï¿½ersiz mesaj uzunluï¿½u: {msgLen}");
                 return null;
             }
-
             byte[] payload = ReadExact(msgLen);
             if (payload == null) return null;
 
@@ -143,7 +141,7 @@ public class Connector
         }
         catch (Exception e)
         {
-            Debug.LogError($"[Connector] ReadPacket hatasý: {e.Message}");
+            Debug.LogError($"[Connector] ReadPacket hatasï¿½: {e.Message}");
             Close();
             return null;
         }
@@ -162,7 +160,7 @@ public class Connector
 
             if (read == 0)
             {
-                Debug.LogWarning("[Connector] Karþý taraf baðlantýyý kapattý.");
+                Debug.LogWarning("[Connector] Karï¿½ï¿½ taraf baï¿½lantï¿½yï¿½ kapattï¿½.");
                 return null;
             }
 
@@ -183,6 +181,6 @@ public class Connector
         listener = null;
         waitingForClient = false;
 
-        Debug.Log("[Connector] Baðlantý kapatýldý.");
+        Debug.Log("[Connector] Baï¿½lantï¿½ kapatï¿½ldï¿½.");
     }
 }

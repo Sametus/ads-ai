@@ -803,3 +803,113 @@
 > - **Son gözlem**: 350 episode ve 165500 update sonunda success yoktur. Çarpışma problemi giderilmiş görünür; roket daha uzun uçmaktadır. Ancak son episode'larda hedefe yaklaşma davranışı terminal başarıya dönüşmemiş, roket çoğunlukla hedefi geçip ters hizalanma ile `low_agl` bitirmiştir.
 > - **Repo temizliği**: Unity/IDE tarafından üretilen `.csproj`, `.sln`, `.slnx`, `.vscode` dosyaları ve root runtime logları artık git dışında tutulur. Ham runtime logları yerel analiz için korunabilir, fakat repo'ya commit edilmez.
 > - **Handoff amacı**: README, projeyi dışarıdan okuyacak bir uzmana mevcut mimariyi, geçmiş kararları, güncel başarısızlık modunu ve önerilen sonraki inceleme başlıklarını anlatacak şekilde güncellendi.
+
+> ## v15.1.3 - Simple Reward Reset
+>
+> - **Uzman Geri Bildirimi**: Mevcut reward tasarımında reward hacking riski olduğu değerlendirildi. Bu nedenle eski çok parçalı dense reward bileşenleri sıfırlandı.
+> - **Yeni Reward Çekirdeği**: Aktif reward artık sadece küçük step penalty, mesafe ilerlemesi, hedefe hizalanma, pozitif closing speed ve terminal ödül/ceza bileşenlerinden oluşur.
+> - **Kaldırılan Bileşenler**: Yakın başarı bonusları, roll/angular cezaları, thrust gate cezaları, clock action alignment reward'ları, düşük irtifa kaçış bonusları ve çok parçalı açı shaping terimleri aktif runtime'dan çıkarıldı.
+> - **Yeni Prefix/Faz**: Eski reward ile eğitilmiş checkpoint'ler otomatik yüklenmesin diye model prefix'i `sac_v15_1_3_simple_reward_target500_y100`, faz adı `v15_1_3_phase_1_sac_simple_reward_target500_y100` yapıldı.
+> - **Deney Amacı**: Bu sürüm başarı iddiası taşımaz; amaç SAC öğrenmesini en sade hedefe yönelme ve hedefe yaklaşma sinyaliyle yeniden başlatıp logları daha okunur hale getirmektir.
+
+> ## v15.1.4 - 90 Degree Angle Terminal
+>
+> - **Log Gözlemi**: v15.1.3 loglarında hedefe yaklaşma ve closing reward doğru çalışsa da, roket hedefin yanından geçerken `theta` açısı 90 derecenin üstüne çıktıktan sonra hâlâ episode içinde kalabiliyordu.
+> - **Yeni Terminal Kuralı**: `theta_deg > 90.0` olduğunda episode artık `bad_angle` sebebiyle biter ve `bad_angle_penalty=-50` terminal cezası alır.
+> - **Amaç**: Ajanın hedefi geçip kaçma davranışını replay buffer içinde uzun süre toplamaması; kötü açıya giren geçişlerin erken, net ve okunur şekilde cezalandırılması.
+> - **Yeni Prefix/Faz**: Terminal koşulu değiştiği için model prefix'i `sac_v15_1_4_angle90_terminal_target500_y100`, faz adı `v15_1_4_phase_1_sac_angle90_terminal_target500_y100` yapıldı.
+
+> ## v15.1.5 - Direct Target-Look Action Reset
+>
+> - **Action Bulgusu**: `guidance_accel` modunda ajan sadece guidance frame içinde ivme seçiyordu; Unity ise roket burnunu komut edilen yöne değil, çoğunlukla mevcut hız yönüne hizalıyordu. Bu yüzden roket ateşlendikten sonra yan yatıp düşebiliyor ve ajan gerçek bir burun/nişan kontrolü öğrenemiyordu.
+> - **Kontrol Modu Değişikliği**: Aktif runtime `direct_accel` moduna alındı. Ajan artık hedef bakışına sağ/sol ve yukarı/aşağı küçük aim offset ile pozitif ileri ivme şiddeti seçer.
+> - **Hareket Yetkisi**: `DIRECT_ACTION_AIM_OFFSET=0.45`, `DIRECT_ACTION_MIN_ACCEL=18`, `DIRECT_ACTION_MAX_ACCEL=46` yapıldı. Bu değerler roketin hedef hattından tamamen kopmadan manevra yapmasına izin verirken aşırı hızlanmayı azaltır.
+> - **Unity Davranışı**: `direct_accel` paketinde Unity roket burnunu komut edilen bakış yönüne hizalar ve yan/geri kaymayı `DampenDirectSideSlip()` ile yumuşatır. Böylece görsel theta metriği pasif hız yönüne değil, action'ın istediği bakış yönüne daha yakın kalır.
+> - **Yeni Prefix/Faz**: Action semantiği değiştiği için model prefix'i `sac_v15_1_5_direct_target_look_angle90_target500_y100`, faz adı `v15_1_5_phase_1_sac_direct_target_look_angle90_target500_y100` yapıldı.
+
+> ## v15.1.6 - Learned Direct Steering
+>
+> - **Baseline Bulgusu**: v15.1.5 koşusunda ilk episode'lardan itibaren `%100 success` görüldü; `SAC_START_TRAINING_STEPS=8000` öncesinde loss değerleri `0` kaldığı için bu başarı SAC öğrenmesi değil, hedef-bakış action wrapper etkisiydi.
+> - **Action Düzeltmesi**: `direct_accel` korunur, fakat sıfır action artık hedefe otomatik bakmaz. Python `look_dir = rocket_forward + right*a0*offset + up*a1*offset` hesaplar; hedef yönü sadece state içinde kalır.
+> - **Öğrenme Gereksinimi**: Ajan hedefe dönmek için `action[0]` ve `action[1]` direksiyon komutlarını gerçekten öğrenmelidir. Böylece random/sıfır policy'nin hedefi kolayca vurması engellenir.
+> - **Hareket Yetkisi**: Otomatik hedef kilidi kaldırıldığı için direksiyon aralığı `DIRECT_ACTION_AIM_OFFSET=1.60` yapıldı; `DIRECT_ACTION_MIN_ACCEL=18`, `DIRECT_ACTION_MAX_ACCEL=46` korunur.
+> - **Baseline Aracı**: `scripts/action_baseline.py` eklendi. Unity Play moddayken SAC kullanmadan `zero`, `random` veya `forward` action ile kısa episode serileri koşup success'in wrapper'dan mı geldiğini ölçer.
+> - **Baseline Sonucu**: `zero` policy 10/10 episode'da `bad_angle` ile bitti ve `0/10 success` üretti. `random` policy de 10/10 episode'da `bad_angle` ile bitti ve `0/10 success` üretti. Bu sonuç v15.1.6'da otomatik başarı kalmadığını gösterir.
+> - **Yeni Prefix/Faz**: Action semantiği yeniden değiştiği için model prefix'i `sac_v15_1_6_learned_direct_steer_angle90_target500_y100`, faz adı `v15_1_6_phase_1_sac_learned_direct_steer_angle90_target500_y100` yapıldı.
+
+> ## v15.1.7 - Relaxed Bad Angle Terminal
+>
+> - **Log Gözlemi**: v15.1.6'nın ilk koşusunda episode'ların büyük kısmı `bad_angle` ile çok erken bitti. Loss değerleri hâlâ `0` idi çünkü SAC warmup eşiği olan `8000` step'e ulaşılmamıştı; buna rağmen terminal kuralının fazla sert olduğu görüldü.
+> - **Terminal Gevşetmesi**: `bad_angle` eşiği `theta_deg > 90.0` yerine `theta_deg > 110.0` yapıldı. Ayrıca ilk `25` step içinde `bad_angle` terminali devreye girmez.
+> - **Amaç**: Ajanın hedefi tamamen arkasına almadan önce kısa süre toparlama manevrası denemesine izin vermek; fakat uzun süre yanlış yöne kaçan davranışı yine kesmek.
+> - **Checkpoint Ayrımı**: Terminal kuralı değiştiği için model prefix'i `sac_v15_1_7_learned_direct_steer_angle110_grace_target500_y100`, faz adı `v15_1_7_phase_1_sac_learned_direct_steer_angle110_grace_target500_y100` yapıldı.
+> - **Replay Buffer Kaydı**: SAC replay buffer artık checkpoint sırasında `models/<prefix>_replay_buffer.npz` dosyasına kaydedilir ve resume sırasında geri yüklenir. Böylece yarıda kesilen training sadece model ağırlıklarıyla değil, mümkünse deney hafızasıyla da devam eder.
+
+> ## v15.1.8 - Extended Timeout Continuation
+>
+> - **Log Gözlemi**: v15.1.7 son koşusunda episode'lar çoğunlukla `timeout` ile bitiyordu; fakat `step=800` sonunda roket hâlâ hedefe yaklaşıyor ve final mesafe yaklaşık `85-100m` bandında kalıyordu. Bu nedenle timeout erken kesiyor olabilir.
+> - **Timeout Genişletmesi**: Aktif faz `max_step=800` yerine `max_step=1200` kullanır. Böylece hedefe doğru kapanan episode'lara daha fazla zaman tanınır.
+> - **Training Devamı**: `SAC_TOTAL_STEPS=250000` yerine `500000` yapıldı. Mevcut `step250000` checkpoint'inden devam edebilmek için `SAC_MODEL_PREFIX` bilinçli olarak `sac_v15_1_7_learned_direct_steer_angle110_grace_target500_y100` kaldı.
+> - **Yeni Faz Adı**: Faz adı `v15_1_8_phase_1_sac_extended_timeout_angle110_grace_target500_y100` oldu. Bu, loglarda timeout genişletmesini eski koşudan ayırmak içindir; model dosya prefix'i resume için değişmedi.
+
+> ## v15.1.9 - Longer Timeout and 1M Continuation
+>
+> - **Timeout Genişletmesi**: Aktif faz `max_step=1200` yerine `max_step=1600` kullanır. Amaç, hedefe kapanma davranışı sürüyorsa episode'u erken kesmemek.
+> - **Training Tavanı**: `SAC_TOTAL_STEPS=500000` yerine `1000000` yapıldı.
+> - **Checkpoint Devamı**: Mevcut `step250000` checkpoint'inden devam edebilmek için `SAC_MODEL_PREFIX` yine `sac_v15_1_7_learned_direct_steer_angle110_grace_target500_y100` olarak korunur.
+> - **Yeni Faz Adı**: Faz adı `v15_1_9_phase_1_sac_extended_timeout1600_angle110_grace_target500_y100` oldu.
+
+> ## v15.1.10 - Wider Scene Radius and Longer Episode
+>
+> - **Sahne Genişletme**: Unity sahnesi genişletildiği için aktif spawn radius `500 -> 700` yapıldı.
+> - **Daha Uzun Episode**: Roketin hedefe yaklaşma davranışına daha fazla zaman tanımak için `max_step=1600 -> 2400` yapıldı.
+> - **Checkpoint Devamı**: Mevcut öğrenmeyi kullanmak için `SAC_MODEL_PREFIX` yine `sac_v15_1_7_learned_direct_steer_angle110_grace_target500_y100` olarak korunur.
+> - **Yeni Faz Adı**: Faz adı `v15_1_10_phase_1_sac_radius700_timeout2400_angle110_grace_target_y100` oldu.
+
+> ## v15.1.11 - Less Lateral Maneuver and More Up Authority
+>
+> - **Canlı Gözlem**: Roket hedefe yöneliyor fakat fazla sağ-sol manevra yaptığı için hızını koruyamıyor; hedef kendisine doğru gelip geçerken roket zaman kaybediyor.
+> - **Action Yetkisi Ayrımı**: Tek `DIRECT_ACTION_AIM_OFFSET=1.60` yerine sağ-sol ve yukarı direksiyon katsayıları ayrıldı. Yatay/sağ-sol katsayı `DIRECT_ACTION_RIGHT_AIM_OFFSET=0.75`, yukarı katsayı `DIRECT_ACTION_UP_AIM_OFFSET=1.85` yapıldı.
+> - **Unity Direct Sakinleştirme**: `directLookRateDeg=720 -> 420` yapıldı. Roket burnu artık her step daha az sert döner; hedefe giderken sürekli yön değiştirip hız kaybetmesi azaltılmaya çalışılır.
+> - **Yan Hız Kaybı Azaltma**: `directVelocityAlignBlend=0.18 -> 0.10` yapıldı. Fazla sağ-sol kırmada biriken yan hız hâlâ söndürülür, fakat her küçük yön değişiminde hızın aşırı silinmesi azaltılır.
+> - **Replay Buffer Kararı**: Model prefix aynı kaldı ve mevcut checkpoint zincirinden devam edilebilir. Ancak bu sürümde action/fizik ölçeği değiştiği için eski agresif manevra replay buffer'ı otomatik yüklenmez; yeni koşu sırasında buffer yine kaydedilir.
+> - **Yeni Faz Adı**: Faz adı `v15_1_11_phase_1_sac_radius700_less_lateral_more_up_y100` oldu.
+
+> ## v15.1.12 - Slight Less Dawdle Tuning
+>
+> - **Canlı Gözlem**: v15.1.11 sonrası roket hedefe daha iyi yaklaştı, fakat hâlâ hafif oyalanma ve sağ-sol salınım kaldı.
+> - **Hafif Ayar**: Sağ-sol direksiyon katsayısı `0.75 -> 0.68` düşürüldü. Yukarı direksiyon katsayısı `1.85 -> 1.95` yapıldı.
+> - **İleri İvme Tabanı**: Minimum ileri ivme `20 -> 23` yapıldı. Maksimum ivme `55` olarak kaldı; amaç roketi aşırı hızlandırmak değil, düşük action değerlerinde fazla zaman kaybını azaltmaktır.
+> - **Unity Değişmedi**: v15.1.11'deki `directLookRateDeg=420` ve `directVelocityAlignBlend=0.10` korunur.
+> - **Yeni Faz Adı**: Faz adı `v15_1_12_phase_1_sac_radius700_slight_less_dawdle_y100` oldu.
+
+> ## v15.1.13 - More Forward Energy
+>
+> - **Canlı Gözlem**: Roket hedefe güzelce yaklaşıyor ve hedef üstünden geçtikten sonra peşinden gitmeye çalışıyor, fakat hız/enerji yetersiz kaldığı için yetişemiyor.
+> - **İleri İvme Artışı**: `DIRECT_ACTION_MIN_ACCEL=23 -> 30`, `DIRECT_ACTION_MAX_ACCEL=55 -> 72` yapıldı.
+> - **Direksiyon Korundu**: Sağ-sol/yukarı aim offset değerleri korunur (`0.68`, `1.95`). Amaç oluşan takip davranışını bozmak değil, aynı davranışa daha fazla ileri enerji vermektir.
+> - **Unity Hız Limiti**: `directMaxSpeed=140` korunur; bu sürüm ivme bandını artırır ama maksimum hız limitini değiştirmez.
+> - **Yeni Faz Adı**: Faz adı `v15_1_13_phase_1_sac_radius700_more_forward_energy_y100` oldu.
+
+> ## v15.1.14 - Balanced Energy and Angle Hold
+>
+> - **Canlı Gözlem**: v15.1.13 ile roket çok hızlandı; hedef gelmeden yüksek irtifaya kaçtı ve hedef açısını kaybetmeye başladı. Loglarda yakın mesafeye rağmen çoğu bölüm `bad_angle`, bir bölüm de `high_altitude` ile bitti.
+> - **İvme Orta Noktası**: `DIRECT_ACTION_MIN_ACCEL=30 -> 27`, `DIRECT_ACTION_MAX_ACCEL=72 -> 64` yapıldı. Bu değerler v15.1.12'den güçlü, v15.1.13'ten sakin bir ara ayardır.
+> - **Yukarı Otorite Azaltıldı**: `DIRECT_ACTION_UP_AIM_OFFSET=1.95 -> 1.70` yapıldı. Sağ-sol katsayı `0.68` olarak korundu.
+> - **Hız Limiti**: Unity direct hız limiti `directMaxSpeed=140 -> 120` yapıldı. Amaç hedef sonrası takip için hâlâ yeterli hız bırakmak, fakat hedef gelmeden aşırı yükselip açıyı kaybetmeyi azaltmaktır.
+> - **Yeni Faz Adı**: Faz adı `v15_1_14_phase_1_sac_radius700_balanced_energy_angle_hold_y100` oldu.
+
+> ## v15.1.15 - Balanced Energy With More Maneuver
+>
+> - **Canlı Gözlem**: v15.1.14 ile enerji daha dengeli oldu, fakat açı kapanması fazla zayıfladı; manevra otoritesinin biraz geri verilmesi gerekti.
+> - **Manevra Artışı**: Sağ-sol direksiyon katsayısı `0.68 -> 0.74`, yukarı direksiyon katsayısı `1.70 -> 1.82` yapıldı.
+> - **Enerji Korundu**: İleri ivme bandı `27-64`, Unity direct hız limiti `120`, direct bakış dönüş hızı `420 deg/s` ve yan hız söndürme `0.10` olarak korundu.
+> - **Yeni Faz Adı**: Faz adı `v15_1_15_phase_1_sac_radius700_balanced_energy_more_maneuver_y100` oldu.
+
+> ## v15.1.16 - More Maneuver, Slightly Slower
+>
+> - **Canlı Gözlem**: Manevra biraz daha artırılabilir; hız ise çok hafif kısılabilir.
+> - **Manevra Artışı**: Sağ-sol direksiyon katsayısı `0.74 -> 0.82`, yukarı direksiyon katsayısı `1.82 -> 1.90` yapıldı.
+> - **Hafif Hız Kısma**: İleri ivme bandı `27-64 -> 26-61`, Unity direct hız limiti `120 -> 115` yapıldı.
+> - **Korunanlar**: Direct bakış dönüş hızı `420 deg/s` ve yan hız söndürme `0.10` olarak kaldı.
+> - **Yeni Faz Adı**: Faz adı `v15_1_16_phase_1_sac_radius700_more_maneuver_slight_slower_y100` oldu.
