@@ -318,6 +318,7 @@ REWARD_CONFIG = {
     "wrong_way_closing_speed": -8.0,
     "wrong_way_grace_steps": 80,
     "near_miss_distance": 16.0,
+    "hit_success_distance": 5.0,
     "success_distance": 10.0,
     "success_alignment": 0.90,
     "success_min_closing": 0.0,
@@ -331,7 +332,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_1_16_phase_1_sac_final_approach_reward_y100",
+    "name": "v15_1_17_phase_1_sac_physical_hit_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
@@ -935,16 +936,20 @@ class Env:
         terminal_reward = 0.0
         wrong_way_distance_ratio = distance / max(self.reset_distance or distance, 1e-6)
 
-        near_miss_candidate = (
-            distance <= phase["near_miss_distance"]
-            and alignment < phase["success_alignment"]
-        )
-
-        if (
+        physical_hit_success = distance <= phase["hit_success_distance"]
+        guided_success = (
             distance <= phase["success_distance"]
             and alignment >= phase["success_alignment"]
             and closing_speed >= phase["success_min_closing"]
-        ):
+        )
+
+        near_miss_candidate = (
+            distance <= phase["near_miss_distance"]
+            and not physical_hit_success
+            and alignment < phase["success_alignment"]
+        )
+
+        if physical_hit_success or guided_success:
             terminal_reward = phase["success_reward"]
             reward += terminal_reward
             done = True
