@@ -292,19 +292,22 @@ TARGET_VELOCITY = 25.0
 ACTIVE_PHASE_ID = 1
 
 REWARD_CONFIG = {
-    "step_penalty": -0.005,
+    "step_penalty": -0.006,
     "distance_gain": 0.25,
     "distance_progress_scale": 5.0,
-    "alignment_gain": 0.10,
+    "alignment_gain": 0.06,
     "alignment_reward_floor": 0.20,
     "theta_progress_gain": 0.075,
     "theta_regress_penalty_scale": 1.15,
     "theta_progress_scale_deg": 20.0,
-    "closing_gain": 0.08,
+    "closing_gain": 0.09,
     "closing_speed_scale": 80.0,
-    "final_approach_gain": 0.06,
+    "final_approach_gain": 0.20,
     "final_approach_distance": 80.0,
     "final_approach_alignment_floor": 0.70,
+    "final_approach_bad_angle_gain": 0.035,
+    "final_approach_bad_closing_gain": 0.035,
+    "final_approach_bad_progress_gain": 0.035,
     "min_agl": 0.60,
     "low_agl_grace_steps": 80,
     "collision_grace_steps": 8,
@@ -328,7 +331,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_1_14_phase_1_sac_stricter_angle_reward_y100",
+    "name": "v15_1_16_phase_1_sac_final_approach_reward_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
@@ -802,11 +805,30 @@ class Env:
             1.0,
         ))
         final_approach_closing = max(closing_norm, 0.0)
+        final_approach_progress = max(distance_progress, 0.0)
+        final_approach_bad_angle = float(np.clip(
+            (phase["final_approach_alignment_floor"] - alignment)
+            / max(phase["final_approach_alignment_floor"] + 1.0, 1e-6),
+            0.0,
+            1.0,
+        ))
+        final_approach_bad_closing = max(-closing_norm, 0.0)
+        final_approach_bad_progress = max(-distance_progress, 0.0)
         final_approach_reward = float(
             phase["final_approach_gain"]
             * final_approach_proximity
             * final_approach_alignment
             * final_approach_closing
+            * final_approach_progress
+            - phase["final_approach_bad_angle_gain"]
+            * final_approach_proximity
+            * final_approach_bad_angle
+            - phase["final_approach_bad_closing_gain"]
+            * final_approach_proximity
+            * final_approach_bad_closing
+            - phase["final_approach_bad_progress_gain"]
+            * final_approach_proximity
+            * final_approach_bad_progress
         )
 
         reward = (

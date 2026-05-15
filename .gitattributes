@@ -2,4 +2,5 @@ archives/phase_2_2/logs/step_log.csv.gz.part* filter=lfs diff=lfs merge=lfs -tex
 logs/step_log.csv filter=lfs diff=lfs merge=lfs -text
 models/*.keras filter=lfs diff=lfs merge=lfs -text
 models/*.pkl.gz filter=lfs diff=lfs merge=lfs -text
+models/*_replay_buffer.npz filter=lfs diff=lfs merge=lfs -text
 teacher_data/*.npz filter=lfs diff=lfs merge=lfs -text
