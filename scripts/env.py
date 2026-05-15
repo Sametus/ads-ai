@@ -338,6 +338,9 @@ ACTIVE_PHASE_CONFIG = {
     "heading_offset_min": -5.0,
     "heading_offset_max": 5.0,
     "heading_offset_abs_min": 1.0,
+    "balanced_heading_offsets": True,
+    "balanced_heading_offset_order": [1, 2, 3, 4, 5],
+    "balanced_heading_sign_order": [1, -1],
     "max_step": 1200,
 }
 
@@ -369,6 +372,33 @@ def compute_beta_validity(forward_up_dot, phase):
     return float(validity_floor + (1.0 - validity_floor) * (1.0 - smooth))
 
 
+def valid_heading_offsets(
+    heading_offset_min=0.0,
+    heading_offset_max=0.0,
+    heading_offset_abs_min=0.0,
+):
+    heading_min = int(np.ceil(heading_offset_min))
+    heading_max = int(np.floor(heading_offset_max))
+    abs_min = float(max(0.0, heading_offset_abs_min))
+
+    if abs_min > 0.0 and heading_min <= heading_max:
+        candidates = [v for v in range(heading_min, heading_max + 1) if abs(v) >= abs_min]
+        if candidates:
+            return [float(v) for v in candidates]
+
+    return None
+
+
+def loc_from_theta_radius_heading(theta, radius, heading_offset):
+    px = radius * np.cos(theta)
+    pz = radius * np.sin(theta)
+    ry = 180.0
+    base_rz = 90.0 - np.degrees(np.arctan2(pz, px))
+    miss_distance = radius * abs(np.sin(np.radians(heading_offset)))
+    rz = base_rz + heading_offset
+    return px, pz, ry, rz, heading_offset, miss_distance
+
+
 def calculate_new_loc(
     radius_min,
     radius_max,
@@ -378,26 +408,18 @@ def calculate_new_loc(
 ):
     theta = np.random.uniform(0, 2 * np.pi)
     radius = np.random.uniform(radius_min, radius_max)
-    px = radius * np.cos(theta)
-    pz = radius * np.sin(theta)
-    ry = 180.0
-    base_rz = 90.0 - np.degrees(np.arctan2(pz, px))
 
-    heading_min = int(np.ceil(heading_offset_min))
-    heading_max = int(np.floor(heading_offset_max))
-    abs_min = float(max(0.0, heading_offset_abs_min))
-    if abs_min > 0.0 and heading_min <= heading_max:
-        candidates = [v for v in range(heading_min, heading_max + 1) if abs(v) >= abs_min]
-        if candidates:
-            heading_offset = float(np.random.choice(candidates))
-        else:
-            heading_offset = np.random.uniform(heading_offset_min, heading_offset_max)
+    candidates = valid_heading_offsets(
+        heading_offset_min,
+        heading_offset_max,
+        heading_offset_abs_min,
+    )
+    if candidates:
+        heading_offset = float(np.random.choice(candidates))
     else:
         heading_offset = np.random.uniform(heading_offset_min, heading_offset_max)
 
-    miss_distance = radius * abs(np.sin(np.radians(heading_offset)))
-    rz = base_rz + heading_offset
-    return px, pz, ry, rz, heading_offset, miss_distance
+    return loc_from_theta_radius_heading(theta, radius, heading_offset)
 
 
 def flatten_telemetry(telemetry):
@@ -441,6 +463,8 @@ class Env:
         self.prev_agl = None
         self.last_raw_state = None
         self.last_action_info = {}
+        self._balanced_heading_index = 0
+        self._balanced_heading_pair = None
 
     # STATE
 
@@ -642,14 +666,80 @@ class Env:
     # RESET
     # ------------------------------------------------------------------
 
-    def reset(self):
-        px, pz, ry, rz, heading_offset, target_miss_distance = calculate_new_loc(
-            self.phase["spawn_radius_min"],
-            self.phase["spawn_radius_max"],
+    def _balanced_heading_magnitudes(self):
+        candidates = valid_heading_offsets(
             self.phase["heading_offset_min"],
             self.phase["heading_offset_max"],
             self.phase.get("heading_offset_abs_min", 0.0),
         )
+        if not candidates:
+            return []
+
+        available = {int(abs(value)) for value in candidates if abs(value) > 0.0}
+        configured = self.phase.get("balanced_heading_offset_order")
+        if configured:
+            ordered = [int(abs(value)) for value in configured if int(abs(value)) in available]
+            if ordered:
+                return ordered
+
+        return sorted(available)
+
+    def _next_balanced_heading_loc(self):
+        magnitudes = self._balanced_heading_magnitudes()
+        sign_order = [int(np.sign(value)) for value in self.phase.get("balanced_heading_sign_order", [1, -1])]
+        sign_order = [value for value in sign_order if value != 0]
+
+        if not magnitudes or not sign_order:
+            return calculate_new_loc(
+                self.phase["spawn_radius_min"],
+                self.phase["spawn_radius_max"],
+                self.phase["heading_offset_min"],
+                self.phase["heading_offset_max"],
+                self.phase.get("heading_offset_abs_min", 0.0),
+            )
+
+        pair_size = len(sign_order)
+        sequence_index = self._balanced_heading_index
+        magnitude = magnitudes[(sequence_index // pair_size) % len(magnitudes)]
+        sign = sign_order[sequence_index % pair_size]
+        self._balanced_heading_index = (self._balanced_heading_index + 1) % (len(magnitudes) * pair_size)
+
+        if sequence_index % pair_size == 0 or not self._balanced_heading_pair:
+            self._balanced_heading_pair = {
+                "magnitude": magnitude,
+                "theta": np.random.uniform(0, 2 * np.pi),
+                "radius": np.random.uniform(
+                    self.phase["spawn_radius_min"],
+                    self.phase["spawn_radius_max"],
+                ),
+            }
+
+        pair = self._balanced_heading_pair
+        if pair.get("magnitude") != magnitude:
+            pair = {
+                "magnitude": magnitude,
+                "theta": np.random.uniform(0, 2 * np.pi),
+                "radius": np.random.uniform(
+                    self.phase["spawn_radius_min"],
+                    self.phase["spawn_radius_max"],
+                ),
+            }
+            self._balanced_heading_pair = pair
+
+        heading_offset = float(sign * magnitude)
+        return loc_from_theta_radius_heading(pair["theta"], pair["radius"], heading_offset)
+
+    def reset(self):
+        if self.phase.get("balanced_heading_offsets", False):
+            px, pz, ry, rz, heading_offset, target_miss_distance = self._next_balanced_heading_loc()
+        else:
+            px, pz, ry, rz, heading_offset, target_miss_distance = calculate_new_loc(
+                self.phase["spawn_radius_min"],
+                self.phase["spawn_radius_max"],
+                self.phase["heading_offset_min"],
+                self.phase["heading_offset_max"],
+                self.phase.get("heading_offset_abs_min", 0.0),
+            )
         py = float(self.phase.get("target_y", 50.0))
 
         return self._send_reset_values(px, py, pz, ry, rz, heading_offset, target_miss_distance)
