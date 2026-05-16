@@ -160,6 +160,10 @@ PYTHON_STEP_LOG_KEYS = [
     "action_logp",
     "value_pred",
     "action_source",
+    "lead_time",
+    "lead_distance",
+    "lead_alignment",
+    "final_approach_aim_alignment",
     "action_norm_0",
     "action_norm_1",
     "action_norm_2",
@@ -181,6 +185,7 @@ REWARD_BREAKDOWN_KEYS = [
     "reward_alignment",
     "reward_theta_progress",
     "reward_closing",
+    "reward_lead_alignment",
     "reward_final_approach",
     "reward_terminal",
 ]
@@ -302,9 +307,16 @@ REWARD_CONFIG = {
     "theta_progress_scale_deg": 20.0,
     "closing_gain": 0.09,
     "closing_speed_scale": 80.0,
+    "lead_time_min": 0.20,
+    "lead_time_max": 1.20,
+    "lead_time_distance_scale": 180.0,
+    "lead_reward_distance": 140.0,
+    "lead_alignment_gain": 0.035,
+    "lead_alignment_reward_floor": 0.20,
     "final_approach_gain": 0.27,
     "final_approach_distance": 80.0,
     "final_approach_alignment_floor": 0.70,
+    "final_approach_lead_blend": 0.65,
     "final_approach_bad_angle_gain": 0.045,
     "final_approach_bad_closing_gain": 0.045,
     "final_approach_bad_progress_gain": 0.045,
@@ -318,8 +330,8 @@ REWARD_CONFIG = {
     "wrong_way_closing_speed": -8.0,
     "wrong_way_grace_steps": 80,
     "missed_intercept_distance": 16.0,
-    "missed_intercept_recede_distance": 2.0,
-    "missed_intercept_closing_speed": -1.0,
+    "missed_intercept_recede_distance": 5.0,
+    "missed_intercept_closing_speed": -4.0,
     "near_miss_distance": 16.0,
     "hit_success_distance": 5.0,
     "success_distance": 10.0,
@@ -336,7 +348,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_1_20_phase_1_sac_missed_intercept_y100",
+    "name": "v15_1_22_phase_1_sac_lead_loose_missed_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
@@ -847,8 +859,25 @@ class Env:
             self._telemetry_vec(telemetry, "guidance_forward_world"),
             np.array([0.0, 0.0, 1.0]),
         )
-        rel_dir_world = self._safe_unit(self._telemetry_vec(telemetry, "rel_pos_world"), guidance_forward)
-        rocket_toward_target = float(np.dot(self._telemetry_vec(telemetry, "rocket_vel_world"), rel_dir_world))
+        rel_pos_world = self._telemetry_vec(telemetry, "rel_pos_world")
+        target_vel_world = self._telemetry_vec(telemetry, "target_vel_world")
+        rocket_vel_world = self._telemetry_vec(telemetry, "rocket_vel_world")
+        rel_dir_world = self._safe_unit(rel_pos_world, guidance_forward)
+        rocket_forward_world = self._safe_unit(
+            self._telemetry_vec(telemetry, "rocket_point_forward_world"),
+            guidance_forward,
+        )
+        rocket_toward_target = float(np.dot(rocket_vel_world, rel_dir_world))
+
+        lead_time = float(np.clip(
+            distance / max(phase["lead_time_distance_scale"], 1e-6),
+            phase["lead_time_min"],
+            phase["lead_time_max"],
+        ))
+        lead_rel_pos = rel_pos_world + (target_vel_world * lead_time)
+        lead_distance = float(np.linalg.norm(lead_rel_pos))
+        lead_dir_world = self._safe_unit(lead_rel_pos, rel_dir_world)
+        lead_alignment = float(np.dot(rocket_forward_world, lead_dir_world))
 
         prev_distance = distance if self.prev_distance is None else self.prev_distance
         delta_distance = float(np.clip(
@@ -874,6 +903,25 @@ class Env:
             alignment_reward = 0.0
         else:
             alignment_reward = alignment_base_reward
+
+        lead_reward_proximity = float(np.clip(
+            1.0 - (distance / max(phase["lead_reward_distance"], 1e-6)),
+            0.0,
+            1.0,
+        ))
+        lead_alignment_base_reward = float(
+            phase["lead_alignment_gain"]
+            * lead_reward_proximity
+            * (lead_alignment - phase["lead_alignment_reward_floor"])
+        )
+        if (
+            lead_alignment_base_reward > 0.0
+            and (closing_speed <= 0.0 or delta_distance <= 0.0 or rocket_toward_target <= 0.0)
+        ):
+            lead_alignment_reward = 0.0
+        else:
+            lead_alignment_reward = lead_alignment_base_reward
+
         prev_theta = theta_deg if self.prev_theta is None else self.prev_theta
         delta_theta_deg = float(np.clip(
             prev_theta - theta_deg,
@@ -895,8 +943,12 @@ class Env:
             0.0,
             1.0,
         ))
+        lead_blend = float(np.clip(phase["final_approach_lead_blend"], 0.0, 1.0))
+        final_approach_aim_alignment = float(
+            ((1.0 - lead_blend) * alignment) + (lead_blend * lead_alignment)
+        )
         final_approach_alignment = float(np.clip(
-            (alignment - phase["final_approach_alignment_floor"])
+            (final_approach_aim_alignment - phase["final_approach_alignment_floor"])
             / max(1.0 - phase["final_approach_alignment_floor"], 1e-6),
             0.0,
             1.0,
@@ -904,7 +956,7 @@ class Env:
         final_approach_closing = max(closing_norm, 0.0)
         final_approach_progress = max(distance_progress, 0.0)
         final_approach_bad_angle = float(np.clip(
-            (phase["final_approach_alignment_floor"] - alignment)
+            (phase["final_approach_alignment_floor"] - final_approach_aim_alignment)
             / max(phase["final_approach_alignment_floor"] + 1.0, 1e-6),
             0.0,
             1.0,
@@ -934,6 +986,7 @@ class Env:
             + alignment_reward
             + theta_progress_reward
             + closing_reward
+            + lead_alignment_reward
             + final_approach_reward
         )
         done = False
@@ -1027,6 +1080,10 @@ class Env:
             "alt_error": float(alt_error),
             "closing_speed": float(closing_speed),
             "alignment": float(alignment),
+            "lead_time": float(lead_time),
+            "lead_distance": float(lead_distance),
+            "lead_alignment": float(lead_alignment),
+            "final_approach_aim_alignment": float(final_approach_aim_alignment),
             "theta_rad": float(theta_rad),
             "theta_deg": float(theta_deg),
             "alpha_rad": float(alpha_rad),
@@ -1040,6 +1097,7 @@ class Env:
             "reward_alignment": float(alignment_reward),
             "reward_theta_progress": float(theta_progress_reward),
             "reward_closing": float(closing_reward),
+            "reward_lead_alignment": float(lead_alignment_reward),
             "reward_final_approach": float(final_approach_reward),
             "reward_terminal": float(terminal_reward),
             "near_miss_candidate": 1.0 if near_miss_candidate else 0.0,
@@ -1089,6 +1147,10 @@ class Env:
         info["ang_vel_mag"] = reward_info["ang_vel_mag"]
         info["closing_speed"] = reward_info["closing_speed"]
         info["delta_distance"] = reward_info["delta_distance"]
+        info["lead_time"] = reward_info["lead_time"]
+        info["lead_distance"] = reward_info["lead_distance"]
+        info["lead_alignment"] = reward_info["lead_alignment"]
+        info["final_approach_aim_alignment"] = reward_info["final_approach_aim_alignment"]
         info["theta_rad"] = reward_info["theta_rad"]
         info["theta_deg"] = reward_info["theta_deg"]
         info["alpha_rad"] = reward_info["alpha_rad"]
@@ -1174,6 +1236,10 @@ class Env:
         info["ang_vel_mag"] = reward_info["ang_vel_mag"]
         info["closing_speed"] = reward_info["closing_speed"]
         info["delta_distance"] = reward_info["delta_distance"]
+        info["lead_time"] = reward_info["lead_time"]
+        info["lead_distance"] = reward_info["lead_distance"]
+        info["lead_alignment"] = reward_info["lead_alignment"]
+        info["final_approach_aim_alignment"] = reward_info["final_approach_aim_alignment"]
         info["theta_rad"] = reward_info["theta_rad"]
         info["theta_deg"] = reward_info["theta_deg"]
         info["alpha_rad"] = reward_info["alpha_rad"]
