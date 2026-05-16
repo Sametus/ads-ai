@@ -87,6 +87,11 @@ public class OutgoingTelemetryData
     public float[] target_point_pos_world = new float[3];
     public float[] target_point_forward_world = new float[3];
     public float[] target_point_up_world = new float[3];
+    public float[] aim_point_pos_world = new float[3];
+    public float[] aim_rel_pos_world = new float[3];
+    public float[] aim_rel_dir_world = new float[3];
+    public float[] target_rel_pos_world = new float[3];
+    public float[] target_rel_dir_world = new float[3];
     public float[] target_vel_world = new float[3];
     public float[] target_vel_in_rocket_local = new float[3];
     public float[] target_ang_vel_world = new float[3];
@@ -126,6 +131,15 @@ public class OutgoingTelemetryData
     public float[] applied_turn_local = new float[3];
 
     public float target_speed;
+    public float aim_lead_time;
+    public float aim_distance;
+    public float target_distance;
+    public float target_closing_speed;
+    public float target_theta_deg;
+    public float target_alignment;
+    public float target_hit_trigger;
+    public float target_hit_ellipsoid;
+    public float target_hit_ellipsoid_value;
     public float roll_error_deg;
     public float beta_validity;
     public float clock_validity;
@@ -157,6 +171,23 @@ public class OutgoingPacket
     public int step_id;
     public OutgoingStateData states;
     public OutgoingTelemetryData telemetry;
+}
+
+public class TargetHitTriggerRelay : MonoBehaviour
+{
+    public Env owner;
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (owner != null)
+            owner.NotifyTargetHit(other);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (owner != null)
+            owner.NotifyTargetHit(other);
+    }
 }
 
 public class Env : MonoBehaviour
@@ -239,6 +270,25 @@ public class Env : MonoBehaviour
     [Header("Target Motion")]
     public float targetSpeed = 25f;
 
+    [Header("V16 Lead Aim Point")]
+    public bool useLeadAimPointState = true;
+    public bool showLeadAimPoint = true;
+    public float leadAimTimeMin = 0.20f;
+    public float leadAimTimeMax = 1.20f;
+    public float leadAimDistanceScale = 180f;
+    public float aimPointVisualRadius = 0.75f;
+    public float aimLineWidth = 0.10f;
+    public Color aimPointColor = new Color(0.25f, 0.85f, 1.0f, 0.65f);
+    public Color aimLineColor = new Color(0.25f, 0.85f, 1.0f, 0.45f);
+
+    [Header("V16 Target Hit Volume")]
+    public bool useTargetHitEllipsoid = true;
+    public bool showTargetHitEllipsoid = true;
+    public float targetHitRadiusRight = 5.0f;
+    public float targetHitRadiusUp = 3.0f;
+    public float targetHitRadiusForward = 8.0f;
+    public Color targetHitColor = new Color(1.0f, 0.36f, 0.25f, 0.18f);
+
     [Header("Ground / Collision")]
     public LayerMask groundMask = ~0;
     public float groundRayMax = 180f;
@@ -273,6 +323,15 @@ public class Env : MonoBehaviour
     private float fixedTargetRotX;
     private Vector3 targetMoveDir = Vector3.zero;
     private Vector3 cachedGuidanceForward = Vector3.forward;
+    private Transform aimPointVisual;
+    private LineRenderer aimPointLine;
+    private GameObject targetHitEllipsoidObject;
+    private MeshCollider targetHitEllipsoidCollider;
+    private MeshRenderer targetHitEllipsoidRenderer;
+    private Vector3 lastAimPointWorld = Vector3.zero;
+    private float lastAimLeadTime = 0f;
+    private bool targetHitThisEpisode = false;
+    private bool targetHitThisStep = false;
     private Vector3 lastAppliedTurnWorld = Vector3.zero;
     private Vector3 lastAppliedTurnLocal = Vector3.zero;
     private Vector3 lastThrustWorld = Vector3.zero;
@@ -303,6 +362,8 @@ public class Env : MonoBehaviour
         fixedTargetRotX = target.eulerAngles.x;
         ResetGuidanceCache();
         ConfigureParticleFX();
+        EnsureV16AimAndHitObjects();
+        UpdateAimPointVisuals();
 
 #if UNITY_6000_0_OR_NEWER
         Physics.simulationMode = SimulationMode.Script;
@@ -475,13 +536,21 @@ public class Env : MonoBehaviour
     private void StepOnce()
     {
         localStepCount += 1;
+        targetHitThisStep = false;
 
         MoveTarget();
+        UpdateAimPointVisuals();
         ApplyAction();
         UpdateParticleFX();
 
         Physics.Simulate(Time.fixedDeltaTime);
+        if (IsRocketInsideTargetHitEllipsoid(out _))
+        {
+            targetHitThisEpisode = true;
+            targetHitThisStep = true;
+        }
         SuppressRollRate();
+        UpdateAimPointVisuals();
         UpdateDebugLines();
         SendStateToPython();
     }
@@ -499,7 +568,7 @@ public class Env : MonoBehaviour
         lastThrustWorld = rocketPoint.forward * currentThrust * thrustScale;
         rocketRb.AddForce(lastThrustWorld, ForceMode.Force);
 
-        BuildGuidanceFrame(targetPoint.position - rocketPoint.position, out Vector3 upRefWorld, out Vector3 rightRefWorld, out Vector3 forwardRefWorld);
+        BuildGuidanceFrame(GetStateAimPointWorld() - rocketPoint.position, out Vector3 upRefWorld, out Vector3 rightRefWorld, out Vector3 forwardRefWorld);
         BuildClockFrame(out Vector3 clock12World, out Vector3 clock3World, out Vector3 clockForwardWorld, out float clockValidity);
         float forwardUpDot = Vector3.Dot(clockForwardWorld, upRefWorld);
         float betaValidity = ComputeBetaValidity(forwardUpDot);
@@ -823,6 +892,8 @@ public class Env : MonoBehaviour
         float targetRotZ = resetValues[4];
 
         localStepCount = 0;
+        targetHitThisEpisode = false;
+        targetHitThisStep = false;
 
         target.position = new Vector3(targetPosX, targetPosY, targetPosZ);
         target.eulerAngles = new Vector3(targetRotX, targetRotY, targetRotZ);
@@ -864,6 +935,7 @@ public class Env : MonoBehaviour
         float headingRad = targetRotZ * Mathf.Deg2Rad;
         targetMoveDir = new Vector3(-Mathf.Sin(headingRad), 0f, -Mathf.Cos(headingRad)).normalized;
         ResetGuidanceCache();
+        UpdateAimPointVisuals();
 
         if (rocketExhaustFx != null)
             rocketExhaustFx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
@@ -944,7 +1016,7 @@ public class Env : MonoBehaviour
         Vector3 fallbackForward = ProjectOnPlaneNormalized(rocketPoint.forward, upRefWorld);
 
         if (fallbackForward.sqrMagnitude <= 1e-8f)
-            fallbackForward = ProjectOnPlaneNormalized(targetPoint.position - rocketPoint.position, upRefWorld);
+            fallbackForward = ProjectOnPlaneNormalized(GetStateAimPointWorld() - rocketPoint.position, upRefWorld);
 
         if (fallbackForward.sqrMagnitude <= 1e-8f)
             fallbackForward = Vector3.forward;
@@ -1007,7 +1079,7 @@ public class Env : MonoBehaviour
             // Roket tam dikken gravity-up, burun eksenine paralel olur ve clock-12 tanimsiz kalir.
             // Bu durumda roketin roll'e bagli yan ekseni yerine hedef/cached guidance yonunu kullaniriz.
             // Boylece silindirik govde uzerindeki keyfi "saat 12" secimi hedefe gore kararlı kalir.
-            Vector3 targetBearingFallback = ProjectOnPlaneNormalized(targetPoint.position - rocketPoint.position, clockForwardWorld);
+            Vector3 targetBearingFallback = ProjectOnPlaneNormalized(GetStateAimPointWorld() - rocketPoint.position, clockForwardWorld);
             Vector3 cachedFallback = ProjectOnPlaneNormalized(cachedGuidanceForward, clockForwardWorld);
             clock12World = targetBearingFallback.sqrMagnitude > 1e-8f ? targetBearingFallback : cachedFallback;
         }
@@ -1056,29 +1128,230 @@ public class Env : MonoBehaviour
         return betaValidityFloor + ((1f - betaValidityFloor) * (1f - smooth));
     }
 
+    private Vector3 GetTargetVelocityWorld()
+    {
+        return targetMoveDir.sqrMagnitude > 1e-6f
+            ? targetMoveDir * targetSpeed
+            : Vector3.zero;
+    }
+
+    private float ComputeLeadAimTime(float targetDistance)
+    {
+        if (!useLeadAimPointState)
+            return 0f;
+
+        float scale = Mathf.Max(leadAimDistanceScale, 1e-6f);
+        return Mathf.Clamp(targetDistance / scale, leadAimTimeMin, leadAimTimeMax);
+    }
+
+    private Vector3 ComputeAimPointWorld(Vector3 targetVelWorld, out float leadTime)
+    {
+        Vector3 targetCenter = targetPoint != null ? targetPoint.position : Vector3.zero;
+        float targetDistance = rocketPoint != null ? Vector3.Distance(targetCenter, rocketPoint.position) : 0f;
+        leadTime = ComputeLeadAimTime(targetDistance);
+
+        if (!useLeadAimPointState)
+            return targetCenter;
+
+        return targetCenter + (targetVelWorld * leadTime);
+    }
+
+    private Vector3 GetStateAimPointWorld()
+    {
+        return ComputeAimPointWorld(GetTargetVelocityWorld(), out _);
+    }
+
+    private void EnsureV16AimAndHitObjects()
+    {
+        if (rocketPoint == null || targetPoint == null)
+            return;
+
+        if (aimPointVisual == null)
+        {
+            GameObject aimObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            aimObject.name = "V16_AimPoint";
+            Collider aimCollider = aimObject.GetComponent<Collider>();
+            if (aimCollider != null)
+                Destroy(aimCollider);
+
+            Renderer aimRenderer = aimObject.GetComponent<Renderer>();
+            if (aimRenderer != null)
+                aimRenderer.material = BuildRuntimeMaterial(aimPointColor);
+
+            aimPointVisual = aimObject.transform;
+        }
+
+        if (aimPointLine == null)
+        {
+            GameObject lineObject = new GameObject("V16_RocketToAimPointLine");
+            aimPointLine = lineObject.AddComponent<LineRenderer>();
+            aimPointLine.useWorldSpace = true;
+            aimPointLine.positionCount = 2;
+            aimPointLine.startWidth = aimLineWidth;
+            aimPointLine.endWidth = aimLineWidth;
+            aimPointLine.material = BuildRuntimeMaterial(aimLineColor);
+        }
+
+        if (targetHitEllipsoidObject == null)
+        {
+            targetHitEllipsoidObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            targetHitEllipsoidObject.name = "V16_TargetHitEllipsoid";
+            targetHitEllipsoidObject.transform.SetParent(targetPoint, false);
+            targetHitEllipsoidObject.transform.localPosition = Vector3.zero;
+            targetHitEllipsoidObject.transform.localRotation = Quaternion.identity;
+
+            SphereCollider sphereCollider = targetHitEllipsoidObject.GetComponent<SphereCollider>();
+            if (sphereCollider != null)
+                Destroy(sphereCollider);
+
+            MeshFilter meshFilter = targetHitEllipsoidObject.GetComponent<MeshFilter>();
+            targetHitEllipsoidCollider = targetHitEllipsoidObject.AddComponent<MeshCollider>();
+            if (meshFilter != null)
+                targetHitEllipsoidCollider.sharedMesh = meshFilter.sharedMesh;
+            targetHitEllipsoidCollider.convex = true;
+            targetHitEllipsoidCollider.isTrigger = true;
+
+            TargetHitTriggerRelay relay = targetHitEllipsoidObject.AddComponent<TargetHitTriggerRelay>();
+            relay.owner = this;
+
+            targetHitEllipsoidRenderer = targetHitEllipsoidObject.GetComponent<MeshRenderer>();
+            if (targetHitEllipsoidRenderer != null)
+                targetHitEllipsoidRenderer.material = BuildRuntimeMaterial(targetHitColor);
+        }
+
+        UpdateHitEllipsoidObject();
+    }
+
+    private Material BuildRuntimeMaterial(Color color)
+    {
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader == null)
+            shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null)
+            shader = Shader.Find("Standard");
+
+        Material material = new Material(shader);
+        material.color = color;
+        return material;
+    }
+
+    private void UpdateAimPointVisuals()
+    {
+        EnsureV16AimAndHitObjects();
+
+        Vector3 targetVelWorld = GetTargetVelocityWorld();
+        lastAimPointWorld = ComputeAimPointWorld(targetVelWorld, out lastAimLeadTime);
+
+        if (aimPointVisual != null)
+        {
+            aimPointVisual.gameObject.SetActive(showLeadAimPoint);
+            aimPointVisual.position = lastAimPointWorld;
+            float diameter = Mathf.Max(0.05f, aimPointVisualRadius * 2f);
+            aimPointVisual.localScale = Vector3.one * diameter;
+        }
+
+        if (aimPointLine != null)
+        {
+            aimPointLine.gameObject.SetActive(showLeadAimPoint);
+            aimPointLine.startWidth = aimLineWidth;
+            aimPointLine.endWidth = aimLineWidth;
+            aimPointLine.SetPosition(0, rocketPoint.position);
+            aimPointLine.SetPosition(1, lastAimPointWorld);
+        }
+
+        UpdateHitEllipsoidObject();
+    }
+
+    private void UpdateHitEllipsoidObject()
+    {
+        if (targetHitEllipsoidObject == null)
+            return;
+
+        targetHitEllipsoidObject.transform.localPosition = Vector3.zero;
+        targetHitEllipsoidObject.transform.localRotation = Quaternion.identity;
+        targetHitEllipsoidObject.transform.localScale = new Vector3(
+            Mathf.Max(0.05f, targetHitRadiusRight * 2f),
+            Mathf.Max(0.05f, targetHitRadiusUp * 2f),
+            Mathf.Max(0.05f, targetHitRadiusForward * 2f)
+        );
+
+        if (targetHitEllipsoidCollider != null)
+            targetHitEllipsoidCollider.enabled = useTargetHitEllipsoid;
+
+        if (targetHitEllipsoidRenderer != null)
+            targetHitEllipsoidRenderer.enabled = showTargetHitEllipsoid;
+    }
+
+    private bool IsRocketInsideTargetHitEllipsoid(out float ellipsoidValue)
+    {
+        ellipsoidValue = float.PositiveInfinity;
+
+        if (!useTargetHitEllipsoid || targetPoint == null || rocketPoint == null)
+            return false;
+
+        Vector3 localRocket = targetPoint.InverseTransformPoint(rocketPoint.position);
+        float rightRadius = Mathf.Max(targetHitRadiusRight, 1e-6f);
+        float upRadius = Mathf.Max(targetHitRadiusUp, 1e-6f);
+        float forwardRadius = Mathf.Max(targetHitRadiusForward, 1e-6f);
+
+        float x = localRocket.x / rightRadius;
+        float y = localRocket.y / upRadius;
+        float z = localRocket.z / forwardRadius;
+        ellipsoidValue = (x * x) + (y * y) + (z * z);
+        return ellipsoidValue <= 1f;
+    }
+
+    public void NotifyTargetHit(Collider other)
+    {
+        if (!useTargetHitEllipsoid || other == null || rocket == null)
+            return;
+
+        bool isRocketCollider = other.transform == rocket
+            || other.transform.IsChildOf(rocket)
+            || (rocketRb != null && other.attachedRigidbody == rocketRb);
+
+        if (!isRocketCollider)
+            return;
+
+        targetHitThisEpisode = true;
+        targetHitThisStep = true;
+    }
+
     private OutgoingPacket CollectPacket()
     {
         OutgoingStateData s = new OutgoingStateData();
         OutgoingTelemetryData telemetry = new OutgoingTelemetryData();
 
-        Vector3 relPosWorld = targetPoint.position - rocketPoint.position;
-        float distance = relPosWorld.magnitude;
-        Vector3 relDirWorld = distance > 1e-6f ? relPosWorld / distance : Vector3.zero;
         Vector3 rocketForwardWorld = rocketPoint.forward.normalized;
         Vector3 rocketRightWorld = rocketPoint.right.normalized;
         Vector3 rocketBodyForwardWorld = rocketRb.transform.forward.normalized;
         Vector3 rocketBodyUpWorld = rocketRb.transform.up.normalized;
         Vector3 rocketBodyRightWorld = rocketRb.transform.right.normalized;
 
-        Vector3 targetVelWorld = (targetMoveDir.sqrMagnitude > 1e-6f)
-            ? targetMoveDir * targetSpeed
-            : Vector3.zero;
-
+        Vector3 targetVelWorld = GetTargetVelocityWorld();
         Vector3 rocketVelWorld = rocketRb.linearVelocity;
+        Vector3 targetRelPosWorld = targetPoint.position - rocketPoint.position;
+        float targetDistance = targetRelPosWorld.magnitude;
+        Vector3 targetRelDirWorld = targetDistance > 1e-6f ? targetRelPosWorld / targetDistance : Vector3.zero;
+        Vector3 aimPointWorld = ComputeAimPointWorld(targetVelWorld, out float aimLeadTime);
+        lastAimPointWorld = aimPointWorld;
+        lastAimLeadTime = aimLeadTime;
+
+        Vector3 relPosWorld = aimPointWorld - rocketPoint.position;
+        float distance = relPosWorld.magnitude;
+        Vector3 relDirWorld = distance > 1e-6f ? relPosWorld / distance : Vector3.zero;
         Vector3 relVelWorld = targetVelWorld - rocketVelWorld;
         Vector3 rocketAngVelWorld = rocketRb.angularVelocity;
         Vector3 targetAngVelWorld = targetRb != null ? targetRb.angularVelocity : Vector3.zero;
         Vector3 gravityWorld = Physics.gravity;
+        float targetClosingSpeed = targetDistance > 1e-6f ? -Vector3.Dot(relVelWorld, targetRelDirWorld) : 0f;
+        float targetThetaRad = targetDistance > 1e-6f
+            ? Mathf.Acos(Mathf.Clamp(Vector3.Dot(rocketForwardWorld, targetRelDirWorld), -1f, 1f))
+            : 0f;
+        float targetAlignment = Mathf.Cos(targetThetaRad);
+        bool ellipsoidHit = IsRocketInsideTargetHitEllipsoid(out float targetHitEllipsoidValue);
+        if (ellipsoidHit)
+            targetHitThisEpisode = true;
 
         Vector3 relPosLocal = rocketPoint.InverseTransformDirection(relPosWorld);
         Vector3 relDirLocal = distance > 1e-6f ? rocketPoint.InverseTransformDirection(relDirWorld) : Vector3.zero;
@@ -1206,7 +1479,7 @@ public class Env : MonoBehaviour
         s.forward_up_dot = forwardUpDot;
         bool grounded;
         s.agl = ComputeAGL(out grounded);
-        s.alt_error = targetPoint.position.y - rocketPoint.position.y;
+        s.alt_error = aimPointWorld.y - rocketPoint.position.y;
         s.grounded_flag = grounded ? 1f : 0f;
 
         telemetry.rocket_pos_world = ToFloatArray(rocket.position);
@@ -1230,6 +1503,11 @@ public class Env : MonoBehaviour
         telemetry.target_point_pos_world = ToFloatArray(targetPoint.position);
         telemetry.target_point_forward_world = ToFloatArray(targetPoint.forward);
         telemetry.target_point_up_world = ToFloatArray(targetPoint.up);
+        telemetry.aim_point_pos_world = ToFloatArray(aimPointWorld);
+        telemetry.aim_rel_pos_world = ToFloatArray(relPosWorld);
+        telemetry.aim_rel_dir_world = ToFloatArray(relDirWorld);
+        telemetry.target_rel_pos_world = ToFloatArray(targetRelPosWorld);
+        telemetry.target_rel_dir_world = ToFloatArray(targetRelDirWorld);
         telemetry.target_vel_world = ToFloatArray(targetVelWorld);
         telemetry.target_vel_in_rocket_local = ToFloatArray(targetVelLocal);
         telemetry.target_ang_vel_world = ToFloatArray(targetAngVelWorld);
@@ -1268,6 +1546,15 @@ public class Env : MonoBehaviour
         telemetry.applied_turn_world = ToFloatArray(lastAppliedTurnWorld);
         telemetry.applied_turn_local = ToFloatArray(lastAppliedTurnLocal);
         telemetry.target_speed = targetSpeed;
+        telemetry.aim_lead_time = aimLeadTime;
+        telemetry.aim_distance = distance;
+        telemetry.target_distance = targetDistance;
+        telemetry.target_closing_speed = targetClosingSpeed;
+        telemetry.target_theta_deg = targetThetaRad * Mathf.Rad2Deg;
+        telemetry.target_alignment = targetAlignment;
+        telemetry.target_hit_trigger = targetHitThisEpisode ? 1f : 0f;
+        telemetry.target_hit_ellipsoid = ellipsoidHit ? 1f : 0f;
+        telemetry.target_hit_ellipsoid_value = targetHitEllipsoidValue;
         telemetry.roll_error_deg = rollErrorDeg;
         telemetry.beta_validity = betaValidity;
         telemetry.clock_validity = clockValidity;
@@ -1303,7 +1590,7 @@ public class Env : MonoBehaviour
         if (distanceLine != null)
         {
             distanceLine.SetPosition(0, rocketPoint.position);
-            distanceLine.SetPosition(1, targetPoint.position);
+            distanceLine.SetPosition(1, GetStateAimPointWorld());
         }
 
         if (forwardLine != null)
@@ -1331,7 +1618,7 @@ public class Env : MonoBehaviour
         {
             // Direct mode'da clock eksenleri bilerek cizilmez; onlar roll varmis gibi kafa karistirabiliyor.
             // Burada sadece hedef yonu, istenen look yonu ve uygulanan ivme gosterilir.
-            Vector3 relToTargetDirect = targetPoint.position - rocketPoint.position;
+            Vector3 relToTargetDirect = GetStateAimPointWorld() - rocketPoint.position;
             if (relToTargetDirect.sqrMagnitude > 1e-8f)
                 DrawSoftAuditRay(origin, relToTargetDirect, SoftColor(0.92f, 0.92f, 0.92f), rayDuration);
 
@@ -1348,7 +1635,7 @@ public class Env : MonoBehaviour
         DrawSoftAuditRay(origin, clock12World, SoftColor(0.35f, 0.85f, 0.45f), rayDuration);
         DrawSoftAuditRay(origin, clock3World, SoftColor(0.95f, 0.82f, 0.35f), rayDuration);
 
-        Vector3 relToTarget = targetPoint.position - rocketPoint.position;
+        Vector3 relToTarget = GetStateAimPointWorld() - rocketPoint.position;
         if (relToTarget.sqrMagnitude > 1e-8f)
             DrawSoftAuditRay(origin, relToTarget, SoftColor(0.92f, 0.92f, 0.92f), rayDuration);
 

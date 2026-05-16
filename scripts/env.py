@@ -211,6 +211,11 @@ TELEMETRY_VECTOR_SPECS = [
     ("target_point_pos_world", ("x", "y", "z")),
     ("target_point_forward_world", ("x", "y", "z")),
     ("target_point_up_world", ("x", "y", "z")),
+    ("aim_point_pos_world", ("x", "y", "z")),
+    ("aim_rel_pos_world", ("x", "y", "z")),
+    ("aim_rel_dir_world", ("x", "y", "z")),
+    ("target_rel_pos_world", ("x", "y", "z")),
+    ("target_rel_dir_world", ("x", "y", "z")),
     ("target_vel_world", ("x", "y", "z")),
     ("target_vel_in_rocket_local", ("x", "y", "z")),
     ("target_ang_vel_world", ("x", "y", "z")),
@@ -251,6 +256,15 @@ TELEMETRY_VECTOR_SPECS = [
 
 TELEMETRY_SCALAR_KEYS = [
     "target_speed",
+    "aim_lead_time",
+    "aim_distance",
+    "target_distance",
+    "target_closing_speed",
+    "target_theta_deg",
+    "target_alignment",
+    "target_hit_trigger",
+    "target_hit_ellipsoid",
+    "target_hit_ellipsoid_value",
     "roll_error_deg",
     "beta_validity",
     "target_clock_angle_deg",
@@ -307,16 +321,16 @@ REWARD_CONFIG = {
     "theta_progress_scale_deg": 20.0,
     "closing_gain": 0.09,
     "closing_speed_scale": 80.0,
-    "lead_time_min": 0.20,
-    "lead_time_max": 1.20,
-    "lead_time_distance_scale": 180.0,
-    "lead_reward_distance": 140.0,
-    "lead_alignment_gain": 0.035,
+    "lead_time_min": 0.0,
+    "lead_time_max": 0.0,
+    "lead_time_distance_scale": 1.0,
+    "lead_reward_distance": 0.0,
+    "lead_alignment_gain": 0.0,
     "lead_alignment_reward_floor": 0.20,
     "final_approach_gain": 0.27,
     "final_approach_distance": 80.0,
     "final_approach_alignment_floor": 0.70,
-    "final_approach_lead_blend": 0.65,
+    "final_approach_lead_blend": 0.0,
     "final_approach_bad_angle_gain": 0.045,
     "final_approach_bad_closing_gain": 0.045,
     "final_approach_bad_progress_gain": 0.045,
@@ -337,6 +351,8 @@ REWARD_CONFIG = {
     "success_distance": 10.0,
     "success_alignment": 0.866,
     "success_min_closing": -1.0,
+    "guided_success_enabled": False,
+    "distance_success_fallback": False,
     "success_reward": 120.0,
     "collision_penalty": -80.0,
     "low_altitude_penalty": -60.0,
@@ -348,7 +364,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_1_22_phase_1_sac_lead_loose_missed_y100",
+    "name": "v16_0_0_phase_1_aim_point_trigger_success_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
@@ -806,8 +822,9 @@ class Env:
         vector_state = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
         self.prev_distance = float(raw_state["states"]["distance"])
-        self.reset_distance = self.prev_distance
-        self.min_distance_seen = self.prev_distance
+        initial_target_distance = float(raw_state.get("telemetry", {}).get("target_distance", self.prev_distance))
+        self.reset_distance = initial_target_distance
+        self.min_distance_seen = initial_target_distance
         self.prev_theta = abs(float(np.degrees(raw_state["states"]["theta_rad"])))
         self.prev_alpha_abs = abs(float(np.degrees(raw_state["states"]["alpha_rad"])))
         self.prev_beta_abs = abs(float(np.degrees(raw_state["states"]["beta_rad"])))
@@ -852,6 +869,11 @@ class Env:
         beta_abs = abs(beta_deg)
         beta_validity = float(telemetry.get("beta_validity", 1.0))
         alignment = float(np.cos(theta_rad))
+        target_distance = float(telemetry.get("target_distance", distance))
+        target_closing_speed = float(telemetry.get("target_closing_speed", closing_speed))
+        target_alignment = float(telemetry.get("target_alignment", alignment))
+        target_theta_deg = float(telemetry.get("target_theta_deg", theta_deg))
+        target_hit_triggered = float(telemetry.get("target_hit_trigger", 0.0)) > 0.5
         turn_rate_clock = np.asarray(states.get("turn_rate_clock", [0.0, 0.0, 0.0, 0.0]), dtype=np.float32)
         turn_rate_roll = float(states.get("turn_rate_roll", states.get("turn_rate_ref", [0.0, 0.0, 0.0])[2]))
         ang_vel_mag = float(np.sqrt(np.sum(np.square(turn_rate_clock)) + turn_rate_roll ** 2))
@@ -869,15 +891,11 @@ class Env:
         )
         rocket_toward_target = float(np.dot(rocket_vel_world, rel_dir_world))
 
-        lead_time = float(np.clip(
-            distance / max(phase["lead_time_distance_scale"], 1e-6),
-            phase["lead_time_min"],
-            phase["lead_time_max"],
-        ))
-        lead_rel_pos = rel_pos_world + (target_vel_world * lead_time)
-        lead_distance = float(np.linalg.norm(lead_rel_pos))
-        lead_dir_world = self._safe_unit(lead_rel_pos, rel_dir_world)
-        lead_alignment = float(np.dot(rocket_forward_world, lead_dir_world))
+        # V16: Unity artik state distance/theta/closing degerlerini lead aim point'e gore yollar.
+        # Bu nedenle Python tarafinda ikinci kez ileri tasima yapmiyoruz; lead metrikleri debug icin ayni aim frame'i anlatir.
+        lead_time = float(telemetry.get("aim_lead_time", 0.0))
+        lead_distance = float(telemetry.get("aim_distance", distance))
+        lead_alignment = alignment
 
         prev_distance = distance if self.prev_distance is None else self.prev_distance
         delta_distance = float(np.clip(
@@ -993,26 +1011,31 @@ class Env:
         done_reason = None
         success = False
         terminal_reward = 0.0
-        wrong_way_distance_ratio = distance / max(self.reset_distance or distance, 1e-6)
-        previous_min_distance = distance if self.min_distance_seen is None else self.min_distance_seen
-        min_distance_seen = min(previous_min_distance, distance)
+        wrong_way_distance_ratio = target_distance / max(self.reset_distance or target_distance, 1e-6)
+        previous_min_distance = target_distance if self.min_distance_seen is None else self.min_distance_seen
+        min_distance_seen = min(previous_min_distance, target_distance)
 
-        physical_hit_success = distance <= phase["hit_success_distance"]
+        distance_success_fallback = (
+            bool(phase.get("distance_success_fallback", False))
+            and target_distance <= phase["hit_success_distance"]
+        )
+        physical_hit_success = target_hit_triggered or distance_success_fallback
         guided_success = (
-            distance <= phase["success_distance"]
-            and alignment >= phase["success_alignment"]
-            and closing_speed >= phase["success_min_closing"]
+            bool(phase.get("guided_success_enabled", False))
+            and target_distance <= phase["success_distance"]
+            and target_alignment >= phase["success_alignment"]
+            and target_closing_speed >= phase["success_min_closing"]
         )
         missed_intercept = (
             min_distance_seen <= phase["missed_intercept_distance"]
-            and distance - min_distance_seen >= phase["missed_intercept_recede_distance"]
-            and closing_speed <= phase["missed_intercept_closing_speed"]
+            and target_distance - min_distance_seen >= phase["missed_intercept_recede_distance"]
+            and target_closing_speed <= phase["missed_intercept_closing_speed"]
         )
 
         near_miss_candidate = (
-            distance <= phase["near_miss_distance"]
+            target_distance <= phase["near_miss_distance"]
             and not physical_hit_success
-            and alignment < phase["success_alignment"]
+            and target_alignment < phase["success_alignment"]
         )
 
         if physical_hit_success or guided_success:
@@ -1080,6 +1103,11 @@ class Env:
             "alt_error": float(alt_error),
             "closing_speed": float(closing_speed),
             "alignment": float(alignment),
+            "target_distance": float(target_distance),
+            "target_closing_speed": float(target_closing_speed),
+            "target_alignment": float(target_alignment),
+            "target_theta_deg": float(target_theta_deg),
+            "target_hit_trigger": 1.0 if target_hit_triggered else 0.0,
             "lead_time": float(lead_time),
             "lead_distance": float(lead_distance),
             "lead_alignment": float(lead_alignment),
@@ -1147,6 +1175,11 @@ class Env:
         info["ang_vel_mag"] = reward_info["ang_vel_mag"]
         info["closing_speed"] = reward_info["closing_speed"]
         info["delta_distance"] = reward_info["delta_distance"]
+        info["target_distance"] = reward_info["target_distance"]
+        info["target_closing_speed"] = reward_info["target_closing_speed"]
+        info["target_alignment"] = reward_info["target_alignment"]
+        info["target_theta_deg"] = reward_info["target_theta_deg"]
+        info["target_hit_trigger"] = reward_info["target_hit_trigger"]
         info["lead_time"] = reward_info["lead_time"]
         info["lead_distance"] = reward_info["lead_distance"]
         info["lead_alignment"] = reward_info["lead_alignment"]
@@ -1236,6 +1269,11 @@ class Env:
         info["ang_vel_mag"] = reward_info["ang_vel_mag"]
         info["closing_speed"] = reward_info["closing_speed"]
         info["delta_distance"] = reward_info["delta_distance"]
+        info["target_distance"] = reward_info["target_distance"]
+        info["target_closing_speed"] = reward_info["target_closing_speed"]
+        info["target_alignment"] = reward_info["target_alignment"]
+        info["target_theta_deg"] = reward_info["target_theta_deg"]
+        info["target_hit_trigger"] = reward_info["target_hit_trigger"]
         info["lead_time"] = reward_info["lead_time"]
         info["lead_distance"] = reward_info["lead_distance"]
         info["lead_alignment"] = reward_info["lead_alignment"]

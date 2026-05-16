@@ -96,6 +96,9 @@ EPISODE_HEADER = [
     "done_reason",
     "start_distance",
     "final_distance",
+    "start_target_distance",
+    "final_target_distance",
+    "final_target_hit_trigger",
     "start_agl",
     "final_agl",
     "start_alt_error",
@@ -202,6 +205,9 @@ def append_episode_csv(update_id, episode_id, episode_return, episode_len,
         "done_reason": done_reason,
         "start_distance": start_info["distance"],
         "final_distance": final_info["distance"],
+        "start_target_distance": start_info.get("target_distance", ""),
+        "final_target_distance": final_info.get("target_distance", ""),
+        "final_target_hit_trigger": final_info.get("target_hit_trigger", ""),
         "start_agl": start_info["agl"],
         "final_agl": final_info["agl"],
         "start_alt_error": start_info["alt_error"],
@@ -260,6 +266,7 @@ def print_step_console(update_id, info):
     msg = (
         f"[UP {update_id:<4} | EP {info['episode_id']:<4} | ST {info['step_id']:<4}] "
         f"Dst: {info['distance']:>7.2f} | "
+        f"TgtD: {info.get('target_distance', 0.0):>7.2f} | "
         f"Theta: {info['theta_deg']:>7.2f} | "
         f"Alpha/Beta: {info['alpha_deg']:>6.2f} / {info['beta_deg']:>6.2f} | "
         f"Cls: {info['closing_speed']:>6.2f} | "
@@ -286,7 +293,8 @@ def print_episode_console(episode_id, episode_return, episode_len,
         f"Ret: {episode_return:>8.2f} | "
         f"Len: {episode_len:>4} | "
         f"Start D/AGL: {start_info['distance']:>6.1f} / {start_info['agl']:>6.1f} | "
-        f"End D/AGL: {final_info['distance']:>6.1f} / {final_info['agl']:>6.1f} | "
+        f"End D/TgtD/AGL: {final_info['distance']:>6.1f} / "
+        f"{final_info.get('target_distance', 0.0):>6.1f} / {final_info['agl']:>6.1f} | "
         f"Theta: {final_info.get('theta_deg', 0.0):>6.2f} | "
         f"A/B: {final_info.get('alpha_deg', 0.0):>6.2f}/{final_info.get('beta_deg', 0.0):>6.2f} | "
         f"Cls: {final_info.get('closing_speed', 0.0):>6.2f} | "

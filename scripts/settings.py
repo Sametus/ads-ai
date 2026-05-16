@@ -18,9 +18,9 @@ PORT = 5005
 
 MODELS_DIR = "models"
 
-# V15 aktif egitim hatti sadece SAC'tir.
-# Eski egitim hatlarina ait checkpoint isimleri bilincli olarak bu surumden cikarildi.
-SAC_MODEL_PREFIX = "sac_v15_1_17_physical_hit_balanced_y100"
+# V16, state'i target merkezi yerine Unity'deki lead aim point'e tasir.
+# Eski replay buffer state anlami farkli oldugu icin bu prefix temiz v16 buffer/model baslatir.
+SAC_MODEL_PREFIX = "sac_v16_0_0_aim_point_trigger_y100"
 SAC_TOTAL_STEPS = 2000000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000
