@@ -20,7 +20,7 @@ MODELS_DIR = "models"
 
 # V16, state'i target merkezi yerine Unity'deki lead aim point'e tasir.
 # Eski replay buffer state anlami farkli oldugu icin bu prefix temiz v16 buffer/model baslatir.
-SAC_MODEL_PREFIX = "sac_v16_0_1_tighter_hit_nose_aim_y100"
+SAC_MODEL_PREFIX = "sac_v16_0_2_target_nose_aim_y100"
 SAC_TOTAL_STEPS = 2000000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000

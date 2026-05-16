@@ -273,14 +273,14 @@ public class Env : MonoBehaviour
     [Header("V16 Lead Aim Point")]
     public bool useLeadAimPointState = true;
     public bool showLeadAimPoint = true;
-    public float leadAimTimeMin = 0.10f;
-    public float leadAimTimeMax = 0.75f;
-    public float leadAimDistanceScale = 280f;
-    public float aimPointNoseOffset = 2.75f;
-    public float aimPointVisualRadius = 0.28f;
+    public float leadAimTimeMin = 0.0f;
+    public float leadAimTimeMax = 0.0f;
+    public float leadAimDistanceScale = 350f;
+    public float aimPointNoseOffset = 3.05f;
+    public float aimPointVisualRadius = 0.20f;
     public float aimLineWidth = 0.055f;
     public Color aimPointColor = new Color(0.25f, 0.85f, 1.0f, 0.65f);
-    public Color aimLineColor = new Color(0.25f, 0.85f, 1.0f, 0.45f);
+    public Color aimLineColor = new Color(0.03f, 0.08f, 0.26f, 0.72f);
 
     [Header("V16 Target Hit Volume")]
     public bool useTargetHitEllipsoid = true;
@@ -1284,8 +1284,7 @@ public class Env : MonoBehaviour
         if (aimPointLine != null)
         {
             aimPointLine.gameObject.SetActive(showLeadAimPoint);
-            aimPointLine.startWidth = aimLineWidth;
-            aimPointLine.endWidth = aimLineWidth;
+            ApplyLineStyle(aimPointLine, aimLineColor, aimLineWidth);
             aimPointLine.SetPosition(0, rocketPoint.position);
             aimPointLine.SetPosition(1, lastAimPointWorld);
         }
@@ -1623,6 +1622,7 @@ public class Env : MonoBehaviour
     {
         if (distanceLine != null)
         {
+            ApplyLineStyle(distanceLine, aimLineColor, aimLineWidth);
             distanceLine.SetPosition(0, rocketPoint.position);
             distanceLine.SetPosition(1, GetStateAimPointWorld());
         }
@@ -1683,6 +1683,20 @@ public class Env : MonoBehaviour
     private Color SoftColor(float r, float g, float b)
     {
         return new Color(r, g, b, Mathf.Clamp01(actionAuditRayAlpha));
+    }
+
+    private void ApplyLineStyle(LineRenderer line, Color color, float width)
+    {
+        if (line == null)
+            return;
+
+        line.startColor = color;
+        line.endColor = color;
+        line.startWidth = width;
+        line.endWidth = width;
+
+        if (line.material != null)
+            line.material.color = color;
     }
 
     private void DrawSoftAuditRay(Vector3 origin, Vector3 direction, Color color, float duration)
