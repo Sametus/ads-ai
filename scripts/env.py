@@ -302,12 +302,12 @@ REWARD_CONFIG = {
     "theta_progress_scale_deg": 20.0,
     "closing_gain": 0.09,
     "closing_speed_scale": 80.0,
-    "final_approach_gain": 0.20,
+    "final_approach_gain": 0.24,
     "final_approach_distance": 80.0,
     "final_approach_alignment_floor": 0.70,
-    "final_approach_bad_angle_gain": 0.035,
-    "final_approach_bad_closing_gain": 0.035,
-    "final_approach_bad_progress_gain": 0.035,
+    "final_approach_bad_angle_gain": 0.045,
+    "final_approach_bad_closing_gain": 0.045,
+    "final_approach_bad_progress_gain": 0.045,
     "min_agl": 0.60,
     "low_agl_grace_steps": 80,
     "collision_grace_steps": 8,
@@ -332,7 +332,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_1_17_phase_1_sac_physical_hit_y100",
+    "name": "v15_1_18_phase_1_sac_final_approach_plus_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
