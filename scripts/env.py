@@ -364,7 +364,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v16_0_0_phase_1_aim_point_trigger_success_y100",
+    "name": "v16_0_1_phase_1_tighter_hit_nose_aim_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,

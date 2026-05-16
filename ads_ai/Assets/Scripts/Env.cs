@@ -273,22 +273,23 @@ public class Env : MonoBehaviour
     [Header("V16 Lead Aim Point")]
     public bool useLeadAimPointState = true;
     public bool showLeadAimPoint = true;
-    public float leadAimTimeMin = 0.20f;
-    public float leadAimTimeMax = 1.20f;
-    public float leadAimDistanceScale = 180f;
-    public float aimPointVisualRadius = 0.75f;
-    public float aimLineWidth = 0.10f;
+    public float leadAimTimeMin = 0.10f;
+    public float leadAimTimeMax = 0.75f;
+    public float leadAimDistanceScale = 280f;
+    public float aimPointNoseOffset = 2.75f;
+    public float aimPointVisualRadius = 0.28f;
+    public float aimLineWidth = 0.055f;
     public Color aimPointColor = new Color(0.25f, 0.85f, 1.0f, 0.65f);
     public Color aimLineColor = new Color(0.25f, 0.85f, 1.0f, 0.45f);
 
     [Header("V16 Target Hit Volume")]
     public bool useTargetHitEllipsoid = true;
     public bool showTargetHitEllipsoid = true;
-    public float targetHitRadiusRight = 5.0f;
-    public float targetHitRadiusUp = 3.0f;
-    public float targetHitRadiusForward = 8.0f;
+    public float targetHitRadiusRight = 2.6f;
+    public float targetHitRadiusUp = 1.8f;
+    public float targetHitRadiusForward = 4.5f;
     public float targetHitForwardYawOffsetDeg = 90f;
-    public Color targetHitColor = new Color(1.0f, 0.36f, 0.25f, 0.18f);
+    public Color targetHitColor = new Color(1.0f, 0.36f, 0.25f, 0.12f);
 
     [Header("Ground / Collision")]
     public LayerMask groundMask = ~0;
@@ -1154,7 +1155,8 @@ public class Env : MonoBehaviour
         if (!useLeadAimPointState)
             return targetCenter;
 
-        return targetCenter + (targetVelWorld * leadTime);
+        BuildTargetHitFrame(out _, out _, out Vector3 noseAxisWorld);
+        return targetCenter + (noseAxisWorld * aimPointNoseOffset) + (targetVelWorld * leadTime);
     }
 
     private Vector3 GetStateAimPointWorld()
