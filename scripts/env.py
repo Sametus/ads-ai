@@ -292,7 +292,7 @@ TARGET_VELOCITY = 25.0
 ACTIVE_PHASE_ID = 1
 
 REWARD_CONFIG = {
-    "step_penalty": -0.006,
+    "step_penalty": -0.0065,
     "distance_gain": 0.25,
     "distance_progress_scale": 5.0,
     "alignment_gain": 0.06,
@@ -302,7 +302,7 @@ REWARD_CONFIG = {
     "theta_progress_scale_deg": 20.0,
     "closing_gain": 0.09,
     "closing_speed_scale": 80.0,
-    "final_approach_gain": 0.24,
+    "final_approach_gain": 0.27,
     "final_approach_distance": 80.0,
     "final_approach_alignment_floor": 0.70,
     "final_approach_bad_angle_gain": 0.045,
@@ -320,8 +320,8 @@ REWARD_CONFIG = {
     "near_miss_distance": 16.0,
     "hit_success_distance": 5.0,
     "success_distance": 10.0,
-    "success_alignment": 0.90,
-    "success_min_closing": 0.0,
+    "success_alignment": 0.866,
+    "success_min_closing": -1.0,
     "success_reward": 120.0,
     "collision_penalty": -80.0,
     "low_altitude_penalty": -60.0,
@@ -332,7 +332,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_1_18_phase_1_sac_final_approach_plus_y100",
+    "name": "v15_1_19_phase_1_sac_proximity_success_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
