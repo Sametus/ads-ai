@@ -1196,9 +1196,9 @@ public class Env : MonoBehaviour
         {
             targetHitEllipsoidObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             targetHitEllipsoidObject.name = "V16_TargetHitEllipsoid";
-            targetHitEllipsoidObject.transform.SetParent(targetPoint, false);
-            targetHitEllipsoidObject.transform.localPosition = Vector3.zero;
-            targetHitEllipsoidObject.transform.localRotation = Quaternion.identity;
+            targetHitEllipsoidObject.transform.SetParent(null, true);
+            targetHitEllipsoidObject.transform.position = targetPoint.position;
+            targetHitEllipsoidObject.transform.rotation = Quaternion.identity;
 
             SphereCollider sphereCollider = targetHitEllipsoidObject.GetComponent<SphereCollider>();
             if (sphereCollider != null)
@@ -1220,6 +1220,28 @@ public class Env : MonoBehaviour
         }
 
         UpdateHitEllipsoidObject();
+    }
+
+    private void BuildTargetHitFrame(out Vector3 rightWorld, out Vector3 upWorld, out Vector3 forwardWorld)
+    {
+        upWorld = Vector3.up;
+        forwardWorld = targetMoveDir.sqrMagnitude > 1e-8f
+            ? targetMoveDir.normalized
+            : ProjectOnPlaneNormalized(targetPoint.forward, upWorld);
+
+        if (forwardWorld.sqrMagnitude <= 1e-8f)
+            forwardWorld = Vector3.forward;
+
+        rightWorld = Vector3.Cross(upWorld, forwardWorld);
+        if (rightWorld.sqrMagnitude <= 1e-8f)
+        {
+            upWorld = Vector3.forward;
+            rightWorld = Vector3.Cross(upWorld, forwardWorld);
+        }
+
+        rightWorld.Normalize();
+        upWorld = Vector3.Cross(forwardWorld, rightWorld).normalized;
+        forwardWorld.Normalize();
     }
 
     private Material BuildRuntimeMaterial(Color color)
@@ -1267,8 +1289,10 @@ public class Env : MonoBehaviour
         if (targetHitEllipsoidObject == null)
             return;
 
-        targetHitEllipsoidObject.transform.localPosition = Vector3.zero;
-        targetHitEllipsoidObject.transform.localRotation = Quaternion.identity;
+        BuildTargetHitFrame(out _, out Vector3 upWorld, out Vector3 forwardWorld);
+
+        targetHitEllipsoidObject.transform.position = targetPoint.position;
+        targetHitEllipsoidObject.transform.rotation = Quaternion.LookRotation(forwardWorld, upWorld);
         targetHitEllipsoidObject.transform.localScale = new Vector3(
             Mathf.Max(0.05f, targetHitRadiusRight * 2f),
             Mathf.Max(0.05f, targetHitRadiusUp * 2f),
@@ -1289,14 +1313,15 @@ public class Env : MonoBehaviour
         if (!useTargetHitEllipsoid || targetPoint == null || rocketPoint == null)
             return false;
 
-        Vector3 localRocket = targetPoint.InverseTransformPoint(rocketPoint.position);
+        BuildTargetHitFrame(out Vector3 rightWorld, out Vector3 upWorld, out Vector3 forwardWorld);
+        Vector3 targetToRocket = rocketPoint.position - targetPoint.position;
         float rightRadius = Mathf.Max(targetHitRadiusRight, 1e-6f);
         float upRadius = Mathf.Max(targetHitRadiusUp, 1e-6f);
         float forwardRadius = Mathf.Max(targetHitRadiusForward, 1e-6f);
 
-        float x = localRocket.x / rightRadius;
-        float y = localRocket.y / upRadius;
-        float z = localRocket.z / forwardRadius;
+        float x = Vector3.Dot(targetToRocket, rightWorld) / rightRadius;
+        float y = Vector3.Dot(targetToRocket, upWorld) / upRadius;
+        float z = Vector3.Dot(targetToRocket, forwardWorld) / forwardRadius;
         ellipsoidValue = (x * x) + (y * y) + (z * z);
         return ellipsoidValue <= 1f;
     }
