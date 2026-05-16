@@ -317,6 +317,9 @@ REWARD_CONFIG = {
     "wrong_way_alignment": -0.35,
     "wrong_way_closing_speed": -8.0,
     "wrong_way_grace_steps": 80,
+    "missed_intercept_distance": 16.0,
+    "missed_intercept_recede_distance": 2.0,
+    "missed_intercept_closing_speed": -1.0,
     "near_miss_distance": 16.0,
     "hit_success_distance": 5.0,
     "success_distance": 10.0,
@@ -328,11 +331,12 @@ REWARD_CONFIG = {
     "high_altitude_penalty": -60.0,
     "bad_angle_penalty": -50.0,
     "wrong_way_penalty": -50.0,
+    "missed_intercept_penalty": -70.0,
     "timeout_penalty": -55.0,
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v15_1_19_phase_1_sac_proximity_success_y100",
+    "name": "v15_1_20_phase_1_sac_missed_intercept_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
@@ -458,6 +462,7 @@ class Env:
         self.episode_id = 0
         self.prev_distance = None
         self.reset_distance = None
+        self.min_distance_seen = None
         self.prev_theta = None
         self.prev_alpha_abs = None
         self.prev_beta_abs = None
@@ -790,6 +795,7 @@ class Env:
         normalized_state = self.normalize_state(vector_state)
         self.prev_distance = float(raw_state["states"]["distance"])
         self.reset_distance = self.prev_distance
+        self.min_distance_seen = self.prev_distance
         self.prev_theta = abs(float(np.degrees(raw_state["states"]["theta_rad"])))
         self.prev_alpha_abs = abs(float(np.degrees(raw_state["states"]["alpha_rad"])))
         self.prev_beta_abs = abs(float(np.degrees(raw_state["states"]["beta_rad"])))
@@ -935,12 +941,19 @@ class Env:
         success = False
         terminal_reward = 0.0
         wrong_way_distance_ratio = distance / max(self.reset_distance or distance, 1e-6)
+        previous_min_distance = distance if self.min_distance_seen is None else self.min_distance_seen
+        min_distance_seen = min(previous_min_distance, distance)
 
         physical_hit_success = distance <= phase["hit_success_distance"]
         guided_success = (
             distance <= phase["success_distance"]
             and alignment >= phase["success_alignment"]
             and closing_speed >= phase["success_min_closing"]
+        )
+        missed_intercept = (
+            min_distance_seen <= phase["missed_intercept_distance"]
+            and distance - min_distance_seen >= phase["missed_intercept_recede_distance"]
+            and closing_speed <= phase["missed_intercept_closing_speed"]
         )
 
         near_miss_candidate = (
@@ -970,6 +983,11 @@ class Env:
             reward += terminal_reward
             done = True
             done_reason = "high_altitude"
+        elif missed_intercept:
+            terminal_reward = phase["missed_intercept_penalty"]
+            reward += terminal_reward
+            done = True
+            done_reason = "missed_intercept"
         elif (
             self.step_count > phase["bad_angle_grace_steps"]
             and theta_deg > phase["max_theta_deg"]
@@ -994,6 +1012,7 @@ class Env:
             done_reason = "timeout"
 
         self.prev_distance = distance
+        self.min_distance_seen = min_distance_seen
         self.prev_theta = theta_deg
         self.prev_alpha_abs = alpha_abs
         self.prev_beta_abs = beta_abs
