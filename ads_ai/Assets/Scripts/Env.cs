@@ -287,6 +287,7 @@ public class Env : MonoBehaviour
     public float targetHitRadiusRight = 5.0f;
     public float targetHitRadiusUp = 3.0f;
     public float targetHitRadiusForward = 8.0f;
+    public float targetHitForwardYawOffsetDeg = 90f;
     public Color targetHitColor = new Color(1.0f, 0.36f, 0.25f, 0.18f);
 
     [Header("Ground / Collision")]
@@ -1225,12 +1226,18 @@ public class Env : MonoBehaviour
     private void BuildTargetHitFrame(out Vector3 rightWorld, out Vector3 upWorld, out Vector3 forwardWorld)
     {
         upWorld = Vector3.up;
-        forwardWorld = targetMoveDir.sqrMagnitude > 1e-8f
+        Vector3 baseForward = targetMoveDir.sqrMagnitude > 1e-8f
             ? targetMoveDir.normalized
             : ProjectOnPlaneNormalized(targetPoint.forward, upWorld);
 
+        if (baseForward.sqrMagnitude <= 1e-8f)
+            baseForward = Vector3.forward;
+
+        forwardWorld = Quaternion.AngleAxis(targetHitForwardYawOffsetDeg, upWorld) * baseForward;
+        forwardWorld = ProjectOnPlaneNormalized(forwardWorld, upWorld);
+
         if (forwardWorld.sqrMagnitude <= 1e-8f)
-            forwardWorld = Vector3.forward;
+            forwardWorld = baseForward.normalized;
 
         rightWorld = Vector3.Cross(upWorld, forwardWorld);
         if (rightWorld.sqrMagnitude <= 1e-8f)
