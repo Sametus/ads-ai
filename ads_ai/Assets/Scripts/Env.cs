@@ -273,6 +273,7 @@ public class Env : MonoBehaviour
     [Header("V16 Lead Aim Point")]
     public bool useLeadAimPointState = true;
     public bool showLeadAimPoint = true;
+    public bool useSceneAimPointTransform = false;
     public float leadAimTimeMin = 0.0f;
     public float leadAimTimeMax = 0.0f;
     public float leadAimDistanceScale = 350f;
@@ -280,9 +281,15 @@ public class Env : MonoBehaviour
     public float aimPointVisualRadius = 0.20f;
     public float aimLineWidth = 0.055f;
     public Color aimPointColor = new Color(0.25f, 0.85f, 1.0f, 0.65f);
-    public Color aimLineColor = new Color(0.03f, 0.08f, 0.26f, 0.72f);
+
+    [Header("V16 Scene References")]
+    public Transform aimPointVisual;
+    public LineRenderer aimPointLine;
+    public GameObject targetHitEllipsoidObject;
+    public bool autoCreateV16ObjectsIfMissing = true;
 
     [Header("V16 Target Hit Volume")]
+    public bool useSceneHitEllipsoidTransform = false;
     public bool useTargetHitEllipsoid = true;
     public bool showTargetHitEllipsoid = true;
     public float targetHitRadiusRight = 2.6f;
@@ -325,15 +332,12 @@ public class Env : MonoBehaviour
     private float fixedTargetRotX;
     private Vector3 targetMoveDir = Vector3.zero;
     private Vector3 cachedGuidanceForward = Vector3.forward;
-    private Transform aimPointVisual;
-    private LineRenderer aimPointLine;
-    private GameObject targetHitEllipsoidObject;
+    private bool autoCreatedAimPointVisual = false;
     private MeshCollider targetHitEllipsoidCollider;
     private MeshRenderer targetHitEllipsoidRenderer;
     private Vector3 lastAimPointWorld = Vector3.zero;
     private float lastAimLeadTime = 0f;
     private bool targetHitThisEpisode = false;
-    private bool targetHitThisStep = false;
     private Vector3 lastAppliedTurnWorld = Vector3.zero;
     private Vector3 lastAppliedTurnLocal = Vector3.zero;
     private Vector3 lastThrustWorld = Vector3.zero;
@@ -538,8 +542,6 @@ public class Env : MonoBehaviour
     private void StepOnce()
     {
         localStepCount += 1;
-        targetHitThisStep = false;
-
         MoveTarget();
         UpdateAimPointVisuals();
         ApplyAction();
@@ -549,7 +551,6 @@ public class Env : MonoBehaviour
         if (IsRocketInsideTargetHitEllipsoid(out _))
         {
             targetHitThisEpisode = true;
-            targetHitThisStep = true;
         }
         SuppressRollRate();
         UpdateAimPointVisuals();
@@ -895,7 +896,6 @@ public class Env : MonoBehaviour
 
         localStepCount = 0;
         targetHitThisEpisode = false;
-        targetHitThisStep = false;
 
         target.position = new Vector3(targetPosX, targetPosY, targetPosZ);
         target.eulerAngles = new Vector3(targetRotX, targetRotY, targetRotZ);
@@ -1148,6 +1148,12 @@ public class Env : MonoBehaviour
 
     private Vector3 ComputeAimPointWorld(Vector3 targetVelWorld, out float leadTime)
     {
+        if (useSceneAimPointTransform && aimPointVisual != null && !autoCreatedAimPointVisual)
+        {
+            leadTime = 0f;
+            return aimPointVisual.position;
+        }
+
         Vector3 targetCenter = targetPoint != null ? targetPoint.position : Vector3.zero;
         float targetDistance = rocketPoint != null ? Vector3.Distance(targetCenter, rocketPoint.position) : 0f;
         leadTime = ComputeLeadAimTime(targetDistance);
@@ -1169,7 +1175,7 @@ public class Env : MonoBehaviour
         if (rocketPoint == null || targetPoint == null)
             return;
 
-        if (aimPointVisual == null)
+        if (aimPointVisual == null && autoCreateV16ObjectsIfMissing)
         {
             GameObject aimObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             aimObject.name = "V16_AimPoint";
@@ -1182,9 +1188,12 @@ public class Env : MonoBehaviour
                 aimRenderer.material = BuildRuntimeMaterial(aimPointColor);
 
             aimPointVisual = aimObject.transform;
+            autoCreatedAimPointVisual = true;
         }
 
-        if (aimPointLine == null)
+        ApplyAimPointMaterial();
+
+        if (aimPointLine == null && autoCreateV16ObjectsIfMissing)
         {
             GameObject lineObject = new GameObject("V16_RocketToAimPointLine");
             aimPointLine = lineObject.AddComponent<LineRenderer>();
@@ -1192,10 +1201,10 @@ public class Env : MonoBehaviour
             aimPointLine.positionCount = 2;
             aimPointLine.startWidth = aimLineWidth;
             aimPointLine.endWidth = aimLineWidth;
-            aimPointLine.material = BuildRuntimeMaterial(aimLineColor);
+            aimPointLine.material = BuildRuntimeMaterial(Color.white);
         }
 
-        if (targetHitEllipsoidObject == null)
+        if (targetHitEllipsoidObject == null && autoCreateV16ObjectsIfMissing)
         {
             targetHitEllipsoidObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             targetHitEllipsoidObject.name = "V16_TargetHitEllipsoid";
@@ -1222,7 +1231,63 @@ public class Env : MonoBehaviour
                 targetHitEllipsoidRenderer.material = BuildRuntimeMaterial(targetHitColor);
         }
 
+        BindTargetHitEllipsoidComponents();
         UpdateHitEllipsoidObject();
+    }
+
+    private void ApplyAimPointMaterial()
+    {
+        if (aimPointVisual == null)
+            return;
+
+        Renderer aimRenderer = aimPointVisual.GetComponent<Renderer>();
+        if (aimRenderer != null && aimRenderer.sharedMaterial == null)
+            aimRenderer.material = BuildRuntimeMaterial(aimPointColor);
+        else if (aimRenderer != null)
+            aimRenderer.material.color = aimPointColor;
+    }
+
+    private void BindTargetHitEllipsoidComponents()
+    {
+        if (targetHitEllipsoidObject == null)
+        {
+            targetHitEllipsoidCollider = null;
+            targetHitEllipsoidRenderer = null;
+            return;
+        }
+
+        targetHitEllipsoidRenderer = targetHitEllipsoidObject.GetComponent<MeshRenderer>();
+        targetHitEllipsoidCollider = targetHitEllipsoidObject.GetComponent<MeshCollider>();
+
+        if (targetHitEllipsoidCollider == null)
+        {
+            SphereCollider sphereCollider = targetHitEllipsoidObject.GetComponent<SphereCollider>();
+            if (sphereCollider != null)
+                Destroy(sphereCollider);
+
+            MeshFilter meshFilter = targetHitEllipsoidObject.GetComponent<MeshFilter>();
+            if (meshFilter != null)
+            {
+                targetHitEllipsoidCollider = targetHitEllipsoidObject.AddComponent<MeshCollider>();
+                targetHitEllipsoidCollider.sharedMesh = meshFilter.sharedMesh;
+            }
+        }
+
+        if (targetHitEllipsoidCollider != null)
+        {
+            targetHitEllipsoidCollider.convex = true;
+            targetHitEllipsoidCollider.isTrigger = true;
+        }
+
+        TargetHitTriggerRelay relay = targetHitEllipsoidObject.GetComponent<TargetHitTriggerRelay>();
+        if (relay == null)
+            relay = targetHitEllipsoidObject.AddComponent<TargetHitTriggerRelay>();
+        relay.owner = this;
+
+        if (targetHitEllipsoidRenderer != null && targetHitEllipsoidRenderer.sharedMaterial == null)
+            targetHitEllipsoidRenderer.material = BuildRuntimeMaterial(targetHitColor);
+        else if (targetHitEllipsoidRenderer != null)
+            targetHitEllipsoidRenderer.material.color = targetHitColor;
     }
 
     private void BuildTargetHitFrame(out Vector3 rightWorld, out Vector3 upWorld, out Vector3 forwardWorld)
@@ -1276,15 +1341,18 @@ public class Env : MonoBehaviour
         if (aimPointVisual != null)
         {
             aimPointVisual.gameObject.SetActive(showLeadAimPoint);
-            aimPointVisual.position = lastAimPointWorld;
-            float diameter = Mathf.Max(0.05f, aimPointVisualRadius * 2f);
-            aimPointVisual.localScale = Vector3.one * diameter;
+            if (!useSceneAimPointTransform || autoCreatedAimPointVisual)
+            {
+                aimPointVisual.position = lastAimPointWorld;
+                float diameter = Mathf.Max(0.05f, aimPointVisualRadius * 2f);
+                aimPointVisual.localScale = Vector3.one * diameter;
+            }
         }
 
         if (aimPointLine != null)
         {
             aimPointLine.gameObject.SetActive(showLeadAimPoint);
-            ApplyLineStyle(aimPointLine, aimLineColor, aimLineWidth);
+            ApplyLineLayout(aimPointLine, aimLineWidth);
             aimPointLine.SetPosition(0, rocketPoint.position);
             aimPointLine.SetPosition(1, lastAimPointWorld);
         }
@@ -1297,15 +1365,18 @@ public class Env : MonoBehaviour
         if (targetHitEllipsoidObject == null)
             return;
 
-        BuildTargetHitFrame(out _, out Vector3 upWorld, out Vector3 forwardWorld);
+        if (!useSceneHitEllipsoidTransform)
+        {
+            BuildTargetHitFrame(out _, out Vector3 upWorld, out Vector3 forwardWorld);
 
-        targetHitEllipsoidObject.transform.position = targetPoint.position;
-        targetHitEllipsoidObject.transform.rotation = Quaternion.LookRotation(forwardWorld, upWorld);
-        targetHitEllipsoidObject.transform.localScale = new Vector3(
-            Mathf.Max(0.05f, targetHitRadiusRight * 2f),
-            Mathf.Max(0.05f, targetHitRadiusUp * 2f),
-            Mathf.Max(0.05f, targetHitRadiusForward * 2f)
-        );
+            targetHitEllipsoidObject.transform.position = targetPoint.position;
+            targetHitEllipsoidObject.transform.rotation = Quaternion.LookRotation(forwardWorld, upWorld);
+            targetHitEllipsoidObject.transform.localScale = new Vector3(
+                Mathf.Max(0.05f, targetHitRadiusRight * 2f),
+                Mathf.Max(0.05f, targetHitRadiusUp * 2f),
+                Mathf.Max(0.05f, targetHitRadiusForward * 2f)
+            );
+        }
 
         if (targetHitEllipsoidCollider != null)
             targetHitEllipsoidCollider.enabled = useTargetHitEllipsoid;
@@ -1321,11 +1392,32 @@ public class Env : MonoBehaviour
         if (!useTargetHitEllipsoid || targetPoint == null || rocketPoint == null)
             return false;
 
-        BuildTargetHitFrame(out Vector3 rightWorld, out Vector3 upWorld, out Vector3 forwardWorld);
-        Vector3 targetToRocket = rocketPoint.position - targetPoint.position;
-        float rightRadius = Mathf.Max(targetHitRadiusRight, 1e-6f);
-        float upRadius = Mathf.Max(targetHitRadiusUp, 1e-6f);
-        float forwardRadius = Mathf.Max(targetHitRadiusForward, 1e-6f);
+        Vector3 rightWorld, upWorld, forwardWorld;
+        Vector3 ellipsoidCenter;
+        float rightRadius, upRadius, forwardRadius;
+
+        if (useSceneHitEllipsoidTransform && targetHitEllipsoidObject != null)
+        {
+            ellipsoidCenter = targetHitEllipsoidObject.transform.position;
+            rightWorld = targetHitEllipsoidObject.transform.right;
+            upWorld = targetHitEllipsoidObject.transform.up;
+            forwardWorld = targetHitEllipsoidObject.transform.forward;
+
+            Vector3 lossyScale = targetHitEllipsoidObject.transform.lossyScale;
+            rightRadius = Mathf.Max(lossyScale.x / 2f, 1e-6f);
+            upRadius = Mathf.Max(lossyScale.y / 2f, 1e-6f);
+            forwardRadius = Mathf.Max(lossyScale.z / 2f, 1e-6f);
+        }
+        else
+        {
+            BuildTargetHitFrame(out rightWorld, out upWorld, out forwardWorld);
+            ellipsoidCenter = targetPoint.position;
+            rightRadius = Mathf.Max(targetHitRadiusRight, 1e-6f);
+            upRadius = Mathf.Max(targetHitRadiusUp, 1e-6f);
+            forwardRadius = Mathf.Max(targetHitRadiusForward, 1e-6f);
+        }
+
+        Vector3 targetToRocket = rocketPoint.position - ellipsoidCenter;
 
         float x = Vector3.Dot(targetToRocket, rightWorld) / rightRadius;
         float y = Vector3.Dot(targetToRocket, upWorld) / upRadius;
@@ -1347,7 +1439,6 @@ public class Env : MonoBehaviour
             return;
 
         targetHitThisEpisode = true;
-        targetHitThisStep = true;
     }
 
     private OutgoingPacket CollectPacket()
@@ -1622,7 +1713,7 @@ public class Env : MonoBehaviour
     {
         if (distanceLine != null)
         {
-            ApplyLineStyle(distanceLine, aimLineColor, aimLineWidth);
+            ApplyLineLayout(distanceLine, aimLineWidth);
             distanceLine.SetPosition(0, rocketPoint.position);
             distanceLine.SetPosition(1, GetStateAimPointWorld());
         }
@@ -1685,18 +1776,17 @@ public class Env : MonoBehaviour
         return new Color(r, g, b, Mathf.Clamp01(actionAuditRayAlpha));
     }
 
-    private void ApplyLineStyle(LineRenderer line, Color color, float width)
+    private void ApplyLineLayout(LineRenderer line, float width)
     {
         if (line == null)
             return;
 
-        line.startColor = color;
-        line.endColor = color;
+        line.useWorldSpace = true;
+        if (line.positionCount < 2)
+            line.positionCount = 2;
+
         line.startWidth = width;
         line.endWidth = width;
-
-        if (line.material != null)
-            line.material.color = color;
     }
 
     private void DrawSoftAuditRay(Vector3 origin, Vector3 direction, Color color, float duration)

@@ -311,15 +311,15 @@ TARGET_VELOCITY = 25.0
 ACTIVE_PHASE_ID = 1
 
 REWARD_CONFIG = {
-    "step_penalty": -0.0065,
-    "distance_gain": 0.25,
+    "step_penalty": -0.0085,
+    "distance_gain": 0.30,
     "distance_progress_scale": 5.0,
     "alignment_gain": 0.06,
     "alignment_reward_floor": 0.20,
     "theta_progress_gain": 0.075,
     "theta_regress_penalty_scale": 1.15,
     "theta_progress_scale_deg": 20.0,
-    "closing_gain": 0.09,
+    "closing_gain": 0.12,
     "closing_speed_scale": 80.0,
     "lead_time_min": 0.0,
     "lead_time_max": 0.0,
@@ -344,7 +344,7 @@ REWARD_CONFIG = {
     "wrong_way_closing_speed": -8.0,
     "wrong_way_grace_steps": 80,
     "missed_intercept_distance": 16.0,
-    "missed_intercept_recede_distance": 5.0,
+    "missed_intercept_recede_distance": 8.0,
     "missed_intercept_closing_speed": -4.0,
     "near_miss_distance": 16.0,
     "hit_success_distance": 5.0,
@@ -373,7 +373,7 @@ ACTIVE_PHASE_CONFIG = {
     "heading_offset_abs_min": 1.0,
     "balanced_heading_offsets": True,
     "balanced_heading_offset_order": [1, 2, 3, 4, 5],
-    "balanced_heading_sign_order": [1, -1],
+    "balanced_heading_sign_order": [-1],
     "max_step": 1200,
 }
 

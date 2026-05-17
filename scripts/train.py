@@ -87,6 +87,8 @@ if __name__ == "__main__":
             next_state, reward, done, info = env.step(action)
 
             replay.add(state, action, reward, next_state, done)
+            if bool(getattr(settings, "SAC_RIGHT_MIRROR_AUGMENTATION", False)):
+                replay.add_right_mirror(state, action, reward, next_state, done)
 
             episode_return += reward
             episode_len += 1

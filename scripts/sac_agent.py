@@ -24,6 +24,47 @@ from env import ACTION_KEYS, STATE_KEYS
 LOG_2PI = np.log(2.0 * np.pi).astype(np.float32)
 EPS = 1e-6
 
+RIGHT_MIRROR_STATE_KEYS = {
+    "rel_dir_right",
+    "rel_vel_right",
+    "rocket_vel_right",
+    "rel_dir_body_right",
+    "rel_vel_body_right",
+    "rocket_vel_body_right",
+}
+RIGHT_MIRROR_ACTION_KEYS = {
+    "aim_right",
+    "accel_right",
+    "body_right_accel",
+}
+
+RIGHT_MIRROR_STATE_INDICES = tuple(
+    index for index, key in enumerate(STATE_KEYS) if key in RIGHT_MIRROR_STATE_KEYS
+)
+RIGHT_MIRROR_ACTION_INDICES = tuple(
+    index for index, key in enumerate(ACTION_KEYS) if key in RIGHT_MIRROR_ACTION_KEYS
+)
+
+
+def mirror_right_state(state):
+    """State'i guidance/body right eksenine gore aynalar."""
+    mirrored = np.asarray(state, dtype=np.float32).copy()
+    for index in RIGHT_MIRROR_STATE_INDICES:
+        mirrored[index] *= -1.0
+    return mirrored
+
+
+def mirror_right_action(action):
+    """Action'in sag-sol komutunu aynalar; ileri ve dikey komutlar ayni kalir."""
+    mirrored = np.asarray(action, dtype=np.float32).copy()
+    for index in RIGHT_MIRROR_ACTION_INDICES:
+        mirrored[index] *= -1.0
+    return mirrored
+
+
+def mirror_right_transition(state, action, next_state):
+    return mirror_right_state(state), mirror_right_action(action), mirror_right_state(next_state)
+
 
 class ReplayBuffer:
     """SAC icin gecmis deneyleri saklayan sade replay buffer."""
@@ -49,6 +90,15 @@ class ReplayBuffer:
 
         self.ptr = (self.ptr + 1) % self.capacity
         self.size = min(self.size + 1, self.capacity)
+
+    def add_right_mirror(self, state, action, reward, next_state, done):
+        """Sag-sol aynalanmis transition ekler."""
+        mirrored_state, mirrored_action, mirrored_next_state = mirror_right_transition(
+            state,
+            action,
+            next_state,
+        )
+        self.add(mirrored_state, mirrored_action, reward, mirrored_next_state, done)
 
     def sample(self, batch_size):
         """Replay buffer'dan rastgele mini-batch secer."""
