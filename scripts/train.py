@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     agent = SACAgent()
     start_step = agent.load_checkpoint()
-    if start_step == 0:
+    if start_step == 0 and not agent.loaded_checkpoint:
         print("[SAC] Checkpoint yok; egitim sifirdan basliyor.")
 
     env = Env(settings.IP, settings.PORT)

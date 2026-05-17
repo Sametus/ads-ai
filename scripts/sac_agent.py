@@ -365,24 +365,32 @@ class SACAgent:
         for target_var, source_var in zip(self.target_q2.variables, self.q2.variables):
             target_var.assign((1.0 - self.tau) * target_var + self.tau * source_var)
 
-    def actor_path(self, step_id):
-        return os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_actor_step{step_id}.keras")
+    def checkpoint_prefix(self, prefix=None):
+        return prefix or settings.SAC_MODEL_PREFIX
 
-    def q1_path(self, step_id):
-        return os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_q1_step{step_id}.keras")
+    def actor_path(self, step_id, prefix=None):
+        prefix = self.checkpoint_prefix(prefix)
+        return os.path.join(settings.MODELS_DIR, f"{prefix}_actor_step{step_id}.keras")
 
-    def q2_path(self, step_id):
-        return os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_q2_step{step_id}.keras")
+    def q1_path(self, step_id, prefix=None):
+        prefix = self.checkpoint_prefix(prefix)
+        return os.path.join(settings.MODELS_DIR, f"{prefix}_q1_step{step_id}.keras")
 
-    def state_path(self, step_id):
-        return os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_state_step{step_id}.pkl.gz")
+    def q2_path(self, step_id, prefix=None):
+        prefix = self.checkpoint_prefix(prefix)
+        return os.path.join(settings.MODELS_DIR, f"{prefix}_q2_step{step_id}.keras")
+
+    def state_path(self, step_id, prefix=None):
+        prefix = self.checkpoint_prefix(prefix)
+        return os.path.join(settings.MODELS_DIR, f"{prefix}_state_step{step_id}.pkl.gz")
 
     def replay_buffer_path(self):
         return os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_replay_buffer.npz")
 
-    def latest_checkpoint_step(self):
-        """Aktif SAC prefix'i ile kaydedilmis en son egitilmis checkpoint step'ini bulur."""
-        pattern = os.path.join(settings.MODELS_DIR, f"{settings.SAC_MODEL_PREFIX}_actor_step*.keras")
+    def latest_checkpoint_step(self, prefix=None):
+        """Verilen SAC prefix'i ile kaydedilmis en son egitilmis checkpoint step'ini bulur."""
+        prefix = self.checkpoint_prefix(prefix)
+        pattern = os.path.join(settings.MODELS_DIR, f"{prefix}_actor_step*.keras")
         min_trained_step = int(settings.SAC_START_TRAINING_STEPS)
         steps = []
         for path in glob.glob(pattern):
@@ -406,26 +414,45 @@ class SACAgent:
             pickle.dump({"step": int(step_id), "log_alpha": float(self.log_alpha.numpy())}, f)
         os.replace(tmp_path, self.state_path(step_id))
 
-    def load_checkpoint(self):
-        """Son SAC checkpoint varsa yukler; yoksa sifirdan baslar."""
-        step_id = self.latest_checkpoint_step()
-        if step_id is None:
-            self.loaded_checkpoint = False
-            return 0
-
-        print(f"[SAC] Kayitli checkpoint bulundu: step {step_id}. Yukleniyor...")
-        self.actor = tf.keras.models.load_model(self.actor_path(step_id), compile=False)
-        self.q1 = tf.keras.models.load_model(self.q1_path(step_id), compile=False)
-        self.q2 = tf.keras.models.load_model(self.q2_path(step_id), compile=False)
+    def load_model_weights(self, step_id, prefix=None):
+        """Actor, critic ve alpha durumunu verilen checkpoint prefix'inden yukler."""
+        prefix = self.checkpoint_prefix(prefix)
+        self.actor = tf.keras.models.load_model(self.actor_path(step_id, prefix), compile=False)
+        self.q1 = tf.keras.models.load_model(self.q1_path(step_id, prefix), compile=False)
+        self.q2 = tf.keras.models.load_model(self.q2_path(step_id, prefix), compile=False)
         self.hard_update_targets()
 
-        state_path = self.state_path(step_id)
+        state_path = self.state_path(step_id, prefix)
         if os.path.exists(state_path):
             with gzip.open(state_path, "rb") as f:
                 state = pickle.load(f)
             if "log_alpha" in state:
                 self.log_alpha.assign(np.float32(state["log_alpha"]))
 
-        print(f"[SAC] step {step_id} seviyesinden devam edilecek.")
+    def load_checkpoint(self):
+        """Son SAC checkpoint varsa yukler; yoksa ayar varsa onceki fazdan warm-start yapar."""
+        step_id = self.latest_checkpoint_step()
+        if step_id is not None:
+            print(f"[SAC] Kayitli checkpoint bulundu: step {step_id}. Yukleniyor...")
+            self.load_model_weights(step_id)
+            print(f"[SAC] step {step_id} seviyesinden devam edilecek.")
+            self.loaded_checkpoint = True
+            return int(step_id)
+
+        warm_prefix = getattr(settings, "SAC_WARM_START_MODEL_PREFIX", None)
+        if not warm_prefix:
+            self.loaded_checkpoint = False
+            return 0
+
+        warm_step_id = self.latest_checkpoint_step(warm_prefix)
+        if warm_step_id is None:
+            self.loaded_checkpoint = False
+            return 0
+
+        print(
+            f"[SAC WARM START] {warm_prefix} step {warm_step_id} yukleniyor; "
+            f"yeni prefix {settings.SAC_MODEL_PREFIX} step 0'dan baslayacak."
+        )
+        self.load_model_weights(warm_step_id, warm_prefix)
         self.loaded_checkpoint = True
-        return int(step_id)
+        return 0

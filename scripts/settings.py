@@ -18,9 +18,10 @@ PORT = 5005
 
 MODELS_DIR = "models"
 
-# V16.0.3, sag/sol state-action frame'ini roket burnuna sabitler.
-# V16.0.2 replay buffer velocity-frame state tuttugu icin yeni prefix temiz buffer/model baslatir.
-SAC_MODEL_PREFIX = "sac_v16_0_3_nose_frame_y100"
+# V16.0.4, V16.0.3 nose-frame politikasini warm-start alip yeni altitude schedule
+# reward'u temiz replay buffer ile dener. Eski replay odulleri bu reward ile karistirilmaz.
+SAC_MODEL_PREFIX = "sac_v16_0_4_altitude_schedule_y100"
+SAC_WARM_START_MODEL_PREFIX = "sac_v16_0_3_nose_frame_y100"
 SAC_TOTAL_STEPS = 2000000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000

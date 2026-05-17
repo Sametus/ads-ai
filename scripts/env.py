@@ -177,6 +177,10 @@ PYTHON_STEP_LOG_KEYS = [
     "direct_accel_cmd_up",
     "direct_accel_cmd_forward",
     "direct_launch_guard",
+    "altitude_schedule_progress",
+    "altitude_schedule_desired_agl",
+    "altitude_schedule_deficit",
+    "altitude_schedule_horizontal_distance",
 ]
 
 REWARD_BREAKDOWN_KEYS = [
@@ -187,6 +191,7 @@ REWARD_BREAKDOWN_KEYS = [
     "reward_closing",
     "reward_lead_alignment",
     "reward_final_approach",
+    "reward_altitude_schedule",
     "reward_terminal",
 ]
 
@@ -334,6 +339,11 @@ REWARD_CONFIG = {
     "final_approach_bad_angle_gain": 0.045,
     "final_approach_bad_closing_gain": 0.045,
     "final_approach_bad_progress_gain": 0.045,
+    "altitude_schedule_gain": 0.03,
+    "altitude_schedule_power": 0.70,
+    "altitude_schedule_target_agl": 100.0,
+    "altitude_schedule_tolerance": 5.0,
+    "altitude_schedule_grace_steps": 80,
     "min_agl": 0.60,
     "low_agl_grace_steps": 80,
     "collision_grace_steps": 8,
@@ -364,7 +374,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v16_0_3_phase_1_nose_frame_y100",
+    "name": "v16_0_4_phase_1_altitude_schedule_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
@@ -490,6 +500,7 @@ class Env:
         self.episode_id = 0
         self.prev_distance = None
         self.reset_distance = None
+        self.reset_horizontal_distance = None
         self.min_distance_seen = None
         self.prev_theta = None
         self.prev_alpha_abs = None
@@ -626,6 +637,15 @@ class Env:
         if not isinstance(values, (list, tuple)) or len(values) < 3:
             return np.zeros(3, dtype=np.float32)
         return np.asarray(values[:3], dtype=np.float32)
+
+    def _target_horizontal_distance(self, telemetry, fallback_distance):
+        rocket_pos = self._telemetry_vec(telemetry, "rocket_point_pos_world")
+        target_pos = self._telemetry_vec(telemetry, "target_point_pos_world")
+        delta = target_pos - rocket_pos
+        horizontal = float(np.linalg.norm(delta[[0, 2]]))
+        if horizontal <= 1e-6:
+            return float(fallback_distance)
+        return horizontal
 
     @staticmethod
     def _safe_unit(value, fallback):
@@ -822,8 +842,10 @@ class Env:
         vector_state = self.parse_state(raw_state)
         normalized_state = self.normalize_state(vector_state)
         self.prev_distance = float(raw_state["states"]["distance"])
-        initial_target_distance = float(raw_state.get("telemetry", {}).get("target_distance", self.prev_distance))
+        telemetry = raw_state.get("telemetry", {})
+        initial_target_distance = float(telemetry.get("target_distance", self.prev_distance))
         self.reset_distance = initial_target_distance
+        self.reset_horizontal_distance = self._target_horizontal_distance(telemetry, initial_target_distance)
         self.min_distance_seen = initial_target_distance
         self.prev_theta = abs(float(np.degrees(raw_state["states"]["theta_rad"])))
         self.prev_alpha_abs = abs(float(np.degrees(raw_state["states"]["alpha_rad"])))
@@ -874,6 +896,7 @@ class Env:
         target_alignment = float(telemetry.get("target_alignment", alignment))
         target_theta_deg = float(telemetry.get("target_theta_deg", theta_deg))
         target_hit_triggered = float(telemetry.get("target_hit_trigger", 0.0)) > 0.5
+        target_horizontal_distance = self._target_horizontal_distance(telemetry, target_distance)
         turn_rate_clock = np.asarray(states.get("turn_rate_clock", [0.0, 0.0, 0.0, 0.0]), dtype=np.float32)
         turn_rate_roll = float(states.get("turn_rate_roll", states.get("turn_rate_ref", [0.0, 0.0, 0.0])[2]))
         ang_vel_mag = float(np.sqrt(np.sum(np.square(turn_rate_clock)) + turn_rate_roll ** 2))
@@ -956,6 +979,35 @@ class Env:
             theta_progress_reward *= phase["theta_regress_penalty_scale"]
         closing_reward = float(phase["closing_gain"] * closing_norm)
 
+        reset_horizontal_distance = max(
+            float(self.reset_horizontal_distance or self.reset_distance or target_horizontal_distance),
+            1e-6,
+        )
+        altitude_schedule_progress = float(np.clip(
+            1.0 - (target_horizontal_distance / reset_horizontal_distance),
+            0.0,
+            1.0,
+        ))
+        altitude_schedule_target_agl = float(phase.get(
+            "altitude_schedule_target_agl",
+            phase.get("target_y", 100.0),
+        ))
+        altitude_schedule_desired_agl = float(
+            altitude_schedule_target_agl
+            * (altitude_schedule_progress ** float(phase["altitude_schedule_power"]))
+        )
+        altitude_schedule_deficit = max(
+            altitude_schedule_desired_agl
+            - agl
+            - float(phase["altitude_schedule_tolerance"]),
+            0.0,
+        )
+        altitude_schedule_reward = 0.0
+        if self.step_count > int(phase["altitude_schedule_grace_steps"]):
+            altitude_schedule_reward = -float(phase["altitude_schedule_gain"]) * (
+                altitude_schedule_deficit / max(altitude_schedule_target_agl, 1e-6)
+            )
+
         final_approach_proximity = float(np.clip(
             1.0 - (distance / max(phase["final_approach_distance"], 1e-6)),
             0.0,
@@ -1006,6 +1058,7 @@ class Env:
             + closing_reward
             + lead_alignment_reward
             + final_approach_reward
+            + altitude_schedule_reward
         )
         done = False
         done_reason = None
@@ -1104,6 +1157,10 @@ class Env:
             "closing_speed": float(closing_speed),
             "alignment": float(alignment),
             "target_distance": float(target_distance),
+            "altitude_schedule_progress": float(altitude_schedule_progress),
+            "altitude_schedule_desired_agl": float(altitude_schedule_desired_agl),
+            "altitude_schedule_deficit": float(altitude_schedule_deficit),
+            "altitude_schedule_horizontal_distance": float(target_horizontal_distance),
             "target_closing_speed": float(target_closing_speed),
             "target_alignment": float(target_alignment),
             "target_theta_deg": float(target_theta_deg),
@@ -1127,6 +1184,7 @@ class Env:
             "reward_closing": float(closing_reward),
             "reward_lead_alignment": float(lead_alignment_reward),
             "reward_final_approach": float(final_approach_reward),
+            "reward_altitude_schedule": float(altitude_schedule_reward),
             "reward_terminal": float(terminal_reward),
             "near_miss_candidate": 1.0 if near_miss_candidate else 0.0,
             "grounded_flag": 1.0 if grounded else 0.0,
@@ -1176,6 +1234,10 @@ class Env:
         info["closing_speed"] = reward_info["closing_speed"]
         info["delta_distance"] = reward_info["delta_distance"]
         info["target_distance"] = reward_info["target_distance"]
+        info["altitude_schedule_progress"] = reward_info["altitude_schedule_progress"]
+        info["altitude_schedule_desired_agl"] = reward_info["altitude_schedule_desired_agl"]
+        info["altitude_schedule_deficit"] = reward_info["altitude_schedule_deficit"]
+        info["altitude_schedule_horizontal_distance"] = reward_info["altitude_schedule_horizontal_distance"]
         info["target_closing_speed"] = reward_info["target_closing_speed"]
         info["target_alignment"] = reward_info["target_alignment"]
         info["target_theta_deg"] = reward_info["target_theta_deg"]
@@ -1270,6 +1332,10 @@ class Env:
         info["closing_speed"] = reward_info["closing_speed"]
         info["delta_distance"] = reward_info["delta_distance"]
         info["target_distance"] = reward_info["target_distance"]
+        info["altitude_schedule_progress"] = reward_info["altitude_schedule_progress"]
+        info["altitude_schedule_desired_agl"] = reward_info["altitude_schedule_desired_agl"]
+        info["altitude_schedule_deficit"] = reward_info["altitude_schedule_deficit"]
+        info["altitude_schedule_horizontal_distance"] = reward_info["altitude_schedule_horizontal_distance"]
         info["target_closing_speed"] = reward_info["target_closing_speed"]
         info["target_alignment"] = reward_info["target_alignment"]
         info["target_theta_deg"] = reward_info["target_theta_deg"]
