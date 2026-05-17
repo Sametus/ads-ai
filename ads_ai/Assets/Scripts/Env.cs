@@ -1034,13 +1034,18 @@ public class Env : MonoBehaviour
         upRefWorld = gravityWorld.sqrMagnitude > 1e-8f ? (-gravityWorld).normalized : Vector3.up;
 
         Vector3 relDirWorld = relPosWorld.sqrMagnitude > 1e-8f ? relPosWorld.normalized : rocketPoint.forward;
-        Vector3 velocityProjected = ProjectOnPlaneNormalized(rocketRb.linearVelocity, upRefWorld);
         Vector3 forwardProjected = ProjectOnPlaneNormalized(rocketPoint.forward, upRefWorld);
+        Vector3 velocityProjected = ProjectOnPlaneNormalized(rocketRb.linearVelocity, upRefWorld);
         Vector3 relProjected = ProjectOnPlaneNormalized(relDirWorld, upRefWorld);
 
-        forwardRefWorld = velocityProjected;
+        // V16.0.3: State ve direct-action sag/sol eksenini roket burnuna sabitleriz.
+        // Hiz vektoru salindiginda "sag" tanimi da dondugu icin pozitif/negatif
+        // offset testlerinde yapay asimetri uretebiliyordu. PN saglik testindeki
+        // gibi once fiziksel nose frame'i referans almak daha okunur bir kontrol
+        // yuzeyi verir; hiz ve hedef hattini sadece fallback olarak kullaniriz.
+        forwardRefWorld = forwardProjected;
         if (forwardRefWorld.sqrMagnitude <= 1e-8f)
-            forwardRefWorld = forwardProjected;
+            forwardRefWorld = velocityProjected;
         if (forwardRefWorld.sqrMagnitude <= 1e-8f)
             forwardRefWorld = relProjected;
         if (forwardRefWorld.sqrMagnitude <= 1e-8f)

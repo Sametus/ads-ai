@@ -364,7 +364,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v16_0_2_phase_1_target_nose_aim_y100",
+    "name": "v16_0_3_phase_1_nose_frame_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
@@ -373,7 +373,7 @@ ACTIVE_PHASE_CONFIG = {
     "heading_offset_abs_min": 1.0,
     "balanced_heading_offsets": True,
     "balanced_heading_offset_order": [1, 2, 3, 4, 5],
-    "balanced_heading_sign_order": [-1],
+    "balanced_heading_sign_order": [-1, 1],
     "max_step": 1200,
 }
 

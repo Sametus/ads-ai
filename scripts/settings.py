@@ -18,9 +18,9 @@ PORT = 5005
 
 MODELS_DIR = "models"
 
-# V16, state'i target merkezi yerine Unity'deki lead aim point'e tasir.
-# Eski replay buffer state anlami farkli oldugu icin bu prefix temiz v16 buffer/model baslatir.
-SAC_MODEL_PREFIX = "sac_v16_0_2_target_nose_aim_y100"
+# V16.0.3, sag/sol state-action frame'ini roket burnuna sabitler.
+# V16.0.2 replay buffer velocity-frame state tuttugu icin yeni prefix temiz buffer/model baslatir.
+SAC_MODEL_PREFIX = "sac_v16_0_3_nose_frame_y100"
 SAC_TOTAL_STEPS = 2000000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000
