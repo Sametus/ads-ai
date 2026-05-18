@@ -225,6 +225,7 @@ python scripts/train.py
 7. Grafik üretmek istersen:
 
 ```powershell
+python scripts/generate_readme_charts.py
 python scripts/plot_success_scatter.py
 python scripts/plot_sac_report.py
 ```
@@ -249,6 +250,7 @@ ads_ai/
     connector.py                Unity-Python TCP bağlantısı
     cuda_bootstrap.py           Windows/Conda CUDA DLL hazırlığı
     log.py                      CSV ve terminal logları
+    generate_readme_charts.py   README grafiklerini Türkçe karakter desteğiyle üretir
     plot_success_scatter.py     Success scatter ve rolling success grafiği
     plot_sac_report.py          SAC eğitim rapor grafikleri
 
