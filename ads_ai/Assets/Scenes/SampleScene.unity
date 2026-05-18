@@ -6344,9 +6344,9 @@ MonoBehaviour:
   lowAltitudeTurnDampFullAgl: 10
   lowAltitudeMinTurnScale: 0.35
   lowAltitudeUpTurnMinScale: 0.9
-  clockTurnRateTarget: 2.8
+  clockTurnRateTarget: 2.6
   clockTurnRateControllerGain: 1.8
-  maxPitchYawTorqueCommand: 6
+  maxPitchYawTorqueCommand: 5.5
   directActionMarker: -7777
   guidanceAccelActionMarker: -5555
   bodyAccelActionMarker: -6666

@@ -315,8 +315,8 @@ AGL_TANH_SCALE = 50.0
 ALT_ERROR_TANH_SCALE = 50.0
 GRAVITY_SCALE = 9.81
 
-MIN_THRUST = 620.0
-MAX_THRUST = 700.0
+MIN_THRUST = 650.0
+MAX_THRUST = 730.0
 MAX_CLOCK_CMD = 2.0
 TARGET_VELOCITY = 25.0
 
@@ -324,12 +324,12 @@ TARGET_VELOCITY = 25.0
 ACTIVE_PHASE_ID = 1
 
 REWARD_CONFIG = {
-    "step_penalty": -0.0085,
+    "step_penalty": -0.0095,
     "distance_gain": 0.30,
     "distance_progress_scale": 5.0,
     "alignment_gain": 0.0,
     "alignment_reward_floor": 0.20,
-    "theta_progress_gain": 0.075,
+    "theta_progress_gain": 0.070,
     "theta_progress_altitude_floor": 0.15,
     "theta_regress_penalty_scale": 1.15,
     "theta_progress_scale_deg": 20.0,
@@ -362,7 +362,7 @@ REWARD_CONFIG = {
     "altitude_progress_scale": 25.0,
     "vertical_schedule_gain": 0.04,
     "vertical_schedule_window": 35.0,
-    "lateral_alignment_gain": 0.045,
+    "lateral_alignment_gain": 0.040,
     "lateral_alignment_reward_floor": 0.35,
     "positive_lateral_alignment_altitude_floor": 0.20,
     "lateral_progress_gain": 0.12,
@@ -372,8 +372,8 @@ REWARD_CONFIG = {
     "low_agl_grace_steps": 80,
     "collision_grace_steps": 8,
     "max_altitude": 180.0,
-    "max_theta_deg": 110.0,
-    "bad_angle_grace_steps": 25,
+    "max_theta_deg": 125.0,
+    "bad_angle_grace_steps": 60,
     "wrong_way_alignment": -0.35,
     "wrong_way_closing_speed": -8.0,
     "wrong_way_grace_steps": 80,
@@ -398,7 +398,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v16_0_6_phase_1_alignment_split_y100",
+    "name": "v16_0_7_phase_1_forward_speed_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,

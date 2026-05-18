@@ -18,11 +18,11 @@ PORT = 5005
 
 MODELS_DIR = "models"
 
-# V16.0.6, success ureten V16.0.4 step 640000 checkpoint'inden baslar.
-# 3B alignment yerine lineer irtifa plani + sag/sol lateral alignment sinyali dener.
-SAC_MODEL_PREFIX = "sac_v16_0_6_alignment_split_y100"
-SAC_WARM_START_MODEL_PREFIX = "sac_v16_0_4_altitude_schedule_y100"
-SAC_WARM_START_STEP = 640000
+# V16.0.7 sifir modelle baslar.
+# Altta bekleme davranisini kirmak icin ileri itki artar, donus komutu ve alignment sinyali hafif zayiflar.
+SAC_MODEL_PREFIX = "sac_v16_0_7_forward_speed_y100"
+SAC_WARM_START_MODEL_PREFIX = None
+SAC_WARM_START_STEP = None
 SAC_TOTAL_STEPS = 10000000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000

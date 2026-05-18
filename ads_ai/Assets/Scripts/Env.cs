@@ -227,9 +227,9 @@ public class Env : MonoBehaviour
     public float lowAltitudeTurnDampFullAgl = 10f;
     public float lowAltitudeMinTurnScale = 0.35f;
     public float lowAltitudeUpTurnMinScale = 0.90f;
-    public float clockTurnRateTarget = 2.8f;
+    public float clockTurnRateTarget = 2.6f;
     public float clockTurnRateControllerGain = 1.8f;
-    public float maxPitchYawTorqueCommand = 6.0f;
+    public float maxPitchYawTorqueCommand = 5.5f;
 
     [Header("Direct Guidance Test (Sadece klasik baseline)")]
     public float directActionMarker = -7777f;
