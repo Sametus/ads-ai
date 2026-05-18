@@ -18,11 +18,12 @@ PORT = 5005
 
 MODELS_DIR = "models"
 
-# V16.0.4, V16.0.3 nose-frame politikasini warm-start alip yeni altitude schedule
-# reward'u temiz replay buffer ile dener. Eski replay odulleri bu reward ile karistirilmaz.
-SAC_MODEL_PREFIX = "sac_v16_0_4_altitude_schedule_y100"
-SAC_WARM_START_MODEL_PREFIX = "sac_v16_0_3_nose_frame_y100"
-SAC_TOTAL_STEPS = 2000000
+# V16.0.6, success ureten V16.0.4 step 640000 checkpoint'inden baslar.
+# 3B alignment yerine lineer irtifa plani + sag/sol lateral alignment sinyali dener.
+SAC_MODEL_PREFIX = "sac_v16_0_6_alignment_split_y100"
+SAC_WARM_START_MODEL_PREFIX = "sac_v16_0_4_altitude_schedule_y100"
+SAC_WARM_START_STEP = 640000
+SAC_TOTAL_STEPS = 10000000
 SAC_BATCH_SIZE = 64
 SAC_REPLAY_SIZE = 200000
 SAC_START_TRAINING_STEPS = 8000

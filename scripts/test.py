@@ -75,6 +75,9 @@ if __name__ == "__main__":
                 state = next_state
 
             done_reason = final_info["done_reason"] if final_info is not None else "unknown"
+            target_hit = float(final_info.get("target_hit_trigger", 0.0) or 0.0) > 0.5
+            ellipsoid_hit = float(final_info.get("target_hit_ellipsoid", 0.0) or 0.0) > 0.5
+            ellipsoid_value = float(final_info.get("target_hit_ellipsoid_value", 0.0) or 0.0)
             if done_reason == "success":
                 success_count += 1
 
@@ -91,7 +94,9 @@ if __name__ == "__main__":
                 f"final_distance={final_info['distance']:.2f} | "
                 f"final_agl={final_info['agl']:.2f} | "
                 f"final_theta={final_info.get('theta_deg', 0.0):.2f} | "
-                f"final_alignment={final_info.get('alignment', 0.0):.2f}"
+                f"final_alignment={final_info.get('alignment', 0.0):.2f} | "
+                f"hit={'VAR' if target_hit else 'YOK'} | "
+                f"ellipsoid={int(ellipsoid_hit)}/{ellipsoid_value:.2f}"
             )
 
         print("=" * 80)

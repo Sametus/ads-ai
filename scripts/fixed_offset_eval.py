@@ -66,6 +66,9 @@ def run_episode(env, agent, offset, radius, target_y, max_steps, deterministic):
     return {
         "offset": offset,
         "done": final_info.get("done_reason") or "not_done",
+        "hit": 1 if float(final_info.get("target_hit_trigger", 0.0) or 0.0) > 0.5 else 0,
+        "ellipsoid": 1 if float(final_info.get("target_hit_ellipsoid", 0.0) or 0.0) > 0.5 else 0,
+        "ellipsoid_value": float(final_info.get("target_hit_ellipsoid_value", 0.0) or 0.0),
         "len": int(final_info.get("step_id", len(rows))),
         "return": episode_return,
         "final_dist": float(final_info.get("distance", 0.0)),
@@ -96,15 +99,37 @@ def main():
     parser.add_argument("--target-y", type=float, default=100.0)
     parser.add_argument("--max-steps", type=int, default=1200)
     parser.add_argument("--stochastic", action="store_true")
+    parser.add_argument(
+        "--checkpoint-step",
+        type=int,
+        default=None,
+        help="Belirli bir SAC checkpoint step'ini test eder; verilmezse en son checkpoint yuklenir.",
+    )
+    parser.add_argument(
+        "--checkpoint-prefix",
+        default=None,
+        help="Checkpoint prefix'i; verilmezse settings.SAC_MODEL_PREFIX kullanilir.",
+    )
     args = parser.parse_args()
 
     settings.setup_gpu()
     settings.ensure_model_dir()
 
     agent = SACAgent()
-    loaded_step = agent.load_checkpoint()
-    if loaded_step == 0 and not agent.loaded_checkpoint:
-        raise FileNotFoundError("SAC checkpoint bulunamadi.")
+    if args.checkpoint_step is not None:
+        checkpoint_prefix = args.checkpoint_prefix or settings.SAC_MODEL_PREFIX
+        agent.load_model_weights(int(args.checkpoint_step), checkpoint_prefix)
+        agent.loaded_checkpoint = True
+        loaded_step = int(args.checkpoint_step)
+        print(
+            f"[SAC EVAL] Secilen checkpoint yuklendi: "
+            f"prefix={checkpoint_prefix} step={loaded_step}",
+            flush=True,
+        )
+    else:
+        loaded_step = agent.load_checkpoint()
+        if loaded_step == 0 and not agent.loaded_checkpoint:
+            raise FileNotFoundError("SAC checkpoint bulunamadi.")
 
     env = Env(settings.IP, settings.PORT)
     results = []
@@ -119,6 +144,7 @@ def main():
                 results.append(result)
                 print(
                     "OFFSET {offset:+d} rep={repeat} done={done} len={len} ret={return:.2f} "
+                    "hit={hit} ell={ellipsoid}/{ellipsoid_value:.2f} "
                     "min_dist={min_dist:.2f}@{min_step} min_theta={min_theta:.1f} "
                     "min_closing={min_closing:.1f} near_a0={near_a0:.3f} "
                     "near_rel_vx={near_rel_vx:.2f} near_rel_vz={near_rel_vz:.2f} "

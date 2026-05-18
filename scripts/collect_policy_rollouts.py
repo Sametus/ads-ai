@@ -35,6 +35,9 @@ def collect_episode(env, agent, offset, radius, target_y, max_steps, determinist
     return {
         "offset": int(offset),
         "done_reason": final_info.get("done_reason", "not_done"),
+        "hit": 1 if float(final_info.get("target_hit_trigger", 0.0) or 0.0) > 0.5 else 0,
+        "ellipsoid": 1 if float(final_info.get("target_hit_ellipsoid", 0.0) or 0.0) > 0.5 else 0,
+        "ellipsoid_value": float(final_info.get("target_hit_ellipsoid_value", 0.0) or 0.0),
         "steps": int(final_info.get("step_id", len(transitions))),
         "return": float(episode_return),
         "distance": float(final_info.get("distance", 0.0)),
@@ -64,6 +67,17 @@ def main():
     parser.add_argument("--max-steps", type=int, default=1200)
     parser.add_argument("--stochastic", action="store_true")
     parser.add_argument(
+        "--checkpoint-step",
+        type=int,
+        default=None,
+        help="Belirli bir SAC checkpoint step'i ile rollout toplar; verilmezse en son checkpoint yuklenir.",
+    )
+    parser.add_argument(
+        "--checkpoint-prefix",
+        default=None,
+        help="Checkpoint prefix'i; verilmezse settings.SAC_MODEL_PREFIX kullanilir.",
+    )
+    parser.add_argument(
         "--keep-failures",
         action="store_true",
         help="Also append failed episodes. Default is to append successes only.",
@@ -74,9 +88,20 @@ def main():
     settings.ensure_model_dir()
 
     agent = SACAgent()
-    loaded_step = agent.load_checkpoint()
-    if loaded_step == 0 and not agent.loaded_checkpoint:
-        raise FileNotFoundError("SAC checkpoint bulunamadi; rollout toplanamiyor.")
+    if args.checkpoint_step is not None:
+        checkpoint_prefix = args.checkpoint_prefix or settings.SAC_MODEL_PREFIX
+        agent.load_model_weights(int(args.checkpoint_step), checkpoint_prefix)
+        agent.loaded_checkpoint = True
+        loaded_step = int(args.checkpoint_step)
+        print(
+            f"[SAC ROLLOUT] Secilen checkpoint yuklendi: "
+            f"prefix={checkpoint_prefix} step={loaded_step}",
+            flush=True,
+        )
+    else:
+        loaded_step = agent.load_checkpoint()
+        if loaded_step == 0 and not agent.loaded_checkpoint:
+            raise FileNotFoundError("SAC checkpoint bulunamadi; rollout toplanamiyor.")
 
     replay = ReplayBuffer(agent.state_size, agent.action_size, settings.SAC_REPLAY_SIZE)
     replay_path = agent.replay_buffer_path()
@@ -134,6 +159,7 @@ def main():
                 print(
                     "[ROLLOUT] offset={offset:+d} attempt={attempt}/{max_attempts} "
                     "successes={successes}/{target} done={done} steps={steps} "
+                    "hit={hit} ell={ellipsoid}/{ellipsoid_value:.2f} "
                     "return={ret:.2f} dist={dist:.2f} theta={theta:.1f} "
                     "closing={closing:.1f} added={added}".format(
                         offset=int(offset),

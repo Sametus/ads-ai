@@ -181,6 +181,10 @@ PYTHON_STEP_LOG_KEYS = [
     "altitude_schedule_desired_agl",
     "altitude_schedule_deficit",
     "altitude_schedule_horizontal_distance",
+    "altitude_reward_gate",
+    "lateral_alignment",
+    "vertical_schedule_error",
+    "vertical_schedule_score",
 ]
 
 REWARD_BREAKDOWN_KEYS = [
@@ -192,6 +196,10 @@ REWARD_BREAKDOWN_KEYS = [
     "reward_lead_alignment",
     "reward_final_approach",
     "reward_altitude_schedule",
+    "reward_vertical_schedule",
+    "reward_lateral_alignment",
+    "reward_altitude_progress",
+    "reward_lateral_progress",
     "reward_terminal",
 ]
 
@@ -319,9 +327,10 @@ REWARD_CONFIG = {
     "step_penalty": -0.0085,
     "distance_gain": 0.30,
     "distance_progress_scale": 5.0,
-    "alignment_gain": 0.06,
+    "alignment_gain": 0.0,
     "alignment_reward_floor": 0.20,
     "theta_progress_gain": 0.075,
+    "theta_progress_altitude_floor": 0.15,
     "theta_regress_penalty_scale": 1.15,
     "theta_progress_scale_deg": 20.0,
     "closing_gain": 0.12,
@@ -339,11 +348,26 @@ REWARD_CONFIG = {
     "final_approach_bad_angle_gain": 0.045,
     "final_approach_bad_closing_gain": 0.045,
     "final_approach_bad_progress_gain": 0.045,
-    "altitude_schedule_gain": 0.03,
-    "altitude_schedule_power": 0.70,
+    "altitude_schedule_gain": 0.06,
+    "altitude_schedule_power": 1.0,
     "altitude_schedule_target_agl": 100.0,
-    "altitude_schedule_tolerance": 5.0,
-    "altitude_schedule_grace_steps": 80,
+    "altitude_schedule_tolerance": 3.0,
+    "altitude_schedule_grace_steps": 40,
+    "altitude_gate_floor_agl": 45.0,
+    "altitude_gate_ready_agl": 85.0,
+    "positive_distance_altitude_floor": 0.50,
+    "positive_alignment_altitude_floor": 0.20,
+    "positive_closing_altitude_floor": 0.35,
+    "altitude_progress_gain": 5.0,
+    "altitude_progress_scale": 25.0,
+    "vertical_schedule_gain": 0.04,
+    "vertical_schedule_window": 35.0,
+    "lateral_alignment_gain": 0.045,
+    "lateral_alignment_reward_floor": 0.35,
+    "positive_lateral_alignment_altitude_floor": 0.20,
+    "lateral_progress_gain": 0.12,
+    "lateral_progress_scale_deg": 20.0,
+    "lateral_regress_penalty_scale": 1.20,
     "min_agl": 0.60,
     "low_agl_grace_steps": 80,
     "collision_grace_steps": 8,
@@ -374,7 +398,7 @@ REWARD_CONFIG = {
 }
 
 ACTIVE_PHASE_CONFIG = {
-    "name": "v16_0_4_phase_1_altitude_schedule_y100",
+    "name": "v16_0_6_phase_1_alignment_split_y100",
     "spawn_radius_min": 700.0,
     "spawn_radius_max": 700.0,
     "target_y": 100.0,
@@ -932,9 +956,26 @@ class Env:
             -1.0,
             1.0,
         ))
+        altitude_gate_raw = float(np.clip(
+            (agl - float(phase["altitude_gate_floor_agl"]))
+            / max(float(phase["altitude_gate_ready_agl"]) - float(phase["altitude_gate_floor_agl"]), 1e-6),
+            0.0,
+            1.0,
+        ))
+        altitude_reward_gate = float(altitude_gate_raw * altitude_gate_raw * (3.0 - 2.0 * altitude_gate_raw))
+
+        def gate_positive(value, floor_key):
+            value = float(value)
+            if value <= 0.0:
+                return value
+            floor = float(np.clip(phase[floor_key], 0.0, 1.0))
+            return value * (floor + ((1.0 - floor) * altitude_reward_gate))
 
         step_penalty = float(phase["step_penalty"])
-        distance_reward = float(phase["distance_gain"] * distance_progress)
+        distance_reward = gate_positive(
+            phase["distance_gain"] * distance_progress,
+            "positive_distance_altitude_floor",
+        )
         alignment_base_reward = float(phase["alignment_gain"] * (alignment - phase["alignment_reward_floor"]))
         if (
             alignment_base_reward > 0.0
@@ -944,6 +985,7 @@ class Env:
             alignment_reward = 0.0
         else:
             alignment_reward = alignment_base_reward
+        alignment_reward = gate_positive(alignment_reward, "positive_alignment_altitude_floor")
 
         lead_reward_proximity = float(np.clip(
             1.0 - (distance / max(phase["lead_reward_distance"], 1e-6)),
@@ -977,7 +1019,15 @@ class Env:
         )
         if theta_progress_reward < 0.0:
             theta_progress_reward *= phase["theta_regress_penalty_scale"]
-        closing_reward = float(phase["closing_gain"] * closing_norm)
+        theta_progress_gate = (
+            float(phase["theta_progress_altitude_floor"])
+            + ((1.0 - float(phase["theta_progress_altitude_floor"])) * altitude_reward_gate)
+        )
+        theta_progress_reward *= theta_progress_gate
+        closing_reward = gate_positive(
+            phase["closing_gain"] * closing_norm,
+            "positive_closing_altitude_floor",
+        )
 
         reset_horizontal_distance = max(
             float(self.reset_horizontal_distance or self.reset_distance or target_horizontal_distance),
@@ -996,9 +1046,20 @@ class Env:
             altitude_schedule_target_agl
             * (altitude_schedule_progress ** float(phase["altitude_schedule_power"]))
         )
+        vertical_schedule_error = float(altitude_schedule_desired_agl - agl)
+        vertical_schedule_abs_error = abs(vertical_schedule_error)
+        vertical_schedule_score = float(np.clip(
+            1.0 - (vertical_schedule_abs_error / max(float(phase["vertical_schedule_window"]), 1e-6)),
+            -1.0,
+            1.0,
+        ))
+        vertical_schedule_reward = float(
+            phase["vertical_schedule_gain"]
+            * altitude_schedule_progress
+            * vertical_schedule_score
+        )
         altitude_schedule_deficit = max(
-            altitude_schedule_desired_agl
-            - agl
+            vertical_schedule_error
             - float(phase["altitude_schedule_tolerance"]),
             0.0,
         )
@@ -1007,6 +1068,17 @@ class Env:
             altitude_schedule_reward = -float(phase["altitude_schedule_gain"]) * (
                 altitude_schedule_deficit / max(altitude_schedule_target_agl, 1e-6)
             )
+        prev_agl = agl if self.prev_agl is None else self.prev_agl
+        delta_agl_for_reward = float(np.clip(
+            agl - prev_agl,
+            -float(phase["altitude_progress_scale"]),
+            float(phase["altitude_progress_scale"]),
+        ))
+        altitude_progress_reward = float(
+            phase["altitude_progress_gain"]
+            * (delta_agl_for_reward / max(float(phase["altitude_progress_scale"]), 1e-6))
+            * (1.0 - altitude_reward_gate)
+        )
 
         final_approach_proximity = float(np.clip(
             1.0 - (distance / max(phase["final_approach_distance"], 1e-6)),
@@ -1033,6 +1105,29 @@ class Env:
         ))
         final_approach_bad_closing = max(-closing_norm, 0.0)
         final_approach_bad_progress = max(-distance_progress, 0.0)
+        prev_beta_abs = beta_abs if self.prev_beta_abs is None else self.prev_beta_abs
+        delta_beta_abs = float(np.clip(
+            prev_beta_abs - beta_abs,
+            -float(phase["lateral_progress_scale_deg"]),
+            float(phase["lateral_progress_scale_deg"]),
+        ))
+        lateral_progress_reward = float(
+            phase["lateral_progress_gain"]
+            * delta_beta_abs
+            / max(float(phase["lateral_progress_scale_deg"]), 1e-6)
+            * altitude_reward_gate
+        )
+        if lateral_progress_reward < 0.0:
+            lateral_progress_reward *= float(phase["lateral_regress_penalty_scale"])
+        lateral_alignment = float(np.cos(beta_rad))
+        lateral_alignment_base_reward = float(
+            phase["lateral_alignment_gain"]
+            * (lateral_alignment - phase["lateral_alignment_reward_floor"])
+        )
+        lateral_alignment_reward = gate_positive(
+            lateral_alignment_base_reward,
+            "positive_lateral_alignment_altitude_floor",
+        )
         final_approach_reward = float(
             phase["final_approach_gain"]
             * final_approach_proximity
@@ -1057,8 +1152,12 @@ class Env:
             + theta_progress_reward
             + closing_reward
             + lead_alignment_reward
+            + vertical_schedule_reward
+            + lateral_alignment_reward
             + final_approach_reward
             + altitude_schedule_reward
+            + altitude_progress_reward
+            + lateral_progress_reward
         )
         done = False
         done_reason = None
@@ -1161,6 +1260,10 @@ class Env:
             "altitude_schedule_desired_agl": float(altitude_schedule_desired_agl),
             "altitude_schedule_deficit": float(altitude_schedule_deficit),
             "altitude_schedule_horizontal_distance": float(target_horizontal_distance),
+            "altitude_reward_gate": float(altitude_reward_gate),
+            "lateral_alignment": float(lateral_alignment),
+            "vertical_schedule_error": float(vertical_schedule_error),
+            "vertical_schedule_score": float(vertical_schedule_score),
             "target_closing_speed": float(target_closing_speed),
             "target_alignment": float(target_alignment),
             "target_theta_deg": float(target_theta_deg),
@@ -1185,6 +1288,10 @@ class Env:
             "reward_lead_alignment": float(lead_alignment_reward),
             "reward_final_approach": float(final_approach_reward),
             "reward_altitude_schedule": float(altitude_schedule_reward),
+            "reward_vertical_schedule": float(vertical_schedule_reward),
+            "reward_lateral_alignment": float(lateral_alignment_reward),
+            "reward_altitude_progress": float(altitude_progress_reward),
+            "reward_lateral_progress": float(lateral_progress_reward),
             "reward_terminal": float(terminal_reward),
             "near_miss_candidate": 1.0 if near_miss_candidate else 0.0,
             "grounded_flag": 1.0 if grounded else 0.0,
@@ -1238,6 +1345,10 @@ class Env:
         info["altitude_schedule_desired_agl"] = reward_info["altitude_schedule_desired_agl"]
         info["altitude_schedule_deficit"] = reward_info["altitude_schedule_deficit"]
         info["altitude_schedule_horizontal_distance"] = reward_info["altitude_schedule_horizontal_distance"]
+        info["altitude_reward_gate"] = reward_info["altitude_reward_gate"]
+        info["lateral_alignment"] = reward_info["lateral_alignment"]
+        info["vertical_schedule_error"] = reward_info["vertical_schedule_error"]
+        info["vertical_schedule_score"] = reward_info["vertical_schedule_score"]
         info["target_closing_speed"] = reward_info["target_closing_speed"]
         info["target_alignment"] = reward_info["target_alignment"]
         info["target_theta_deg"] = reward_info["target_theta_deg"]
@@ -1336,6 +1447,10 @@ class Env:
         info["altitude_schedule_desired_agl"] = reward_info["altitude_schedule_desired_agl"]
         info["altitude_schedule_deficit"] = reward_info["altitude_schedule_deficit"]
         info["altitude_schedule_horizontal_distance"] = reward_info["altitude_schedule_horizontal_distance"]
+        info["altitude_reward_gate"] = reward_info["altitude_reward_gate"]
+        info["lateral_alignment"] = reward_info["lateral_alignment"]
+        info["vertical_schedule_error"] = reward_info["vertical_schedule_error"]
+        info["vertical_schedule_score"] = reward_info["vertical_schedule_score"]
         info["target_closing_speed"] = reward_info["target_closing_speed"]
         info["target_alignment"] = reward_info["target_alignment"]
         info["target_theta_deg"] = reward_info["target_theta_deg"]

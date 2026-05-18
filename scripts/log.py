@@ -33,6 +33,16 @@ def _terminal_color(done_reason):
         return CYAN
     return RESET
 
+
+def _hit_text(info):
+    """Target trigger/collider bilgisini konsolda okunur hale getirir."""
+    trigger_hit = float(info.get("target_hit_trigger", 0.0) or 0.0) > 0.5
+    ellipsoid_hit = float(info.get("target_hit_ellipsoid", 0.0) or 0.0) > 0.5
+    ellipsoid_value = float(info.get("target_hit_ellipsoid_value", 0.0) or 0.0)
+    status = "VAR" if trigger_hit else "YOK"
+    return f"Hit: {status} | Ell: {int(ellipsoid_hit)}/{ellipsoid_value:.2f}"
+
+
 STEP_HEADER = [
     "timestamp",
     "update_id",
@@ -273,6 +283,7 @@ def print_step_console(update_id, info):
         f"AGL: {info['agl']:>6.2f} | "
         f"AltE: {info['alt_error']:>6.2f} | "
         f"Aln: {info.get('alignment', 0.0):>5.2f} | "
+        f"{_hit_text(info)} | "
         f"R: {info['reward']:>7.3f} | "
         f"TC: [{info.get('target_clock_12', 0.0):.2f},{info.get('target_clock_6', 0.0):.2f},"
         f"{info.get('target_clock_3', 0.0):.2f},{info.get('target_clock_9', 0.0):.2f}] | "
@@ -299,6 +310,7 @@ def print_episode_console(episode_id, episode_return, episode_len,
         f"A/B: {final_info.get('alpha_deg', 0.0):>6.2f}/{final_info.get('beta_deg', 0.0):>6.2f} | "
         f"Cls: {final_info.get('closing_speed', 0.0):>6.2f} | "
         f"Aln: {final_info.get('alignment', 0.0):>5.2f} | "
+        f"{_hit_text(final_info)} | "
         f"Succ: {success_count}/{total_episode_count} ({success_rate:>6.2f}%) | "
         f"{timestamp}"
     )

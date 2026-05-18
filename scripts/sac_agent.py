@@ -402,6 +402,14 @@ class SACAgent:
                 steps.append(step_id)
         return max(steps) if steps else None
 
+    def checkpoint_exists(self, step_id, prefix=None):
+        """Actor ve critic dosyalari varsa checkpoint yuklenebilir kabul edilir."""
+        return (
+            os.path.exists(self.actor_path(step_id, prefix))
+            and os.path.exists(self.q1_path(step_id, prefix))
+            and os.path.exists(self.q2_path(step_id, prefix))
+        )
+
     def save_checkpoint(self, step_id):
         """Actor, critic ve alpha durumunu SAC checkpoint olarak kaydeder."""
         os.makedirs(settings.MODELS_DIR, exist_ok=True)
@@ -444,7 +452,11 @@ class SACAgent:
             self.loaded_checkpoint = False
             return 0
 
-        warm_step_id = self.latest_checkpoint_step(warm_prefix)
+        configured_warm_step = getattr(settings, "SAC_WARM_START_STEP", None)
+        if configured_warm_step is not None and self.checkpoint_exists(int(configured_warm_step), warm_prefix):
+            warm_step_id = int(configured_warm_step)
+        else:
+            warm_step_id = self.latest_checkpoint_step(warm_prefix)
         if warm_step_id is None:
             self.loaded_checkpoint = False
             return 0
