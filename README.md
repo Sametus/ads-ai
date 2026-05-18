@@ -10,17 +10,21 @@ Aktif final model:
 
 ```text
 model_prefix: sac_v16_0_7_forward_speed_y100
-selected_checkpoint: step 845000
-selected_window: episode 884-983
-best_window_success: 66 / 100
-avg_return: 127.43
-avg_final_distance: 13.80 m
+selected_checkpoint: step 675000
+selection_method: deterministic checkpoint sweep + Unity visual observation
+validated_offsets: +3 and +5 valid intercept
+visual_final_candidate: +5 offset
+valid_intercept_rule: hit + closing >= -1.0 + theta <= 30 deg + alignment >= 0.866
 target_y: 100 m
 max_step: 1200
 control_mode: direct_accel
 ```
 
-Tüm run snapshot'ında `1154` episode içinde `281` success görülmüştür. En iyi model olarak son checkpoint değil, rolling başarı oranı en iyi olan `step845000` seçilmiştir. Bunun sebebi eğitim ilerledikçe bazı dönemlerde başarı oranının yükselip sonra tekrar düşmesidir; final teslim için en iyi pencere korunmuştur.
+Tüm run snapshot'ında success sinyali alınmış olsa da final seçim yalnızca ham success sayısına göre yapılmamıştır. Çünkü bazı checkpointlerde collider teması success üretse bile roketin hedefin altından ya da arkasından dolanarak vurduğu görülebilir. Bu yüzden final aday, ayrıca deterministik checkpoint sweep ile izlenmiştir. `step675000` checkpoint'i `-5, -3, +3, +5` offset testlerinde 4/4 hit vermiş; `+3` ve `+5` offsetlerinde `valid_intercept` koşulunu sağlamıştır. Unity gözleminde özellikle son test olan `+5` offset vuruşu daha temiz önden yaklaşma davranışı gösterdiği için final aday olarak seçilmiştir.
+
+Seçilen checkpoint test özeti:
+
+![Seçili SAC checkpoint testi](docs/readme_assets/v16_selected_checkpoint_test.png)
 
 Final test komutu:
 
@@ -29,7 +33,7 @@ conda activate rl_codes
 python scripts/final_test.py
 ```
 
-`final_test.py` Unity sahnesi açıkken seçilen checkpoint'i yükler ve kullanıcı durdurana kadar deterministik policy ile test episode'ları çalıştırır. Konsolda success, missed intercept, timeout, episode uzunluğu, reward ve hit bilgisi kısa biçimde yazdırılır.
+`final_test.py` Unity sahnesi açıkken seçilen `step675000` checkpoint'ini yükler ve kullanıcı durdurana kadar deterministik policy ile test episode'ları çalıştırır. Konsolda success, valid intercept, weak hit, missed intercept, timeout, episode uzunluğu, reward, theta, closing ve hit bilgisi kısa biçimde yazdırılır.
 
 ## Genel Faz Akışı
 
@@ -80,7 +84,7 @@ Pratik yorum:
 
 - Eğitimde oynaklık kısmen normaldir.
 - Deterministik test, modelin gerçekten öğrendiği merkezi davranışı gösterir.
-- Başarılı bir checkpoint seçerken yalnızca son modeli değil, rolling success penceresini izlemek gerekir.
+- Başarılı bir checkpoint seçerken yalnızca son modeli ya da ham success sayısını değil, deterministik testteki gerçek yaklaşma geometrisini izlemek gerekir.
 
 ## Matematiksel Gözlem: Alignment ve Açı
 
@@ -153,7 +157,7 @@ Rolling success grafiği, modelin dönem dönem ciddi şekilde iyileştiğini am
 
 ![Rolling success](docs/readme_assets/v16_rolling_success.png)
 
-Success scatter grafiği episode sırasına göre başarıların nerede yoğunlaştığını gösterir. Bu grafik en iyi checkpoint penceresini seçerken özellikle kullanışlıdır:
+Success scatter grafiği episode sırasına göre başarıların nerede yoğunlaştığını gösterir. Bu grafik aday checkpoint aralığını daraltmak için kullanışlıdır; final karar ise ayrıca deterministik sweep ve görsel gözlemle verilmiştir:
 
 ![Success scatter](docs/readme_assets/v16_success_scatter_by_episode.png)
 
@@ -206,13 +210,19 @@ conda activate rl_codes
 python scripts/final_test.py
 ```
 
-5. Eğitimi devam ettirmek istersen:
+5. Sadece seçilen checkpoint'i yavaş ve gözlemlenebilir biçimde test etmek istersen:
+
+```powershell
+python scripts/test_selected_checkpoint.py
+```
+
+6. Eğitimi devam ettirmek istersen:
 
 ```powershell
 python scripts/train.py
 ```
 
-6. Grafik üretmek istersen:
+7. Grafik üretmek istersen:
 
 ```powershell
 python scripts/plot_success_scatter.py
@@ -231,6 +241,8 @@ ads_ai/
   scripts/                      Python RL kodları
     train.py                    Aktif SAC training döngüsü
     final_test.py               Final checkpoint test scripti
+    test_selected_checkpoint.py Seçili step675000 checkpoint'i için gözlem testi
+    checkpoint_sweep_test.py    Checkpoint adaylarını offset bazlı deterministik test eder
     sac_agent.py                SAC actor, critic, replay buffer ve checkpoint
     env.py                      Python Env wrapper, reward ve state/action dönüşümü
     settings.py                 Model prefix, SAC ayarları, GPU/port ayarları
@@ -269,10 +281,10 @@ Kontrol edilmesi gereken ana başlıklar:
 - Aim point ile hit ellipsoid'in Unity sahnesindeki konumu.
 - Sağ-sol offset simetrisi ve replay mirror davranışı.
 - SAC alpha/entropy eğrisinin exploration'ı yeterli ama aşırı olmayacak düzeyde tutup tutmadığı.
-- Final checkpoint seçiminin rolling success penceresine göre doğru olup olmadığı.
+- Final checkpoint seçiminin ham success yerine valid intercept ve görsel yaklaşma kalitesine göre doğru olup olmadığı.
 
 ## Kısa Sonuç
 
-Proje artık yalnızca deneme kodlarından oluşan dağınık bir çalışma değildir. Unity sahnesi, Python SAC hattı, final test scripti, seçilmiş checkpoint ve rapor grafikleri ile çalıştırılabilir bir teslim paketidir. En güçlü sonuç `step845000` checkpoint'inde görülmüştür; bu model deterministik test için korunmuştur.
+Proje artık yalnızca deneme kodlarından oluşan dağınık bir çalışma değildir. Unity sahnesi, Python SAC hattı, final test scripti, seçilmiş checkpoint ve rapor grafikleri ile çalıştırılabilir bir teslim paketidir. Final aday `step675000` checkpoint'idir; bu seçim rolling success değerinden çok deterministik checkpoint sweep, valid intercept ölçütü ve Unity görsel gözlemiyle yapılmıştır.
 
 Kalan temel teknik risk, modelin tüm spawn ve offset koşullarında tamamen kararlı bir güdüm kanunu öğrenmiş olmamasıdır. Buna rağmen PPO dönemine kıyasla SAC ile replay buffer, entropy kontrollü keşif ve final checkpoint seçimi sayesinde ölçülebilir bir başarı penceresi elde edilmiştir.
