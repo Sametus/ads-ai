@@ -175,18 +175,15 @@ Kısa yorum:
 - Entropy tamamen sıfırlanmaz; bu SAC'ın keşif baskısını koruduğunu gösterir.
 - Value loss spike'ları, replay buffer içindeki yeni davranış bölgeleri ve reward değişimlerinin critic tarafından sindirildiği dönemleri işaret eder.
 
-## Arayüz Ekran Görüntüleri İçin Yerler
+## Arayüz ve Sahne Görüntüleri
 
-Buraya senin göndereceğin Unity ve konsol ekran görüntülerini ekleyeceğiz. Dosya adlarını şimdiden sabitliyorum ki sonradan README'ye hızlıca yerleştirebilelim.
+Unity runtime görünümü aşağıdaki çoklu kamera ekranında gösterilmiştir. Bu görüntü roket, hedef uçak, takip çizgileri ve sahnedeki test düzenini aynı anda okumak için kullanılır.
 
-| Görsel | Önerilen dosya yolu | Açıklama |
-|---|---|---|
-| Unity genel sahne | `docs/readme_assets/screenshots/unity_scene_overview.png` | Roket, hedef, aim point ve hit ellipsoid aynı karede. |
-| Eğitim anı | `docs/readme_assets/screenshots/training_runtime.png` | Unity play açıkken roketin hedefe yaklaşma davranışı. |
-| Final test konsolu | `docs/readme_assets/screenshots/final_test_console.png` | `scripts/final_test.py` success/missed/timeout çıktısı. |
-| Package/scene görünümü | `docs/readme_assets/screenshots/unity_project_view.png` | Projenin Unity tarafında açıldığını gösteren ekran. |
+![Unity çoklu kamera runtime görünümü](docs/readme_assets/screenshots/unity_multi_camera_runtime.png)
 
-Görseller geldikten sonra bu tabloyu gerçek image embed'lerine çevireceğiz.
+Aim point ve hit ellipsoid sahne içinde ayrıca görselleştirilmiştir. Büyük yarı saydam elipsoid hedef etrafındaki yakın patlama / hasar bölgesini, küçük küre ise roketin yönelmesi beklenen aim point'i temsil eder.
+
+![Aim point ve hit ellipsoid sahne görünümü](docs/readme_assets/screenshots/unity_aim_point_hit_ellipsoid.png)
 
 ## Çalıştırma
 
