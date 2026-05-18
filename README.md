@@ -2,9 +2,29 @@
 
 ![ADS-AI final vuruş demosu](docs/ads_success_gif.gif)
 
-Bu proje, Unity fizik simülasyonu içinde hareket eden bir roketin yaklaşan bir hedefi vurmayı öğrenmesi için geliştirilmiş bir pekiştirmeli öğrenme ortamıdır. Unity tarafı fizik, sahne, hedef, roket ve telemetry verisini üretir. Python tarafı bu veriden durum vektörü çıkarır, ödül hesaplar, SAC ajanını eğitir ve Unity'ye action gönderir.
+## Kısa Özet
 
-Güncel teslim noktası `v16.0.7_forward_speed_y100` fazıdır. Bu fazda PPO denemelerinden ve klasik güdüm testlerinden sonra SAC tabanlı, replay buffer kullanan, continuous action üreten bir eğitim hattı bırakılmıştır.
+ADS-AI, Unity fizik simülasyonu içinde hareket eden bir roketin yaklaşan bir hava hedefine yönelmesini ve hedefe temas / yakın patlama bölgesine girmesini öğrenmesi için geliştirilmiş bir pekiştirmeli öğrenme projesidir. Unity sahne, fizik, çarpışma alanı ve telemetry üretir; Python tarafı bu veriden state vektörü çıkarır, SAC ajanını eğitir, ödül/terminal hesabını yapar ve Unity'ye action gönderir.
+
+Güncel teslim noktası `v16.0.7_forward_speed_y100` fazıdır. Bu fazda PPO denemelerinden sonra SAC tabanlı, replay buffer kullanan, continuous action üreten ve finalde `step675000` checkpoint'iyle test edilen bir hat bırakılmıştır. Sonuç bir “tam kusursuz füze güdümü” iddiası değildir; fakat PPO dönemine göre ölçülebilir şekilde daha iyi, çalıştırılabilir ve raporlanabilir bir final prototiptir.
+
+## İçindekiler
+
+- [Güncel Durum](#güncel-durum)
+- [Sayısal Özet](#sayısal-özet)
+- [Kullanılan Disiplinler](#kullanılan-disiplinler)
+- [Teknik Mimari](#teknik-mimari)
+- [Genel Faz Akışı](#genel-faz-akışı)
+- [PPO'dan SAC'a Geçiş](#ppodan-saca-geçiş)
+- [SAC: Stokastik Train, Deterministik Test](#sac-stokastik-train-deterministik-test)
+- [RL Tasarımı: State, Action, Reward](#rl-tasarımı-state-action-reward)
+- [Matematiksel Gözlem: Alignment ve Açı](#matematiksel-gözlem-alignment-ve-açı)
+- [Reward ve Terminal Mantığı](#reward-ve-terminal-mantığı)
+- [Eğitim Grafikleri](#eğitim-grafikleri)
+- [Arayüz ve Sahne Görüntüleri](#arayüz-ve-sahne-görüntüleri)
+- [Çalıştırma](#çalıştırma)
+- [Klasör Yapısı](#klasör-yapısı)
+- [Uzman İncelemesi İçin Öncelikli Noktalar](#uzman-incelemesi-için-öncelikli-noktalar)
 
 ## Güncel Durum
 
@@ -36,6 +56,56 @@ python scripts/final_test.py
 ```
 
 `final_test.py` Unity sahnesi açıkken seçilen `step675000` checkpoint'ini yükler ve kullanıcı durdurana kadar deterministik policy ile test episode'ları çalıştırır. Konsolda success, valid intercept, weak hit, missed intercept, timeout, episode uzunluğu, reward, theta, closing ve hit bilgisi kısa biçimde yazdırılır.
+
+## Sayısal Özet
+
+Bu sayılar repository içinde commitlenmiş güncel kaynak kodu ve `logs/episode_log.csv` snapshot'ı üzerinden yaklaşık olarak hesaplanmıştır. Boş satırlar ve yalnızca yorum olan satırlar “kod satırı” hesabına dahil edilmemiştir.
+
+| Alan | Değer | Not |
+|---|---:|---|
+| Python script dosyası | 11 | `scripts/` altında aktif kalan dosyalar; geçici checkpoint sweep/test helper dosyaları kaldırılmıştır. |
+| Python toplam satır | 4.705 | Boş satır ve yorum dahil. |
+| Python yaklaşık kod satırı | 4.063 | Boş satır ve `#` yorumları hariç. |
+| Python dosya başına ortalama | 428 satır | Yaklaşık kaynak büyüklüğü. |
+| Unity C# script dosyası | 3 | `Env.cs`, `Connector.cs`, `CameraFollow.cs`. |
+| Unity C# toplam satır | 2.193 | Boş satır ve yorum dahil. |
+| Unity C# yaklaşık kod satırı | 1.789 | Boş satır ve `//` yorumları hariç. |
+| Commitlenmiş episode sayısı | 1.209 | Güncel `episode_log.csv` içindeki `v16_0_7_phase_1_forward_speed_y100` kayıtları. |
+| Commitlenmiş toplam environment step | 1.093.936 | Episode uzunluklarının toplamı. |
+| Ortalama episode uzunluğu | 904,8 step | `total_step / episode_count`. |
+| Commitlenmiş success sayısı | 295 | Ham terminal nedeni `success` olan episode sayısı. |
+| Ham success oranı | %24,4 | Final seçim yalnızca bu değere göre yapılmamıştır; görsel ve valid intercept testi ayrıca kullanılmıştır. |
+
+## Kullanılan Disiplinler
+
+Bu çalışma tek bir makine öğrenmesi denemesinden çok, birkaç disiplinin birlikte çalıştığı küçük bir Ar-Ge prototipidir:
+
+- `Pekiştirmeli öğrenme`: SAC ajanı state-action-reward döngüsüyle continuous control öğrenir.
+- `Kontrol ve güdüm`: PN fikri, closing speed, line-of-sight, theta ve final approach gibi kavramlar davranışı yorumlamak için kullanılır.
+- `Matematik`: Vektör projeksiyonu, dot product, cos(theta), normalizasyon, moving average ve reward bileşimi kullanılır.
+- `Fizik simülasyonu`: Unity Rigidbody, yerçekimi, AGL raycast, hız, ivme ve trigger/collider davranışları modelin gerçek sahneyle temas ettiği yerdir.
+- `Yazılım mühendisliği`: Unity C# runtime ile Python training hattı TCP/JSON üzerinden haberleşir; log, checkpoint, replay buffer ve analiz scriptleri izlenebilirlik sağlar.
+- `Veri analizi ve görselleştirme`: CSV loglardan terminal dağılımı, rolling success, theta/distance ve SAC alpha/entropy grafikleri üretilir.
+
+## Teknik Mimari
+
+Sistem iki runtime arasında çalışır:
+
+```text
+Unity sahnesi
+  -> Env.cs fizik adımı, hedef/roket telemetry, hit ellipsoid, aim point
+  -> Connector.cs TCP server
+  -> JSON state paketi
+
+Python
+  -> connector.py paketi okur
+  -> env.py state normalizasyonu, reward, terminal, action dönüşümü
+  -> sac_agent.py actor/critic/replay buffer
+  -> train.py stochastic training veya final_test.py deterministik test
+  -> action paketi Unity'ye geri gider
+```
+
+Unity tarafında hedef ve roket gerçek transform/Rigidbody üzerinden hareket eder. Python tarafı Unity'den gelen ham telemetry'yi doğrudan neural network'e vermek yerine anlamlı bir guidance frame'e dönüştürür. Bu ayrım önemliydi; çünkü önceki denemelerde koordinat ekseni, roll ve sağ-sol simetri problemleri modelin ne öğrenmesi gerektiğini belirsiz hale getiriyordu.
 
 ## Genel Faz Akışı
 
@@ -87,6 +157,69 @@ Pratik yorum:
 - Eğitimde oynaklık kısmen normaldir.
 - Deterministik test, modelin gerçekten öğrendiği merkezi davranışı gösterir.
 - Başarılı bir checkpoint seçerken yalnızca son modeli ya da ham success sayısını değil, deterministik testteki gerçek yaklaşma geometrisini izlemek gerekir.
+
+## RL Tasarımı: State, Action, Reward
+
+Aktif kontrol modu `direct_accel` olarak ayarlanmıştır. Bu modda agent klasik “saat yönü torque” komutu üretmez; bunun yerine roket burnuna göre küçük yön sapmaları ve ileri ivme büyüklüğü üretir. Böylece modelin öğrendiği şey daha okunabilir hale gelir: hedefe ne kadar sağa/sola, ne kadar yukarı/aşağı kıracağı ve ne kadar ileri ivme kullanacağı.
+
+### State Vektörü
+
+Aktif state vektörü 16 sayısal bileşenden oluşur. Unity önce aim point'i belirler; sonra roket burnu ile aim point arasındaki göreli konum, göreli hız ve açı bilgilerini Python'a gönderir. Python da bu bilgileri guidance frame üzerinde normalize eder.
+
+| State bileşeni | Nasıl hesaplanır | Ne anlatır |
+|---|---|---|
+| `distance` | `||aim_point - rocket_point||` | Roketin yöneldiği noktaya kalan mesafe. |
+| `rel_dir_right/up/forward` | Göreli yön vektörünün guidance sağ/yukarı/ileri eksenlerine dot product projeksiyonu | Hedefin roketin referans çerçevesinde nerede göründüğü. |
+| `rel_vel_right/up/forward` | Göreli hızın aynı eksenlere projeksiyonu | Hedefin sağ-sol, dikey ve ileri eksende roketten nasıl ayrıştığı. |
+| `rocket_vel_right/up/forward` | Roket hızının guidance frame'e projeksiyonu | Roketin kendi hareket yönü ve enerjisi. |
+| `closing_speed` | `-dot(relative_velocity, relative_direction)` | Pozitifse mesafe kapanıyor, negatifse hedef uzaklaşıyor. |
+| `theta_rad` | `acos(dot(rocket_forward, rel_dir))` | Roket burnu ile aim point hattı arasındaki genel açı. |
+| `agl` | Unity'de aşağı raycast ile ölçülen above-ground-level | Roketin yere göre yüksekliği. |
+| `alt_error` | `aim_point.y - rocket_point.y` | Hedef/aim point irtifasına göre dikey hata. |
+| `target_speed` | Unity hedef hızından gelir | Hedefin sabit hareket hızı. |
+| `rocket_speed` | `||rocket_velocity||` | Roketin toplam hızı. |
+
+Guidance frame şu fikirle kurulmuştur: `up` ekseni yerçekiminin tersidir, `forward` ekseni roket burnunun yatay düzleme projeksiyonudur, `right` ekseni ise `cross(up, forward)` ile çıkarılır. Böylece state, dünya koordinatlarına göre değil roketin sahnedeki yönlenmesine göre anlam kazanır.
+
+### Action Vektörü
+
+Actor network üç adet normalize action üretir:
+
+```text
+action = [aim_right, aim_up, forward_accel]
+```
+
+Bu değerlerin her biri önce `[-1, 1]` aralığında çıkar. Python tarafında `denormalize_direct_accel_action` bu üç değeri Unity'nin uygulayacağı ivme paketine dönüştürür.
+
+| Action | Uygulama | Anlam |
+|---|---|---|
+| `aim_right` | `right_ref * action[0] * 0.75` | Roket burnunun sağ/sol yön sapması. |
+| `aim_up` | `up_ref * action[1] * 2.15` | Roket burnunun yukarı/aşağı yön sapması. |
+| `forward_accel` | `20 + ((action[2] + 1) / 2) * (55 - 20)` | 20-55 bandında ileri ivme büyüklüğü. |
+
+Önemli nokta şudur: `aim_right` ve `aim_up` hedefe otomatik kilit değildir. Kod, hedef yönünü action'a doğrudan eklemez. Agent state içinde hedefin nerede olduğunu görür ve kendi action'ıyla roket burnunu oraya yaklaştırmayı öğrenir. Oluşan yön yaklaşık olarak şu şekilde kurulur:
+
+```text
+look_dir = normalize(rocket_forward + right_offset + up_offset)
+accel_world = look_dir * forward_accel
+```
+
+Bu paket Unity'ye özel bir marker ile gönderilir. Unity tarafı bu world acceleration değerini roket Rigidbody'sine uygular ve görsel yönlenmeyi bu komuta göre günceller. Kalkışın ilk adımlarında yere bastırmayı azaltmak için küçük bir launch guard / up bias vardır; bu hedefe otomatik güdüm değil, rampadan güvenli ayrılma desteğidir.
+
+### Reward ve Öğrenme Sinyali
+
+Reward tasarımı özellikle karmaşık reward hacking riskinden dolayı birkaç ana sinyale indirgenmiştir:
+
+- `step_penalty`: Uzun süre oyalanmayı pahalı yapar.
+- `distance_progress`: Aim point'e yaklaşmayı ödüllendirir.
+- `theta_progress`: Roket burnu ile aim point hattı arasındaki açının azalmasını ödüllendirir.
+- `closing`: Hedefe gerçekten kapanma hızını destekler.
+- `lateral_alignment`: Sağ-sol eksende kaçırma davranışını azaltmaya çalışır.
+- `altitude_schedule`: Roketin alçakta bekleyip son anda tırmanmasını azaltmak için hedef irtifaya kademeli yaklaşma sinyali verir.
+- `final_approach`: Yakın mesafede düşük açı ve pozitif kapanma davranışını birlikte değerlendirir.
+- `terminal_reward`: Success, missed intercept, timeout, bad angle, low AGL gibi episode sonlarını ayrıştırır.
+
+Final seçimde ham `success` tek başına yeterli kabul edilmemiştir. Bunun sebebi collider temasının bazen hedefin altından veya arkasından gelen zayıf vuruşları da success yapabilmesidir. Bu yüzden final model, deterministik testte `hit + closing >= -1.0 + theta <= 30° + alignment >= 0.866` koşuluna göre ayrıca değerlendirilmiştir.
 
 ## Matematiksel Gözlem: Alignment ve Açı
 
@@ -209,19 +342,13 @@ conda activate rl_codes
 python scripts/final_test.py
 ```
 
-5. Sadece seçilen checkpoint'i yavaş ve gözlemlenebilir biçimde test etmek istersen:
-
-```powershell
-python scripts/test_selected_checkpoint.py
-```
-
-6. Eğitimi devam ettirmek istersen:
+5. Eğitimi devam ettirmek istersen:
 
 ```powershell
 python scripts/train.py
 ```
 
-7. Grafik üretmek istersen:
+6. Grafik üretmek istersen:
 
 ```powershell
 python scripts/generate_readme_charts.py
@@ -241,8 +368,6 @@ ads_ai/
   scripts/                      Python RL kodları
     train.py                    Aktif SAC training döngüsü
     final_test.py               Final checkpoint test scripti
-    test_selected_checkpoint.py Seçili step675000 checkpoint'i için gözlem testi
-    checkpoint_sweep_test.py    Checkpoint adaylarını offset bazlı deterministik test eder
     sac_agent.py                SAC actor, critic, replay buffer ve checkpoint
     env.py                      Python Env wrapper, reward ve state/action dönüşümü
     settings.py                 Model prefix, SAC ayarları, GPU/port ayarları
