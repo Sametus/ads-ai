@@ -267,7 +267,7 @@ Başlangıçta PPO kullanıldı. Küçük spawn radius değerlerinde başarı or
 Uzman önerisi doğrultusunda PN (Proportional Navigation / oransal güdüm) baseline denemeleri için script eklendi:
 
 ```text
-scripts/pn_guidance_test.py
+Audit scriptleri teslim temizliginde runtime klasorunden kaldirildi.
 ```
 
 Amaç RL'den önce simülasyonun fiziksel olarak çözülebilir olup olmadığını test etmekti.
@@ -296,7 +296,7 @@ Daha önce alınan uzman önerilerinin projedeki karşılığı:
 
 | Öneri | Durum |
 |---|---|
-| PN baseline ekle | Kısmen uygulandı, `scripts/pn_guidance_test.py` var. |
+| PN baseline ekle | Uygulandı; teslim temizliğinde runtime scripti kaldırıldı, bulgular CHANGELOG/docs içinde duruyor. |
 | Simülasyon RL'den önce sağlık testinden geçsin | Kısmen uygulandı; direct acceleration ve axis testleri yapıldı. |
 | PPO yerine SAC veya TD3 dene | SAC'a geçildi. TD3 denenmedi. |
 | HER düşün | Henüz uygulanmadı. |
@@ -343,14 +343,13 @@ ads_ai/Assets/Scripts/Connector.cs
 
 Kod tarafında büyük mimari değişiklik yapmadan önce şu küçük ve ölçülebilir adımlar önerilir:
 
-1. SAC training'e başlamadan önce action baseline kontrolü koş:
+1. Final modeli Unity sahnesi açıkken test et:
 
 ```text
-conda run -n rl_codes python scripts/action_baseline.py --policy zero --episodes 10
-conda run -n rl_codes python scripts/action_baseline.py --policy random --episodes 10
+conda run -n rl_codes python scripts/final_test.py
 ```
 
-Bu iki test yüksek success verirse başarı hâlâ action wrapper'dan geliyor demektir. Düşük success verirse SAC training'in gerçekten öğrenme alanı vardır.
+Bu komut seçilen final checkpoint'i yükler ve sen durdurana kadar kısa başarı/kaçırma/timeout bilgisini konsola yazar.
 
 2. Episode boyunca en yakın geçişi logla:
 
@@ -388,13 +387,13 @@ ads_ai/
     Assets/Scenes/             Unity sahneleri
   scripts/                     Python RL kodları
     train.py                   Aktif SAC training döngüsü
-    test.py                    Kaydedilmiş model ile test
+    final_test.py              Final checkpoint ile teslim/demo testi
     sac_agent.py               SAC actor/critic ve replay buffer
     env.py                     Python Env wrapper, reward, state/action
     settings.py                Port, rollout ve checkpoint ayarları
     log.py                     CSV ve terminal logları
     plot_sac_report.py         SAC training grafik üretimi
-  archives/                    Eski faz/sürüm arşivleri
+    plot_success_scatter.py    Success scatter ve rolling success grafiği
   docs/                        Notlar, analizler ve rapor taslakları
   logs/                        Güncel runtime logları, Git LFS ile paylaşılır
   models/                      Güncel SAC checkpoint'leri, Git LFS ile paylaşılır
