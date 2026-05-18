@@ -9,7 +9,7 @@ from collections import defaultdict
 import numpy as np
 
 import settings
-from env import Env
+from env import Env, loc_from_theta_radius_heading
 from sac_agent import SACAgent
 
 
@@ -24,6 +24,7 @@ DEFAULT_TARGET_Y = 100.0
 DEFAULT_MAX_STEPS = 1200
 DEFAULT_CHECKPOINT_PAUSE = 5.0
 DEFAULT_EPISODE_PAUSE = 1.0
+DEFAULT_PRE_TEST_PAUSE = 0.0
 SAVE_INTERVAL = int(settings.SAC_SAVE_EVERY_STEPS)
 START_TRAINING_STEPS = int(settings.SAC_START_TRAINING_STEPS)
 
@@ -210,14 +211,31 @@ def is_valid_intercept(info, min_closing, max_theta, min_alignment):
 
 
 def run_episode(env, agent, offset, args):
-    _, _, state, start_info = env.reset_with_config(
-        args.radius,
-        args.radius,
-        offset,
-        offset,
-        heading_offset_abs_min=0.0,
-        target_y=args.target_y,
-    )
+    if args.spawn_theta_deg is None:
+        _, _, state, start_info = env.reset_with_config(
+            args.radius,
+            args.radius,
+            offset,
+            offset,
+            heading_offset_abs_min=0.0,
+            target_y=args.target_y,
+        )
+    else:
+        theta_rad = float(np.radians(args.spawn_theta_deg))
+        px, pz, ry, rz, heading_offset, target_miss_distance = loc_from_theta_radius_heading(
+            theta_rad,
+            float(args.radius),
+            float(offset),
+        )
+        _, _, state, start_info = env._send_reset_values(
+            px,
+            float(args.target_y),
+            pz,
+            ry,
+            rz,
+            heading_offset,
+            target_miss_distance,
+        )
 
     episode_return = 0.0
     episode_len = 0
@@ -355,6 +373,13 @@ def main():
     parser.add_argument("--output", default=os.path.join("logs", "checkpoint_sweep_test.csv"))
     parser.add_argument("--checkpoint-pause", type=float, default=DEFAULT_CHECKPOINT_PAUSE)
     parser.add_argument("--episode-pause", type=float, default=DEFAULT_EPISODE_PAUSE)
+    parser.add_argument("--pre-test-pause", type=float, default=DEFAULT_PRE_TEST_PAUSE)
+    parser.add_argument(
+        "--spawn-theta-deg",
+        type=float,
+        default=None,
+        help="Verilirse target spawn noktasi sabitlenir. Bos kalirsa rastgele theta kullanilir.",
+    )
     parser.add_argument("--no-stop-on-valid", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
@@ -384,9 +409,12 @@ def main():
         flush=True,
     )
     print(f"offsets={offsets} radius={args.radius:.1f} target_y={args.target_y:.1f}", flush=True)
+    if args.spawn_theta_deg is not None:
+        print(f"sabit_spawn_theta={args.spawn_theta_deg:.1f} derece", flush=True)
     print(
         f"bekleme: checkpoint_arasi={args.checkpoint_pause:.1f} sn, "
-        f"test_arasi={args.episode_pause:.1f} sn",
+        f"test_arasi={args.episode_pause:.1f} sn, "
+        f"test_oncesi={args.pre_test_pause:.1f} sn",
         flush=True,
     )
 
@@ -421,6 +449,7 @@ def main():
                     f"[TEST {test_no}] step={step_id} offset={offset:+.1f} basliyor",
                     flush=True,
                 )
+                sleep_with_message(args.pre_test_pause, "test baslamadan once")
                 result = run_episode(env, agent, offset, args)
                 result["checkpoint_step"] = int(step_id)
                 rows.append(result)
