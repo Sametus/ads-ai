@@ -1,5 +1,7 @@
 # ADS-AI Roket Güdüm Projesi
 
+![ADS-AI final vuruş demosu](docs/ads_success_gif.gif)
+
 Bu proje, Unity fizik simülasyonu içinde hareket eden bir roketin yaklaşan bir hedefi vurmayı öğrenmesi için geliştirilmiş bir pekiştirmeli öğrenme ortamıdır. Unity tarafı fizik, sahne, hedef, roket ve telemetry verisini üretir. Python tarafı bu veriden durum vektörü çıkarır, ödül hesaplar, SAC ajanını eğitir ve Unity'ye action gönderir.
 
 Güncel teslim noktası `v16.0.7_forward_speed_y100` fazıdır. Bu fazda PPO denemelerinden ve klasik güdüm testlerinden sonra SAC tabanlı, replay buffer kullanan, continuous action üreten bir eğitim hattı bırakılmıştır.
